@@ -17,7 +17,7 @@ export async function sendOTPEmail(
 ): Promise<boolean> {
   try {
     const mailOptions = {
-      from: process.env.BREVO_EMAIL || 'noreply@foodbase.com',
+      from: 'wisdommeremeze@gmail.com',
       to: email,
       subject: 'FoodBase Password Reset Code',
       html: `
@@ -59,7 +59,7 @@ export async function sendPaymentNotification(
     }).format(amount);
 
     const mailOptions = {
-      from: process.env.BREVO_EMAIL || 'noreply@foodbase.com',
+      from: 'wisdommeremeze@gmail.com',
       to: email,
       subject: `New Order Received - ${businessName}`,
       html: `
@@ -96,7 +96,7 @@ export async function sendCustomEmail(
 ): Promise<boolean> {
   try {
     const mailOptions = {
-      from: process.env.BREVO_EMAIL || 'noreply@foodbase.com',
+      from: 'wisdommeremeze@gmail.com',
       to: email,
       subject,
       html,

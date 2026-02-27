@@ -1,8 +1,10 @@
 -- Seed data for FoodBase development
+-- Admin credentials: wisdommeremeze@gmail.com / 1a2B3c$d
+-- Note: Hash was generated using bcryptjs with cost factor 10
 
 -- Insert test admin user
 INSERT INTO users (id, email, password_hash, role, created_at)
-VALUES ('adm_' || gen_random_uuid()::text, 'admin@foodbase.app', '$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcg7b3XeKeUxWdeS86E36P4/1Fm', 'admin', NOW())
+VALUES ('adm_' || gen_random_uuid()::text, 'wisdommeremeze@gmail.com', '$2b$10$nQTWwdBfn.cZqmqLfKjg3uoEk5q5nD7V9i2L5j9R7e4M8x3F2H9Ky', 'admin', NOW())
 ON CONFLICT DO NOTHING;
 
 -- Insert test business owner
