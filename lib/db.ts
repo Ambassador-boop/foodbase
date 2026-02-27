@@ -1,0 +1,36 @@
+import { neon } from '@neondatabase/serverless';
+
+if (!process.env.DATABASE_URL) {
+  throw new Error('DATABASE_URL is not set');
+}
+
+export const sql = neon(process.env.DATABASE_URL!);
+
+export type Database = typeof sql;
+
+// Query helpers
+export async function query(text: string, params?: any[]) {
+  try {
+    const result = await sql(text, params);
+    return result;
+  } catch (error) {
+    console.error('[v0] Database query error:', error);
+    throw error;
+  }
+}
+
+export async function getOne(text: string, params?: any[]) {
+  const result = await query(text, params);
+  return result[0] || null;
+}
+
+export async function getAll(text: string, params?: any[]) {
+  return query(text, params);
+}
+
+// Transaction wrapper
+export async function transaction<T>(
+  callback: (client: typeof sql) => Promise<T>
+): Promise<T> {
+  return callback(sql);
+}
