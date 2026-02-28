@@ -1,12 +1,14 @@
 import nodemailer from 'nodemailer';
 
 // Initialize Brevo (Sendinblue) transporter
+// Note: Use Brevo SMTP credentials - Email as username, SMTP API key as password
 const transporter = nodemailer.createTransport({
   host: 'smtp-relay.brevo.com',
   port: 587,
+  secure: false, // Use TLS
   auth: {
-    user: process.env.BREVO_EMAIL,
-    pass: process.env.BREVO_API_KEY,
+    user: process.env.BREVO_EMAIL || 'wisdommeremeze@gmail.com',
+    pass: process.env.BREVO_SMTP_KEY || process.env.BREVO_API_KEY, // Try SMTP key first, fallback to API key
   },
 });
 

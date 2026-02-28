@@ -27,21 +27,33 @@ export async function GET(
       [business.id]
     );
 
-    // Get menu items with their add-ons
+    // Get menu items with their add-ons - simplified query without nested JSON aggregation
     const menuItems = await getAll(
-      `SELECT m.*, c.name as category_name,
-              JSON_AGG(DISTINCT JSON_BUILD_OBJECT('id', a.id, 'name', a.name, 'addon_type', a.addon_type, 'is_required', mia.is_required, 'options', 
-                JSON_AGG(JSON_BUILD_OBJECT('id', ao.id, 'name', ao.name, 'price', ao.price)) FILTER (WHERE ao.id IS NOT NULL)))
-              FILTER (WHERE a.id IS NOT NULL) as addons
+      `SELECT m.id, m.name, m.description, m.price, m.image_url, m.is_available, 
+              m.display_order, m.category_id, m.is_popular, m.order_count,
+              c.name as category_name
        FROM menu_items m
        LEFT JOIN categories c ON m.category_id = c.id
-       LEFT JOIN menu_item_addons mia ON m.id = mia.menu_item_id
-       LEFT JOIN addons a ON mia.addon_id = a.id
-       LEFT JOIN addon_options ao ON a.id = ao.addon_id
        WHERE m.business_id = $1 AND m.is_available = true
-       GROUP BY m.id, c.name
        ORDER BY m.display_order, m.created_at DESC`,
       [business.id]
+    );
+
+    // Get addons for each menu item separately to avoid JSON query issues
+    const menuItemsWithAddons = await Promise.all(
+      menuItems.map(async (item: any) => {
+        const addons = await getAll(
+          `SELECT a.id, a.name, a.addon_type, a.is_required,
+                  JSON_AGG(JSON_BUILD_OBJECT('id', ao.id, 'name', ao.name, 'price', ao.price)) as options
+           FROM menu_item_addons mia
+           LEFT JOIN addons a ON mia.addon_id = a.id
+           LEFT JOIN addon_options ao ON a.id = ao.addon_id
+           WHERE mia.menu_item_id = $1
+           GROUP BY a.id, a.name, a.addon_type, a.is_required`,
+          [item.id]
+        );
+        return { ...item, addons: addons || [] };
+      })
     );
 
     // Get drinks
@@ -68,7 +80,7 @@ export async function GET(
         phone: business.phone,
       },
       categories,
-      menuItems,
+      menuItems: menuItemsWithAddons,
       drinks,
       popularDishes,
     });

@@ -99,20 +99,32 @@ Go to your Vercel Project Settings:
 **Value:** `wisdommeremeze@gmail.com`
 **Description:** Sender email address for all transactional emails (OTP, notifications)
 
-#### API Key
-**Variable Name:** `BREVO_API_KEY`
-**Description:** SMTP password for authenticating with Brevo/Sendinblue
+#### SMTP Key (Recommended)
+**Variable Name:** `BREVO_SMTP_KEY`
+**Description:** SMTP-specific password for authenticating with Brevo (recommended over general API key)
 **Where to Get:**
 1. Log in to [Brevo Dashboard](https://app.brevo.com)
 2. Go to **SMTP & API** → **SMTP**
-3. Copy the **SMTP password** (or generate a new one)
-4. Example: `xsmtpsib-1a2b3c4d5e6f7g8h9i0j`
+3. Look for "SMTP Key" or "SMTP Password" section
+4. Copy the **SMTP Key** (format: `xsmtpsib-...`)
+5. If not available, generate a new SMTP password
+6. Example: `xsmtpsib-1a2b3c4d5e6f7g8h9i0j`
+
+#### Alternative: API Key (Fallback)
+**Variable Name:** `BREVO_API_KEY`
+**Description:** General API key (used if BREVO_SMTP_KEY is not available)
+**Where to Get:**
+1. Log in to [Brevo Dashboard](https://app.brevo.com)
+2. Go to **SMTP & API** → **API Keys**
+3. Copy your API key
+4. Note: This is less secure for SMTP than using a dedicated SMTP key
 
 **SMTP Configuration:**
 - Host: `smtp-relay.brevo.com`
 - Port: `587`
+- Secure: `false` (uses STARTTLS)
 - Username: `wisdommeremeze@gmail.com`
-- Password: (Use the API Key above)
+- Password: (Use BREVO_SMTP_KEY if available, otherwise BREVO_API_KEY)
 
 ### 6. Application Configuration
 **Variable Name:** `APP_BASE_URL`
@@ -137,11 +149,12 @@ Go to your Vercel Project Settings:
    JWT_SECRET=your-32-char-secret
    PAYSTACK_SECRET_KEY=sk_test_xxx
    PAYSTACK_PUBLIC_KEY=pk_test_xxx
-   CLOUDINARY_CLOUD_NAME=your-cloud
+   NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=your-cloud
    CLOUDINARY_API_KEY=123456789
    CLOUDINARY_API_SECRET=your-secret
    BREVO_EMAIL=wisdommeremeze@gmail.com
-   BREVO_API_KEY=xsmtpsib-xxx
+   BREVO_SMTP_KEY=xsmtpsib-xxx
+   BREVO_API_KEY=your-fallback-api-key
    APP_BASE_URL=http://localhost:3000
    ```
 
