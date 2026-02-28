@@ -6,10 +6,15 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-// Alphanumeric ID generation (21 chars)
+// Alphanumeric ID generation (max 21 chars total including prefix)
 export function generateId(prefix?: string): string {
-  const id = nanoid(21);
-  return prefix ? `${prefix}_${id}` : id;
+  if (prefix) {
+    // Calculate remaining characters for nanoid (prefix + underscore must fit in 21 chars)
+    const maxIdLength = 21 - prefix.length - 1; // -1 for underscore
+    const id = nanoid(Math.max(6, maxIdLength)); // minimum 6 chars for uniqueness
+    return `${prefix}_${id}`;
+  }
+  return nanoid(21);
 }
 
 // Slug generation from name
