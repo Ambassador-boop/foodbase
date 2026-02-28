@@ -1,45 +1,101 @@
-import { v2 as cloudinary } from 'cloudinary';
+// next-cloudinary configuration and utilities
+import { CldUploadWidget, CldImage } from 'next-cloudinary';
 
-cloudinary.config({
-  cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
+export const cloudinaryConfig = {
+  cloudName: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
+};
 
-export async function uploadImage(file: File, folder: string): Promise<string> {
+export const validateCloudinaryConfig = () => {
+  if (!process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME) {
+    throw new Error('NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME is not set');
+  }
+  if (!process.env.CLOUDINARY_API_KEY) {
+    throw new Error('CLOUDINARY_API_KEY is not set');
+  }
+  if (!process.env.CLOUDINARY_API_SECRET) {
+    throw new Error('CLOUDINARY_API_SECRET is not set');
+  }
+};
+
+// Server-side upload for API routes using Cloudinary API
+export async function uploadImage(
+  file: File | Buffer,
+  folder: string,
+  fileName?: string
+): Promise<string> {
   try {
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
+    validateCloudinaryConfig();
 
-    return new Promise((resolve, reject) => {
-      const uploadStream = cloudinary.uploader.upload_stream(
-        {
-          folder: `foodbase/${folder}`,
-          resource_type: 'auto',
-        },
-        (error, result) => {
-          if (error) reject(error);
-          else resolve(result?.secure_url || '');
-        }
-      );
+    const formData = new FormData();
+    
+    if (file instanceof Buffer) {
+      formData.append('file', new Blob([file], { type: 'application/octet-stream' }));
+    } else {
+      formData.append('file', file);
+    }
+    
+    formData.append('upload_preset', 'foodbase_upload');
+    formData.append('folder', `foodbase/${folder}`);
+    if (fileName) {
+      formData.append('public_id', fileName);
+    }
 
-      uploadStream.end(buffer);
-    });
+    const response = await fetch(
+      `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`,
+      {
+        method: 'POST',
+        body: formData,
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Cloudinary upload failed: ${error}`);
+    }
+
+    const data = await response.json() as any;
+    return data.secure_url || '';
   } catch (error) {
-    console.error('Cloudinary upload failed:', error);
+    console.error('[v0] Cloudinary upload error:', error);
     throw error;
   }
 }
 
-export function getImageUrl(publicId: string): string {
-  return cloudinary.url(publicId, { secure: true });
+// Generate Cloudinary image URL with transformations
+export function getImageUrl(publicId: string, width = 400, height = 400): string {
+  if (!process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME) {
+    return '';
+  }
+
+  return `https://res.cloudinary.com/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload/w_${width},h_${height},c_fill,q_auto/${publicId}`;
 }
 
+// Delete image from Cloudinary (requires admin API token)
 export async function deleteImage(publicId: string): Promise<void> {
   try {
-    await cloudinary.uploader.destroy(publicId);
+    validateCloudinaryConfig();
+
+    const response = await fetch(
+      `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/resources/image/upload`,
+      {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Basic ${Buffer.from(
+            `${process.env.CLOUDINARY_API_KEY}:${process.env.CLOUDINARY_API_SECRET}`
+          ).toString('base64')}`,
+        },
+        body: JSON.stringify({ public_ids: [publicId] }),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Failed to delete image: ${response.statusText}`);
+    }
   } catch (error) {
-    console.error('Failed to delete image from Cloudinary:', error);
+    console.error('[v0] Cloudinary delete error:', error);
     throw error;
   }
 }
+
+// Export next-cloudinary components for client-side use
+export { CldUploadWidget, CldImage };

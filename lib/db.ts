@@ -4,14 +4,39 @@ if (!process.env.DATABASE_URL) {
   throw new Error('DATABASE_URL is not set');
 }
 
-export const sql = neon(process.env.DATABASE_URL!);
+// Initialize Neon client - uses tagged template literals
+const sql = neon(process.env.DATABASE_URL!, { fullResults: false });
+
+// Export the sql client directly
+export { sql };
+export const db = sql;
 
 export type Database = typeof sql;
 
-// Query helpers
-export async function query(text: string, params?: any[]) {
+// Helper function to replace $1, $2 etc with proper placeholders
+function buildQuery(queryString: string, values: any[] = []): any {
+  let paramIndex = 0;
+  const parts: any[] = [];
+  const queryParts = queryString.split(/(\$\d+)/);
+  
+  for (let i = 0; i < queryParts.length; i++) {
+    const part = queryParts[i];
+    if (part?.startsWith('$')) {
+      const num = parseInt(part.slice(1));
+      parts.push(values[num - 1]);
+    } else {
+      parts.push(part);
+    }
+  }
+  
+  return parts;
+}
+
+// Query helper - converts $1, $2 params to template literal style
+export async function query(queryString: string, values: any[] = []) {
   try {
-    const result = await sql(text, params);
+    // Use sql.query() for conventional function calls with $1, $2 placeholders
+    const result = await (sql as any).query(queryString, values);
     return result;
   } catch (error) {
     console.error('[v0] Database query error:', error);
@@ -19,13 +44,20 @@ export async function query(text: string, params?: any[]) {
   }
 }
 
-export async function getOne(text: string, params?: any[]) {
-  const result = await query(text, params);
-  return result[0] || null;
+// Get single row
+export async function getOne(queryString: string, values: any[] = []) {
+  try {
+    const result = await query(queryString, values);
+    return result?.[0] || null;
+  } catch (error) {
+    console.error('[v0] Database getOne error:', error);
+    throw error;
+  }
 }
 
-export async function getAll(text: string, params?: any[]) {
-  return query(text, params);
+// Get all rows
+export async function getAll(queryString: string, values: any[] = []) {
+  return query(queryString, values);
 }
 
 // Transaction wrapper

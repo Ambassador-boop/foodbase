@@ -3,13 +3,13 @@
 -- Note: Hash was generated using bcryptjs with cost factor 10
 
 -- Insert test admin user
-INSERT INTO users (id, email, password_hash, role, created_at)
-VALUES ('adm_' || gen_random_uuid()::text, 'wisdommeremeze@gmail.com', '$2b$10$nQTWwdBfn.cZqmqLfKjg3uoEk5q5nD7V9i2L5j9R7e4M8x3F2H9Ky', 'admin', NOW())
+INSERT INTO users (id, email, password_hash, role, first_name, last_name, phone, is_active, created_at, updated_at)
+VALUES ('adm_' || gen_random_uuid()::text, 'wisdommeremeze@gmail.com', '$2b$10$nQTWwdBfn.cZqmqLfKjg3uoEk5q5nD7V9i2L5j9R7e4M8x3F2H9Ky', 'admin', 'Wisdom', 'Admin', '08000000000', true, NOW(), NOW())
 ON CONFLICT DO NOTHING;
 
 -- Insert test business owner
-INSERT INTO users (id, email, password_hash, role, created_at)
-VALUES ('usr_' || gen_random_uuid()::text, 'owner@example.com', '$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcg7b3XeKeUxWdeS86E36P4/1Fm', 'business_owner', NOW())
+INSERT INTO users (id, email, password_hash, role, first_name, last_name, phone, is_active, created_at, updated_at)
+VALUES ('usr_' || gen_random_uuid()::text, 'owner@example.com', '$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcg7b3XeKeUxWdeS86E36P4/1Fm', 'business_owner', 'John', 'Okafor', '08012345678', true, NOW(), NOW())
 ON CONFLICT DO NOTHING;
 
 -- Insert test business
@@ -42,13 +42,45 @@ WHERE b.slug = 'the-golden-fork'
 ON CONFLICT DO NOTHING;
 
 -- Insert test add-ons
-INSERT INTO addons (id, business_id, category, name, price, created_at)
+INSERT INTO addons (id, business_id, addon_type, name, description, display_order, is_required, allow_multiple, created_at, updated_at)
 SELECT 
   'add_' || gen_random_uuid()::text,
   id,
   'Proteins',
   'Extra Chicken',
-  500,
+  'Add extra chicken to your meal',
+  1,
+  false,
+  true,
+  NOW(),
   NOW()
 FROM businesses WHERE slug = 'the-golden-fork'
 ON CONFLICT DO NOTHING;
+
+-- Insert addon options
+INSERT INTO addon_options (id, addon_id, name, price, display_order, created_at)
+SELECT 
+  'opt_' || gen_random_uuid()::text,
+  a.id,
+  'Chicken Breast',
+  500,
+  1,
+  NOW()
+FROM addons a
+JOIN businesses b ON a.business_id = b.id
+WHERE b.slug = 'the-golden-fork' AND a.addon_type = 'Proteins'
+ON CONFLICT DO NOTHING;
+
+-- Add business bank details
+UPDATE businesses 
+SET 
+  bank_account_holder = 'John Okafor',
+  bank_account_number = '1234567890',
+  bank_code = '044',
+  postal_code = '100001',
+  available_balance = 0.00,
+  pending_balance = 0.00,
+  total_orders = 0,
+  is_active = true,
+  updated_at = NOW()
+WHERE slug = 'the-golden-fork';
