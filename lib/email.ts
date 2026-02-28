@@ -1,16 +1,36 @@
 import nodemailer from 'nodemailer';
 
-// Initialize Brevo (Sendinblue) transporter
-// Note: Use Brevo SMTP credentials - Email as username, SMTP API key as password
-const transporter = nodemailer.createTransport({
-  host: 'smtp-relay.brevo.com',
-  port: 587,
-  secure: false, // Use TLS
-  auth: {
-    user: process.env.BREVO_EMAIL || 'wisdommeremeze@gmail.com',
-    pass: process.env.BREVO_SMTP_KEY || process.env.BREVO_API_KEY, // Try SMTP key first, fallback to API key
-  },
-});
+// Lazy-initialize Brevo transporter to ensure env vars are loaded at runtime
+let transporter: any = null;
+
+function getTransporter() {
+  if (transporter) {
+    return transporter;
+  }
+
+  const brevoEmail = process.env.BREVO_EMAIL || 'wisdommeremeze@gmail.com';
+  const brevoSmtpKey = process.env.BREVO_SMTP_KEY;
+  const brevoApiKey = process.env.BREVO_API_KEY;
+  const smtpPassword = brevoSmtpKey || brevoApiKey;
+
+  if (!smtpPassword) {
+    console.warn('[v0] BREVO_SMTP_KEY and BREVO_API_KEY not configured. Email sending will fail.');
+  }
+
+  // Initialize Brevo (Sendinblue) transporter
+  // Note: Use Brevo SMTP credentials - Email as username, SMTP API key as password
+  transporter = nodemailer.createTransport({
+    host: 'smtp-relay.brevo.com',
+    port: 587,
+    secure: false, // Use TLS
+    auth: {
+      user: brevoEmail,
+      pass: smtpPassword || '',
+    },
+  });
+
+  return transporter;
+}
 
 export async function sendOTPEmail(
   email: string,
@@ -19,7 +39,7 @@ export async function sendOTPEmail(
 ): Promise<boolean> {
   try {
     const mailOptions = {
-      from: 'wisdommeremeze@gmail.com',
+      from: process.env.BREVO_EMAIL || 'wisdommeremeze@gmail.com',
       to: email,
       subject: 'FoodBase Password Reset Code',
       html: `
@@ -39,6 +59,7 @@ export async function sendOTPEmail(
       `,
     };
 
+    const transporter = getTransporter();
     const info = await transporter.sendMail(mailOptions);
     console.log('[v0] Email sent:', info.messageId);
     return true;
@@ -61,7 +82,7 @@ export async function sendPaymentNotification(
     }).format(amount);
 
     const mailOptions = {
-      from: 'wisdommeremeze@gmail.com',
+      from: process.env.BREVO_EMAIL || 'wisdommeremeze@gmail.com',
       to: email,
       subject: `New Order Received - ${businessName}`,
       html: `
@@ -82,6 +103,7 @@ export async function sendPaymentNotification(
       `,
     };
 
+    const transporter = getTransporter();
     const info = await transporter.sendMail(mailOptions);
     console.log('[v0] Notification sent:', info.messageId);
     return true;
@@ -98,12 +120,13 @@ export async function sendCustomEmail(
 ): Promise<boolean> {
   try {
     const mailOptions = {
-      from: 'wisdommeremeze@gmail.com',
+      from: process.env.BREVO_EMAIL || 'wisdommeremeze@gmail.com',
       to: email,
       subject,
       html,
     };
 
+    const transporter = getTransporter();
     const info = await transporter.sendMail(mailOptions);
     console.log('[v0] Custom email sent:', info.messageId);
     return true;
