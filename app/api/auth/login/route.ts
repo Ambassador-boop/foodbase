@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
       },
       redirectUrl:
         user.role === 'admin'
-          ? '/admin/dashboard'
+          ? '/admin'
           : `/dashboard`,
     });
   } catch (error) {

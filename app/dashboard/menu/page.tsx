@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, X, AlertCircle } from 'lucide-react';
+import { Plus, X, AlertCircle, Upload, Edit2, Eye, EyeOff, Search } from 'lucide-react';
+import Image from 'next/image';
 
 interface MenuItem {
   id: string;
@@ -14,6 +15,7 @@ interface MenuItem {
   price: number;
   category_id?: string;
   category_name?: string;
+  image_url?: string;
   is_available: boolean;
   order_count: number;
 }
@@ -25,21 +27,36 @@ interface Category {
 
 export default function MenuPage() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [filteredItems, setFilteredItems] = useState<MenuItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showForm, setShowForm] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     price: '',
     categoryId: '',
+    imageFile: null as File | null,
     imageUrl: '',
   });
 
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    // Filter items based on search term
+    const filtered = menuItems.filter(item =>
+      item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.description?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    setFilteredItems(filtered);
+  }, [searchTerm, menuItems]);
 
   const fetchData = async () => {
     try {
@@ -54,12 +71,46 @@ export default function MenuPage() {
       const catData = await catRes.json();
 
       setMenuItems(menuData.menuItems || []);
+      setFilteredItems(menuData.menuItems || []);
       setCategories(catData.categories || []);
     } catch (err) {
       setError('Failed to load menu items');
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const uploadImageToCloudinary = async (file: File): Promise<string | null> => {
+    try {
+      const formDataObj = new FormData();
+      formDataObj.append('file', file);
+      formDataObj.append('upload_preset', 'foodbase_upload');
+      formDataObj.append('folder', 'foodbase/menu-items');
+
+      const response = await fetch(
+        `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`,
+        {
+          method: 'POST',
+          body: formDataObj,
+        }
+      );
+
+      if (!response.ok) throw new Error('Upload failed');
+
+      const data = await response.json();
+      return data.secure_url;
+    } catch (err) {
+      console.error('[v0] Upload error:', err);
+      setError('Failed to upload image');
+      return null;
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setFormData({ ...formData, imageFile: file });
     }
   };
 
@@ -72,28 +123,51 @@ export default function MenuPage() {
       return;
     }
 
+    setUploading(true);
+    let imageUrl = formData.imageUrl;
+
+    // Upload image if selected
+    if (formData.imageFile) {
+      imageUrl = await uploadImageToCloudinary(formData.imageFile);
+      if (!imageUrl) {
+        setUploading(false);
+        return;
+      }
+    }
+
     try {
-      const response = await fetch('/api/business/menu-items', {
-        method: 'POST',
+      const endpoint = editingId
+        ? `/api/business/menu-items/${editingId}`
+        : '/api/business/menu-items';
+      const method = editingId ? 'PATCH' : 'POST';
+
+      const response = await fetch(endpoint, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: formData.name,
           description: formData.description,
           price: parseFloat(formData.price),
           categoryId: formData.categoryId || null,
-          imageUrl: formData.imageUrl || null,
+          imageUrl: imageUrl || null,
         }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.error || 'Failed to add menu item');
+        setError(data.error || 'Failed to save menu item');
         return;
       }
 
-      setMenuItems([data.menuItem, ...menuItems]);
-      setFormData({ name: '', description: '', price: '', categoryId: '', imageUrl: '' });
+      if (editingId) {
+        setMenuItems(menuItems.map(item => item.id === editingId ? data.menuItem : item));
+      } else {
+        setMenuItems([data.menuItem, ...menuItems]);
+      }
+      
+      setFormData({ name: '', description: '', price: '', categoryId: '', imageFile: null, imageUrl: '' });
+      setEditingId(null);
       setShowForm(false);
     } catch (err) {
       setError('An error occurred. Please try again.');
@@ -103,6 +177,38 @@ export default function MenuPage() {
 
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(amount);
+
+  const handleToggleAvailable = async (menuId: string, currentState: boolean) => {
+    try {
+      const response = await fetch(`/api/business/menu-items/${menuId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_available: !currentState }),
+      });
+
+      if (response.ok) {
+        setMenuItems(menuItems.map(item =>
+          item.id === menuId ? { ...item, is_available: !currentState } : item
+        ));
+      }
+    } catch (err) {
+      console.error('Error toggling availability:', err);
+    }
+  };
+
+  const handleEditMenuItem = (item: MenuItem) => {
+    setFormData({
+      name: item.name,
+      description: item.description || '',
+      price: item.price.toString(),
+      categoryId: item.category_id || '',
+      imageFile: null,
+      imageUrl: item.image_url || '',
+    });
+    setEditingId(item.id);
+    setShowForm(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   if (loading) {
     return (
@@ -114,13 +220,17 @@ export default function MenuPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold mb-1">Menu Items</h1>
           <p className="text-xs text-muted-foreground">Manage your main dishes and plates</p>
         </div>
         <Button
-          onClick={() => setShowForm(!showForm)}
+          onClick={() => {
+            setEditingId(null);
+            setFormData({ name: '', description: '', price: '', categoryId: '', imageFile: null, imageUrl: '' });
+            setShowForm(!showForm);
+          }}
           className="h-8 text-xs bg-primary text-white hover:bg-primary-dark"
         >
           <Plus className="w-4 h-4 mr-1" />

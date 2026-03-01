@@ -68,54 +68,38 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Metrics Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white border border-border rounded-lg p-4">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-xs text-muted-foreground mb-1">Total Orders</p>
-              <p className="text-2xl font-bold text-foreground">{metrics?.totalOrders || 0}</p>
-            </div>
-            <ShoppingCart className="w-5 h-5 text-primary/40 flex-shrink-0" />
+      {/* Metrics Grid - Square Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-2 gap-4 max-w-md">
+        <div className="bg-white border border-border rounded-lg p-6 aspect-square flex flex-col justify-between">
+          <div>
+            <p className="text-xs text-muted-foreground mb-2">Total Orders</p>
+            <p className="text-3xl font-bold text-foreground">{metrics?.totalOrders || 0}</p>
           </div>
-          <p className="text-xs text-muted-foreground mt-3">All-time orders</p>
+          <ShoppingCart className="w-6 h-6 text-primary/40" />
         </div>
 
-        <div className="bg-white border border-border rounded-lg p-4">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-xs text-muted-foreground mb-1">Today's Revenue</p>
-              <p className="text-2xl font-bold text-foreground">{formatCurrency(metrics?.todayRevenue || 0)}</p>
-            </div>
-            <TrendingUp className="w-5 h-5 text-accent/40 flex-shrink-0" />
+        <div className="bg-white border border-border rounded-lg p-6 aspect-square flex flex-col justify-between">
+          <div>
+            <p className="text-xs text-muted-foreground mb-2">Today's Revenue</p>
+            <p className="text-xl font-bold text-foreground">{formatCurrency(metrics?.todayRevenue || 0)}</p>
           </div>
-          <p className="text-xs text-muted-foreground mt-3">Today only</p>
+          <TrendingUp className="w-6 h-6 text-accent/40" />
         </div>
 
-        <div className="bg-white border border-border rounded-lg p-4">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-xs text-muted-foreground mb-1">Available Balance</p>
-              <p className="text-2xl font-bold text-foreground">{formatCurrency(metrics?.availableBalance || 0)}</p>
-            </div>
-            <DollarSign className="w-5 h-5 text-green-500/40 flex-shrink-0" />
+        <div className="bg-white border border-border rounded-lg p-6 aspect-square flex flex-col justify-between">
+          <div>
+            <p className="text-xs text-muted-foreground mb-2">Available Balance</p>
+            <p className="text-xl font-bold text-foreground">{formatCurrency(metrics?.availableBalance || 0)}</p>
           </div>
-          <Link href="/dashboard/finance">
-            <Button variant="outline" className="w-full mt-3 h-7 text-xs">
-              Request Withdrawal
-            </Button>
-          </Link>
+          <DollarSign className="w-6 h-6 text-green-500/40" />
         </div>
 
-        <div className="bg-white border border-border rounded-lg p-4">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-xs text-muted-foreground mb-1">Pending Withdrawals</p>
-              <p className="text-2xl font-bold text-foreground">{formatCurrency(metrics?.pendingWithdrawals || 0)}</p>
-            </div>
-            <AlertCircle className="w-5 h-5 text-warning/40 flex-shrink-0" />
+        <div className="bg-white border border-border rounded-lg p-6 aspect-square flex flex-col justify-between">
+          <div>
+            <p className="text-xs text-muted-foreground mb-2">Pending</p>
+            <p className="text-xl font-bold text-foreground">{formatCurrency(metrics?.pendingWithdrawals || 0)}</p>
           </div>
-          <p className="text-xs text-muted-foreground mt-3">Available tomorrow</p>
+          <AlertCircle className="w-6 h-6 text-warning/40" />
         </div>
       </div>
 
