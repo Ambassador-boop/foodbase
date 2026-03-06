@@ -227,6 +227,29 @@ export default function AddonsPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleDeleteAddon = async (addonId: string) => {
+    if (!window.confirm('Are you sure you want to delete this add-on? This will also remove it from all associated menu items.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/business/addons/${addonId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        setError(data.error || 'Failed to delete add-on');
+        return;
+      }
+
+      setAddons(addons.filter((addon) => addon.id !== addonId));
+    } catch (err) {
+      console.error('Error deleting add-on:', err);
+      setError('Failed to delete add-on');
+    }
+  };
+
   const addOptionField = () => {
     setFormData({
       ...formData,
@@ -479,7 +502,7 @@ export default function AddonsPage() {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {filteredAddons.map((addon) => (
             <div key={addon.id} className="bg-white border border-border rounded-lg overflow-hidden flex flex-col">
               {/* Image */}
@@ -546,32 +569,42 @@ export default function AddonsPage() {
                 </div>
 
                 {/* Actions */}
-                <div className="flex gap-2">
-                  <Link href={`/dashboard/addons/edit/${addon.id}`} className="flex-1">
+                <div className="flex gap-2 flex-col">
+                  <div className="flex gap-2">
+                    <Link href={`/dashboard/addons/edit/${addon.id}`} className="flex-1">
+                      <Button
+                        variant="outline"
+                        className="w-full h-7 text-xs"
+                      >
+                        <Edit2 className="w-3 h-3 mr-1" />
+                        Edit
+                      </Button>
+                    </Link>
                     <Button
+                      onClick={() => handleToggleAvailable(addon.id, addon.is_available)}
                       variant="outline"
-                      className="w-full h-7 text-xs"
+                      className="flex-1 h-7 text-xs"
                     >
-                      <Edit2 className="w-3 h-3 mr-1" />
-                      Edit
+                      {addon.is_available ? (
+                        <>
+                          <Eye className="w-3 h-3 mr-1" />
+                          Hide
+                        </>
+                      ) : (
+                        <>
+                          <EyeOff className="w-3 h-3 mr-1" />
+                          Show
+                        </>
+                      )}
                     </Button>
-                  </Link>
+                  </div>
                   <Button
-                    onClick={() => handleToggleAvailable(addon.id, addon.is_available)}
+                    onClick={() => handleDeleteAddon(addon.id)}
                     variant="outline"
-                    className="flex-1 h-7 text-xs"
+                    className="w-full h-7 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
                   >
-                    {addon.is_available ? (
-                      <>
-                        <Eye className="w-3 h-3 mr-1" />
-                        Hide
-                      </>
-                    ) : (
-                      <>
-                        <EyeOff className="w-3 h-3 mr-1" />
-                        Show
-                      </>
-                    )}
+                    <Trash2 className="w-3 h-3 mr-1" />
+                    Delete
                   </Button>
                 </div>
               </div>

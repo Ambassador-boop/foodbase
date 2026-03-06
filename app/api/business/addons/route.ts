@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { name, addonType, description, price, imageUrl, isRequired, allowMultiple, options } = await request.json();
+    const { name, addonType, description, price, imageUrl, isRequired, allowMultiple, options, pairedMenuItems } = await request.json();
 
     if (!name || !addonType) {
       return NextResponse.json(
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
       [addonId, business.id, name, addonType, description || null, price || 0, imageUrl || null, isRequired || false, allowMultiple !== false, true]
     );
 
-    // Add options if provided
+    // Add custom options if provided
     if (Array.isArray(options) && options.length > 0) {
       for (const option of options) {
         const optionId = generateId('opt');
@@ -106,6 +106,25 @@ export async function POST(request: NextRequest) {
            VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
           [optionId, addonId, option.name, option.price || 0]
         );
+      }
+    }
+
+    // Link paired menu items as addon options
+    if (Array.isArray(pairedMenuItems) && pairedMenuItems.length > 0) {
+      for (const menuItemId of pairedMenuItems) {
+        // Verify menu item exists and belongs to business
+        const menuItem = await getOne(
+          'SELECT id, name, price FROM menu_items WHERE id = $1 AND business_id = $2',
+          [menuItemId, business.id]
+        );
+        if (menuItem) {
+          const optionId = generateId('opt');
+          await query(
+            `INSERT INTO addon_options (id, addon_id, name, price, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+            [optionId, addonId, menuItem.name, menuItem.price]
+          );
+        }
       }
     }
 

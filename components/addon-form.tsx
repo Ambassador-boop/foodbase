@@ -133,8 +133,12 @@ export default function AddonForm({ addon, isEditing = false }: AddonFormProps) 
     e.preventDefault();
     setError('');
 
-    if (!formData.name || formData.options.filter((o) => o.name.trim()).length === 0) {
-      setError('Name and at least one option are required');
+    const customOptions = formData.options.filter((o) => o.name.trim());
+    const hasMenuItems = formData.pairedMenuItems.length > 0;
+    const hasOptions = customOptions.length > 0;
+
+    if (!formData.name || (!hasMenuItems && !hasOptions)) {
+      setError('Name and at least one menu item or custom option are required');
       return;
     }
 
@@ -172,9 +176,8 @@ export default function AddonForm({ addon, isEditing = false }: AddonFormProps) 
           imageUrl: imageUrl || null,
           isRequired: formData.isRequired,
           allowMultiple: formData.allowMultiple,
-          options: formData.options
-            .filter((o) => o.name.trim())
-            .map((o) => ({ name: o.name, price: o.price ? parseFloat(o.price) : 0 })),
+          options: customOptions.map((o) => ({ name: o.name, price: o.price ? parseFloat(o.price) : 0 })),
+          pairedMenuItems: formData.pairedMenuItems,
         }),
       });
 
@@ -212,6 +215,15 @@ export default function AddonForm({ addon, isEditing = false }: AddonFormProps) 
     const newOptions = [...formData.options];
     newOptions[index] = { ...newOptions[index], [field]: value };
     setFormData({ ...formData, options: newOptions });
+  };
+
+  const toggleMenuItemPairing = (menuItemId: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      pairedMenuItems: prev.pairedMenuItems.includes(menuItemId)
+        ? prev.pairedMenuItems.filter((id) => id !== menuItemId)
+        : [...prev.pairedMenuItems, menuItemId],
+    }));
   };
 
   if (loading) {
@@ -364,7 +376,7 @@ export default function AddonForm({ addon, isEditing = false }: AddonFormProps) 
         {/* Options */}
         <div>
           <div className="flex items-center justify-between mb-2">
-            <Label className="text-xs font-semibold">Options *</Label>
+            <Label className="text-xs font-semibold">Options - Select Menu Items *</Label>
             <Button
               type="button"
               variant="outline"
@@ -372,14 +384,36 @@ export default function AddonForm({ addon, isEditing = false }: AddonFormProps) 
               className="h-6 text-xs"
               onClick={addOptionField}
             >
-              Add Option
+              Add Custom Option
             </Button>
           </div>
+          
+          {/* Menu Items Selection */}
+          {menuItems.length > 0 && (
+            <div className="mb-3 p-3 bg-blue-50 rounded border border-blue-200">
+              <p className="text-xs font-semibold text-blue-900 mb-2">Select Menu Items as Options:</p>
+              <div className="space-y-1 max-h-32 overflow-y-auto">
+                {menuItems.map((item) => (
+                  <label key={item.id} className="flex items-center gap-2 text-xs cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.pairedMenuItems.includes(item.id)}
+                      onChange={() => toggleMenuItemPairing(item.id)}
+                      className="w-3 h-3"
+                    />
+                    <span className="flex-1">{item.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Custom Options */}
           <div className="space-y-2">
             {formData.options.map((option, index) => (
               <div key={index} className="flex gap-2">
                 <Input
-                  placeholder="e.g., Chicken"
+                  placeholder="e.g., Custom Option"
                   value={option.name}
                   onChange={(e) => updateOption(index, 'name', e.target.value)}
                   className="h-8 text-xs flex-1"
