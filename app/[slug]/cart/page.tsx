@@ -7,7 +7,25 @@ import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Trash2, Plus, Minus, AlertCircle } from 'lucide-react';
 
+interface CartItem {
+  id: string;
+  type: 'menu' | 'drink';
+  name: string;
+  price: number;
+  image_url?: string;
+  quantity: number;
+  addons?: { id: string; name: string; price: number }[];
+}
+
 interface MenuItem {
+  id: string;
+  name: string;
+  description?: string;
+  price: number;
+  image_url?: string;
+}
+
+interface Drink {
   id: string;
   name: string;
   description?: string;
@@ -27,19 +45,20 @@ export default function CartPage() {
   const slug = params.slug as string;
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [drinks, setDrinks] = useState<Drink[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [cart, setCart] = useState<Map<string, number>>(new Map());
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
 
   useEffect(() => {
-    // Get cart from localStorage or sessionStorage
+    // Get cart from sessionStorage
     const storedCart = sessionStorage.getItem(`cart_${slug}`);
     if (storedCart) {
       try {
         const cartData = JSON.parse(storedCart);
-        setCart(new Map(Object.entries(cartData)));
+        setCartItems(cartData || []);
       } catch {
-        setCart(new Map());
+        setCartItems([]);
       }
     }
     fetchRestaurantData();
@@ -47,9 +66,8 @@ export default function CartPage() {
 
   // Save cart to storage whenever it changes
   useEffect(() => {
-    const cartObj = Object.fromEntries(cart);
-    sessionStorage.setItem(`cart_${slug}`, JSON.stringify(cartObj));
-  }, [cart, slug]);
+    sessionStorage.setItem(`cart_${slug}`, JSON.stringify(cartItems));
+  }, [cartItems, slug]);
 
   const fetchRestaurantData = async () => {
     try {
@@ -62,6 +80,7 @@ export default function CartPage() {
 
       setRestaurant(data.business);
       setMenuItems(data.menuItems || []);
+      setDrinks(data.drinks || []);
     } catch (err) {
       console.error('Error fetching menu:', err);
       setError('Restaurant not found or error loading cart');
@@ -70,25 +89,33 @@ export default function CartPage() {
     }
   };
 
-  const updateQuantity = (itemId: string, quantity: number) => {
-    const newCart = new Map(cart);
+  const updateQuantity = (index: number, quantity: number) => {
     if (quantity <= 0) {
-      newCart.delete(itemId);
+      removeFromCart(index);
     } else {
-      newCart.set(itemId, quantity);
+      const newItems = [...cartItems];
+      newItems[index].quantity = quantity;
+      setCartItems(newItems);
     }
-    setCart(newCart);
   };
 
-  const removeFromCart = (itemId: string) => {
-    const newCart = new Map(cart);
-    newCart.delete(itemId);
-    setCart(newCart);
+  const removeFromCart = (index: number) => {
+    setCartItems(cartItems.filter((_, i) => i !== index));
   };
 
-  const cartTotal = Array.from(cart.entries()).reduce((total, [itemId, qty]) => {
-    const item = menuItems.find((m) => m.id === itemId);
-    return total + (item?.price || 0) * qty;
+  const getItemName = (item: CartItem): string => {
+    if (item.type === 'drink') return item.name;
+    if (item.addons && item.addons.length > 0) {
+      const addonNames = item.addons.map((a) => a.name).join(' & ');
+      return `${item.name} & ${addonNames}`;
+    }
+    return item.name;
+  };
+
+  const cartTotal = cartItems.reduce((total, item) => {
+    const itemPrice = item.price;
+    const addonsPrice = item.addons?.reduce((sum, addon) => sum + addon.price, 0) || 0;
+    return total + (itemPrice + addonsPrice) * item.quantity;
   }, 0);
 
   const formatCurrency = (amount: number) =>
@@ -129,7 +156,7 @@ export default function CartPage() {
       </header>
 
       <div className="max-w-4xl mx-auto p-4">
-        {cart.size === 0 ? (
+        {cartItems.length === 0 ? (
           <div className="bg-white rounded-lg p-8 text-center">
             <p className="text-muted-foreground mb-4">Your cart is empty</p>
             <Link href={`/${slug}`}>
@@ -144,22 +171,23 @@ export default function CartPage() {
             <div className="lg:col-span-2">
               <div className="bg-white rounded-lg overflow-hidden">
                 <div className="border-b border-border p-4">
-                  <h2 className="font-bold text-sm">Order Items ({cart.size})</h2>
+                  <h2 className="font-bold text-sm">Order Items ({cartItems.length})</h2>
                 </div>
 
                 <div className="divide-y divide-border max-h-96 overflow-y-auto">
-                  {Array.from(cart.entries()).map(([itemId, qty]) => {
-                    const item = menuItems.find((m) => m.id === itemId);
-                    if (!item) return null;
+                  {cartItems.map((cartItem, index) => {
+                    const itemPrice = cartItem.price;
+                    const addonsPrice = cartItem.addons?.reduce((sum, addon) => sum + addon.price, 0) || 0;
+                    const totalPrice = (itemPrice + addonsPrice) * cartItem.quantity;
 
                     return (
-                      <div key={itemId} className="p-4 flex gap-4">
+                      <div key={index} className="p-4 flex gap-4">
                         {/* Item Image */}
-                        {item.image_url && (
+                        {cartItem.image_url && (
                           <div className="relative w-20 h-20 rounded overflow-hidden flex-shrink-0">
                             <Image
-                              src={item.image_url}
-                              alt={item.name}
+                              src={cartItem.image_url}
+                              alt={cartItem.name}
                               fill
                               className="object-cover"
                             />
@@ -168,14 +196,15 @@ export default function CartPage() {
 
                         {/* Item Details */}
                         <div className="flex-1 min-w-0">
-                          <h3 className="font-medium text-sm line-clamp-2">{item.name}</h3>
-                          {item.description && (
+                          <h3 className="font-medium text-sm line-clamp-2">{getItemName(cartItem)}</h3>
+                          {cartItem.addons && cartItem.addons.length > 0 && (
                             <p className="text-xs text-muted-foreground line-clamp-1 mt-1">
-                              {item.description}
+                              {cartItem.addons.map((a) => a.name).join(', ')}
                             </p>
                           )}
                           <p className="text-xs font-semibold text-primary mt-2">
-                            {formatCurrency(item.price)}
+                            {formatCurrency(itemPrice)}
+                            {addonsPrice > 0 && ` + ${formatCurrency(addonsPrice)}`}
                           </p>
                         </div>
 
@@ -183,14 +212,14 @@ export default function CartPage() {
                         <div className="flex flex-col items-end gap-2">
                           <div className="flex items-center gap-2 border border-border rounded">
                             <button
-                              onClick={() => updateQuantity(itemId, qty - 1)}
+                              onClick={() => updateQuantity(index, cartItem.quantity - 1)}
                               className="p-1 hover:bg-muted text-muted-foreground"
                             >
                               <Minus className="w-3 h-3" />
                             </button>
-                            <span className="text-xs font-medium w-6 text-center">{qty}</span>
+                            <span className="text-xs font-medium w-6 text-center">{cartItem.quantity}</span>
                             <button
-                              onClick={() => updateQuantity(itemId, qty + 1)}
+                              onClick={() => updateQuantity(index, cartItem.quantity + 1)}
                               className="p-1 hover:bg-muted text-muted-foreground"
                             >
                               <Plus className="w-3 h-3" />
@@ -198,7 +227,7 @@ export default function CartPage() {
                           </div>
 
                           <button
-                            onClick={() => removeFromCart(itemId)}
+                            onClick={() => removeFromCart(index)}
                             className="text-red-600 hover:text-red-700 text-xs font-medium flex items-center gap-1"
                           >
                             <Trash2 className="w-3 h-3" />
@@ -206,7 +235,7 @@ export default function CartPage() {
                           </button>
 
                           <p className="text-xs font-bold mt-2">
-                            {formatCurrency(item.price * qty)}
+                            {formatCurrency(totalPrice)}
                           </p>
                         </div>
                       </div>

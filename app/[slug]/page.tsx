@@ -40,7 +40,7 @@ export default function RestaurantPage() {
   const [drinks, setDrinks] = useState<Drink[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [cart, setCart] = useState<Map<string, number>>(new Map());
+  const [cartItems, setCartItems] = useState<any[]>([]);
   const [showDrinks, setShowDrinks] = useState(false);
   const [selectedItemForAddons, setSelectedItemForAddons] = useState<MenuItem | null>(null);
 
@@ -50,9 +50,9 @@ export default function RestaurantPage() {
     if (storedCart) {
       try {
         const cartData = JSON.parse(storedCart);
-        setCart(new Map(Object.entries(cartData)));
+        setCartItems(Array.isArray(cartData) ? cartData : []);
       } catch {
-        setCart(new Map());
+        setCartItems([]);
       }
     }
     fetchRestaurantData();
@@ -60,9 +60,8 @@ export default function RestaurantPage() {
 
   // Save cart to storage whenever it changes
   useEffect(() => {
-    const cartObj = Object.fromEntries(cart);
-    sessionStorage.setItem(`cart_${slug}`, JSON.stringify(cartObj));
-  }, [cart, slug]);
+    sessionStorage.setItem(`cart_${slug}`, JSON.stringify(cartItems));
+  }, [cartItems, slug]);
 
   const fetchRestaurantData = async () => {
     try {
@@ -98,28 +97,87 @@ export default function RestaurantPage() {
     }
   };
 
-  const handleDrinkAdd = (itemId: string) => {
-    const newCart = new Map(cart);
-    newCart.set(itemId, (newCart.get(itemId) || 0) + 1);
-    setCart(newCart);
+  const handleDrinkAdd = (drinkId: string) => {
+    const drink = drinks.find((d) => d.id === drinkId);
+    if (drink) {
+      setCartItems([
+        ...cartItems,
+        {
+          id: `drink_${drinkId}`,
+          type: 'drink',
+          name: drink.name,
+          price: drink.price,
+          image_url: drink.image_url,
+          quantity: 1,
+          addons: [],
+        },
+      ]);
+    }
   };
 
   const addToCart = (itemId: string) => {
-    const newCart = new Map(cart);
-    newCart.set(itemId, (newCart.get(itemId) || 0) + 1);
-    setCart(newCart);
-  };
-
-  const removeFromCart = (itemId: string) => {
-    const newCart = new Map(cart);
-    newCart.delete(itemId);
-    setCart(newCart);
-  };
-
-  const cartTotal = Array.from(cart.entries()).reduce((total, [itemId, qty]) => {
     const item = menuItems.find((m) => m.id === itemId);
-    return total + (item?.price || 0) * qty;
-  }, 0);
+    if (item) {
+      setCartItems([
+        ...cartItems,
+        {
+          id: itemId,
+          type: 'menu',
+          name: item.name,
+          price: item.price,
+          image_url: item.image_url,
+          quantity: 1,
+          addons: [],
+        },
+      ]);
+    }
+  };
+
+  const addToCartWithAddons = (itemId: string, selectedAddons: any) => {
+    const item = menuItems.find((m) => m.id === itemId);
+    if (item) {
+      const addonsArray: any[] = [];
+      item.addons?.forEach((addon) => {
+        if (selectedAddons[addon.id]) {
+          const selected = selectedAddons[addon.id];
+          if (Array.isArray(selected)) {
+            selected.forEach((optionId: string) => {
+              const option = addon.options?.find((o: any) => o.id === optionId);
+              if (option) {
+                addonsArray.push({
+                  id: option.id,
+                  name: option.name,
+                  price: option.price,
+                });
+              }
+            });
+          } else {
+            const option = addon.options?.find((o: any) => o.id === selected);
+            if (option) {
+              addonsArray.push({
+                id: option.id,
+                name: option.name,
+                price: option.price,
+              });
+            }
+          }
+        }
+      });
+
+      setCartItems([
+        ...cartItems,
+        {
+          id: itemId,
+          type: 'menu',
+          name: item.name,
+          price: item.price,
+          image_url: item.image_url,
+          quantity: 1,
+          addons: addonsArray,
+        },
+      ]);
+    }
+  };
 
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(amount);
@@ -170,9 +228,9 @@ export default function RestaurantPage() {
           </div>
           <Link href={`/${slug}/cart`} className="relative p-2 text-primary hover:text-primary-dark">
             <ShoppingCart className="w-5 h-5" />
-            {cart.size > 0 && (
+            {cartItems.length > 0 && (
               <span className="absolute top-0 right-0 bg-primary text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                {cart.size}
+                {cartItems.length}
               </span>
             )}
           </Link>
@@ -290,7 +348,7 @@ export default function RestaurantPage() {
               addons={selectedItemForAddons.addons || []}
               onClose={() => setSelectedItemForAddons(null)}
               onAddToCart={(config) => {
-                addToCart(config.itemId);
+                addToCartWithAddons(config.itemId, config.selectedAddons);
                 setSelectedItemForAddons(null);
               }}
             />

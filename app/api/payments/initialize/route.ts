@@ -1,36 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { jwtVerify } from 'jose';
 import { initializePayment, generatePaymentReference } from '@/lib/paystack';
-
-const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'secret');
 
 export async function POST(request: NextRequest) {
   try {
-    const token = request.cookies.get('auth_token')?.value;
-
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const verified = await jwtVerify(token, secret);
-    const email = verified.payload.email as string;
-
     const body = await request.json();
-    const { amount, orderId } = body;
+    const { amount, orderId, email, reference: providedReference } = body;
 
-    if (!amount || !orderId) {
+    if (!amount || !orderId || !email) {
       return NextResponse.json(
-        { error: 'Amount and orderId are required' },
+        { error: 'Amount, orderId, and email are required' },
         { status: 400 }
       );
     }
 
-    const reference = generatePaymentReference();
+    const reference = providedReference || generatePaymentReference();
+
+    console.log('[v0] Initializing Paystack payment:', {
+      amount,
+      orderId,
+      email,
+      reference,
+    });
 
     const paystackResponse = await initializePayment(amount, email, reference, {
       orderId,
       email,
     });
+
+    console.log('[v0] Paystack response:', paystackResponse);
 
     return NextResponse.json({
       success: true,
@@ -39,9 +36,9 @@ export async function POST(request: NextRequest) {
       accessCode: paystackResponse.data.access_code,
     });
   } catch (error) {
-    console.error('Payment initialization error:', error);
+    console.error('[v0] Payment initialization error:', error);
     return NextResponse.json(
-      { error: 'Failed to initialize payment' },
+      { error: 'Failed to initialize payment', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }

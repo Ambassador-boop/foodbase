@@ -83,10 +83,20 @@ export default function AddonForm({ addon, isEditing = false }: AddonFormProps) 
         throw new Error('Cloudinary configuration missing');
       }
 
+      // Validate file
+      if (!file.type.startsWith('image/')) {
+        throw new Error('Please upload a valid image file');
+      }
+
+      if (file.size > 10 * 1024 * 1024) {
+        throw new Error('File size must be less than 10MB');
+      }
+
       const formDataObj = new FormData();
       formDataObj.append('file', file);
       formDataObj.append('upload_preset', 'foodbase_upload');
       formDataObj.append('folder', 'foodbase/addons');
+      formDataObj.append('resource_type', 'auto');
 
       const response = await fetch(
         `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
@@ -96,13 +106,23 @@ export default function AddonForm({ addon, isEditing = false }: AddonFormProps) 
         }
       );
 
-      if (!response.ok) throw new Error('Upload failed');
+      if (!response.ok) {
+        const errorText = await response.text();
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          errorData = { error: { message: errorText || response.statusText } };
+        }
+        throw new Error(`Upload failed: ${errorData.error?.message || response.statusText}`);
+      }
 
       const data = await response.json();
       return data.secure_url;
     } catch (err) {
-      console.error('[v0] Upload error:', err);
-      setError('Failed to upload image');
+      const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+      console.error('[v0] Upload error:', errorMsg);
+      setError(`Failed to upload image: ${errorMsg}`);
       return null;
     } finally {
       setUploadingImage(false);

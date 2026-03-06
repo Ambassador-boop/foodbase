@@ -71,10 +71,20 @@ export default function MenuItemForm({ menuItem, isEditing = false }: MenuItemFo
         throw new Error('Cloudinary cloud name is not configured. Please set NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME environment variable.');
       }
 
+      // Validate file
+      if (!file.type.startsWith('image/')) {
+        throw new Error('Please upload a valid image file');
+      }
+
+      if (file.size > 10 * 1024 * 1024) {
+        throw new Error('File size must be less than 10MB');
+      }
+
       const formDataObj = new FormData();
       formDataObj.append('file', file);
       formDataObj.append('upload_preset', 'foodbase_upload');
       formDataObj.append('folder', 'foodbase/menu-items');
+      formDataObj.append('resource_type', 'auto');
 
       console.log('[v0] Starting Cloudinary upload with cloud name:', cloudName);
 
@@ -89,8 +99,14 @@ export default function MenuItemForm({ menuItem, isEditing = false }: MenuItemFo
       console.log('[v0] Cloudinary response status:', response.status);
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: response.statusText }));
-        throw new Error(`Upload failed: ${errorData.message || response.statusText}`);
+        const errorText = await response.text();
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          errorData = { error: { message: errorText || response.statusText } };
+        }
+        throw new Error(`Upload failed: ${errorData.error?.message || response.statusText}`);
       }
 
       const data = await response.json();
