@@ -1,11 +1,12 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, X, AlertCircle, Edit2, Eye, EyeOff, Search, Upload, Trash2 } from 'lucide-react';
+import { Plus, X, AlertCircle, Edit2, Eye, EyeOff, Search, Upload, Trash2, ExternalLink } from 'lucide-react';
 import Image from 'next/image';
 
 interface AddonOption {
@@ -264,13 +265,12 @@ export default function AddonsPage() {
           <h1 className="text-2xl font-bold mb-1">Add-ons</h1>
           <p className="text-xs text-muted-foreground">Manage proteins, sides, toppings, and extras</p>
         </div>
-        <Button
-          onClick={() => setShowForm(!showForm)}
-          className="h-8 text-xs bg-primary text-white hover:bg-primary-dark"
-        >
-          <Plus className="w-4 h-4 mr-1" />
-          Add-on
-        </Button>
+        <Link href="/dashboard/addons/new">
+          <Button className="h-8 text-xs bg-primary text-white hover:bg-primary-dark">
+            <Plus className="w-4 h-4 mr-1" />
+            Create Add-on
+          </Button>
+        </Link>
       </div>
 
       {error && (
@@ -547,14 +547,15 @@ export default function AddonsPage() {
 
                 {/* Actions */}
                 <div className="flex gap-2">
-                  <Button
-                    onClick={() => handleEditAddon(addon)}
-                    variant="outline"
-                    className="flex-1 h-7 text-xs"
-                  >
-                    <Edit2 className="w-3 h-3 mr-1" />
-                    Edit
-                  </Button>
+                  <Link href={`/dashboard/addons/edit/${addon.id}`} className="flex-1">
+                    <Button
+                      variant="outline"
+                      className="w-full h-7 text-xs"
+                    >
+                      <Edit2 className="w-3 h-3 mr-1" />
+                      Edit
+                    </Button>
+                  </Link>
                   <Button
                     onClick={() => handleToggleAvailable(addon.id, addon.is_available)}
                     variant="outline"

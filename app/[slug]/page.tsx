@@ -32,8 +32,24 @@ export default function RestaurantPage() {
   const [cart, setCart] = useState<Map<string, number>>(new Map());
 
   useEffect(() => {
+    // Get cart from sessionStorage
+    const storedCart = sessionStorage.getItem(`cart_${slug}`);
+    if (storedCart) {
+      try {
+        const cartData = JSON.parse(storedCart);
+        setCart(new Map(Object.entries(cartData)));
+      } catch {
+        setCart(new Map());
+      }
+    }
     fetchRestaurantData();
   }, [slug]);
+
+  // Save cart to storage whenever it changes
+  useEffect(() => {
+    const cartObj = Object.fromEntries(cart);
+    sessionStorage.setItem(`cart_${slug}`, JSON.stringify(cartObj));
+  }, [cart, slug]);
 
   const fetchRestaurantData = async () => {
     try {
@@ -107,25 +123,22 @@ export default function RestaurantPage() {
       {/* Header */}
       <header className="bg-white border-b border-border sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 text-primary hover:text-primary-dark">
-            <ArrowLeft className="w-4 h-4" />
-            <span className="text-xs font-medium">Back</span>
-          </Link>
           <h1 className="text-lg font-bold">{restaurant.name}</h1>
-          <div className="w-12 flex justify-end">
+          <Link href={`/${slug}/cart`} className="relative p-2 text-primary hover:text-primary-dark">
+            <ShoppingCart className="w-5 h-5" />
             {cart.size > 0 && (
-              <span className="bg-primary text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+              <span className="absolute top-0 right-0 bg-primary text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
                 {cart.size}
               </span>
             )}
-          </div>
+          </Link>
         </div>
       </header>
 
       <div className="max-w-6xl mx-auto">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 p-4">
+        <div className="grid grid-cols-1 gap-6 p-4">
           {/* Menu */}
-          <div className="lg:col-span-2 space-y-3">
+          <div className="space-y-3">
             <div className="bg-white rounded-lg p-4">
               <h2 className="text-lg font-bold mb-2">{restaurant.name}</h2>
               {restaurant.description && (
@@ -178,59 +191,7 @@ export default function RestaurantPage() {
             )}
           </div>
 
-          {/* Cart */}
-          <div className="lg:col-span-1">
-            <div className="bg-white border border-border rounded-lg p-4 sticky top-20 space-y-3">
-              <h2 className="font-bold text-sm flex items-center gap-2">
-                <ShoppingCart className="w-4 h-4" />
-                Your Order
-              </h2>
 
-              {cart.size === 0 ? (
-                <p className="text-xs text-muted-foreground text-center py-8">
-                  Your cart is empty
-                </p>
-              ) : (
-                <>
-                  <div className="space-y-2 border-b border-border pb-3 max-h-96 overflow-y-auto">
-                    {Array.from(cart.entries()).map(([itemId, qty]) => {
-                      const item = menuItems.find((m) => m.id === itemId);
-                      if (!item) return null;
-                      return (
-                        <div key={itemId} className="flex justify-between items-center text-xs">
-                          <div>
-                            <p className="font-medium">{item.name}</p>
-                            <p className="text-muted-foreground">Qty: {qty}</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-medium">{formatCurrency(item.price * qty)}</p>
-                            <button
-                              onClick={() => removeFromCart(itemId)}
-                              className="text-red-600 hover:text-red-700 text-xs mt-1"
-                            >
-                              Remove
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  <div className="space-y-2 pt-2">
-                    <div className="flex justify-between text-sm font-bold">
-                      <span>Total:</span>
-                      <span>{formatCurrency(cartTotal)}</span>
-                    </div>
-                    <Link href={`/${slug}/checkout`}>
-                      <Button className="w-full h-9 text-xs bg-primary text-white hover:bg-primary-dark">
-                        Checkout
-                      </Button>
-                    </Link>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
         </div>
       </div>
     </div>

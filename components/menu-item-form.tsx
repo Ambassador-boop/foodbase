@@ -65,26 +65,41 @@ export default function MenuItemForm({ menuItem, isEditing = false }: MenuItemFo
   const uploadImageToCloudinary = async (file: File): Promise<string | null> => {
     try {
       setUploadingImage(true);
+      const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+      
+      if (!cloudName) {
+        throw new Error('Cloudinary cloud name is not configured. Please set NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME environment variable.');
+      }
+
       const formDataObj = new FormData();
       formDataObj.append('file', file);
       formDataObj.append('upload_preset', 'foodbase_upload');
       formDataObj.append('folder', 'foodbase/menu-items');
 
+      console.log('[v0] Starting Cloudinary upload with cloud name:', cloudName);
+
       const response = await fetch(
-        `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`,
+        `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
         {
           method: 'POST',
           body: formDataObj,
         }
       );
 
-      if (!response.ok) throw new Error('Upload failed');
+      console.log('[v0] Cloudinary response status:', response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(`Upload failed: ${errorData.message || response.statusText}`);
+      }
 
       const data = await response.json();
+      console.log('[v0] Upload successful, URL:', data.secure_url);
       return data.secure_url;
     } catch (err) {
-      console.error('[v0] Upload error:', err);
-      setError('Failed to upload image');
+      const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+      console.error('[v0] Upload error:', errorMsg);
+      setError(`Failed to upload image: ${errorMsg}`);
       return null;
     } finally {
       setUploadingImage(false);
