@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, X, AlertCircle, Edit2, Eye, EyeOff, Search } from 'lucide-react';
+import { Plus, X, AlertCircle, Edit2, Eye, EyeOff, Search, Upload } from 'lucide-react';
 import Image from 'next/image';
 
 interface Drink {
@@ -282,16 +282,42 @@ export default function DrinksPage() {
             </div>
 
             <div>
-              <Label htmlFor="imageUrl" className="text-xs font-semibold">
-                Image URL (Cloudinary)
-              </Label>
-              <Input
-                id="imageUrl"
-                placeholder="https://..."
-                value={formData.imageUrl}
-                onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
-                className="mt-1 h-8 text-xs"
-              />
+              <Label className="text-xs font-semibold">Drink Image</Label>
+              <div className="mt-2 space-y-2">
+                {formData.imageUrl ? (
+                  <div className="relative w-20 h-20 rounded border border-border overflow-hidden">
+                    <Image src={formData.imageUrl} alt="Preview" fill className="object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, imageFile: null, imageUrl: '' })}
+                      className="absolute top-0 right-0 bg-red-500 text-white p-1"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileSelect}
+                      className="hidden"
+                      id="drink-image"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 text-xs w-full"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <Upload className="w-3 h-3 mr-1" />
+                      Upload Image
+                    </Button>
+                  </div>
+                )}
+              </div>
             </div>
 
             <Button type="submit" disabled={uploading} className="w-full h-8 text-xs bg-primary text-white hover:bg-primary-dark">

@@ -1,78 +1,113 @@
-import { sql } from '@vercel/postgres';
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyToken } from '@/lib/auth';
-import { nanoid } from 'nanoid';
+import { getOne, getAll, query } from '@/lib/db';
+import { getCurrentUser } from '@/lib/auth';
+import { generateId } from '@/lib/utils-extended';
 
-export async function GET(req: NextRequest) {
+// GET - List all popular dishes for business
+export async function GET(request: NextRequest) {
   try {
-    const token = req.headers.get('authorization')?.replace('Bearer ', '');
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const currentUser = await getCurrentUser();
 
-    const user = await verifyToken(token);
-    if (!user || user.role !== 'business_owner') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    if (!currentUser || currentUser.role !== 'business_owner') {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 403 }
+      );
     }
 
-    // Get popular dishes (either manually featured or automatically calculated)
-    const { rows } = await sql.query(
-      `SELECT pd.*, mi.name, mi.image_url, COUNT(oid.id) as order_count
-       FROM popular_dishes pd
-       LEFT JOIN menu_items mi ON pd.menu_item_id = mi.id
-       LEFT JOIN order_items oid ON oid.menu_item_id = mi.id
-       WHERE pd.business_id IN (SELECT id FROM businesses WHERE owner_id = $1)
-       GROUP BY pd.id, mi.id
-       ORDER BY order_count DESC, pd.created_at DESC`,
-      [user.id]
+    // Get business
+    const business = await getOne(
+      'SELECT id FROM businesses WHERE owner_id = $1',
+      [currentUser.id]
     );
 
-    return NextResponse.json(rows);
+    if (!business) {
+      return NextResponse.json(
+        { error: 'Business not found' },
+        { status: 404 }
+      );
+    }
+
+    // Get popular dishes
+    const popularDishes = await getAll(
+      `SELECT * FROM popular_dishes WHERE business_id = $1 ORDER BY display_order, created_at DESC`,
+      [business.id]
+    );
+
+    return NextResponse.json({
+      success: true,
+      popularDishes,
+    });
   } catch (error) {
-    console.error('Failed to fetch popular dishes:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('[v0] Get popular dishes error:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch popular dishes' },
+      { status: 500 }
+    );
   }
 }
 
-export async function POST(req: NextRequest) {
+// POST - Create popular dish
+export async function POST(request: NextRequest) {
   try {
-    const token = req.headers.get('authorization')?.replace('Bearer ', '');
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const currentUser = await getCurrentUser();
 
-    const user = await verifyToken(token);
-    if (!user || user.role !== 'business_owner') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    if (!currentUser || currentUser.role !== 'business_owner') {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 403 }
+      );
     }
 
-    const { menu_item_id, featured_image_url, is_combo } = await req.json();
+    const { combinationName, description, featuredImageUrl } = await request.json();
 
-    if (!menu_item_id) {
-      return NextResponse.json({ error: 'Menu item ID required' }, { status: 400 });
+    if (!combinationName) {
+      return NextResponse.json(
+        { error: 'Combination name required' },
+        { status: 400 }
+      );
     }
 
-    // Verify the menu item belongs to the business owner
-    const menuCheck = await sql.query(
-      `SELECT mi.id FROM menu_items mi
-       JOIN businesses b ON mi.business_id = b.id
-       WHERE mi.id = $1 AND b.owner_id = $2`,
-      [menu_item_id, user.id]
+    // Get business
+    const business = await getOne(
+      'SELECT id FROM businesses WHERE owner_id = $1',
+      [currentUser.id]
     );
 
-    if (!menuCheck.rows.length) {
-      return NextResponse.json({ error: 'Menu item not found' }, { status: 404 });
+    if (!business) {
+      return NextResponse.json(
+        { error: 'Business not found' },
+        { status: 404 }
+      );
     }
 
-    const dishId = `pd_${nanoid(12)}`;
-    const businessId = menuCheck.rows[0].business_id;
+    // Create popular dish
+    const dishId = generateId('pd');
 
-    const { rows } = await sql.query(
-      `INSERT INTO popular_dishes (id, business_id, menu_item_id, featured_image_url, is_combo, created_at)
-       VALUES ($1, $2, $3, $4, $5, NOW())
-       RETURNING *`,
-      [dishId, businessId, menu_item_id, featured_image_url, is_combo || false]
+    await query(
+      `INSERT INTO popular_dishes (id, business_id, combination_name, description, featured_image_url, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+      [dishId, business.id, combinationName, description || null, featuredImageUrl || null]
     );
 
-    return NextResponse.json(rows[0], { status: 201 });
+    const newDish = await getOne(
+      'SELECT * FROM popular_dishes WHERE id = $1',
+      [dishId]
+    );
+
+    return NextResponse.json(
+      {
+        success: true,
+        message: 'Popular dish created',
+        popularDish: newDish,
+      },
+      { status: 201 }
+    );
   } catch (error) {
-    console.error('Failed to create popular dish:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('[v0] Create popular dish error:', error);
+    return NextResponse.json(
+      { error: 'Failed to create popular dish' },
+      { status: 500 }
+    );
   }
 }

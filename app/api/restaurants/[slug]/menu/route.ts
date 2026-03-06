@@ -7,6 +7,7 @@ export async function GET(
 ) {
   try {
     const { slug } = await params;
+    console.log('[v0] API: Fetching menu for slug:', slug);
 
     // Get business by slug
     const business = await getOne(
@@ -14,7 +15,10 @@ export async function GET(
       [slug]
     );
 
+    console.log('[v0] API: Business lookup result:', business ? `Found ${business.name}` : 'Not found');
+
     if (!business) {
+      console.log('[v0] API: No active business found for slug:', slug);
       return NextResponse.json(
         { error: 'Restaurant not found' },
         { status: 404 }
@@ -26,6 +30,7 @@ export async function GET(
       'SELECT * FROM categories WHERE business_id = $1 ORDER BY display_order, created_at DESC',
       [business.id]
     );
+    console.log('[v0] API: Categories fetched:', categories.length);
 
     // Get menu items with their add-ons - simplified query without nested JSON aggregation
     const menuItems = await getAll(
@@ -38,6 +43,7 @@ export async function GET(
        ORDER BY m.display_order, m.created_at DESC`,
       [business.id]
     );
+    console.log('[v0] API: Menu items fetched:', menuItems.length);
 
     // Get addons for each menu item separately to avoid JSON query issues
     const menuItemsWithAddons = await Promise.all(
@@ -51,10 +57,11 @@ export async function GET(
              GROUP BY a.id, a.name, a.addon_type, a.is_required`,
             [item.id]
           );
+          console.log(`[v0] API: Addons for menu item ${item.id}:`, addons?.length || 0);
           return { ...item, addons: addons || [] };
         } catch (err) {
           // If addon query fails, just return item without addons
-          console.error('[v0] Error fetching addons for menu item:', err);
+          console.error('[v0] Error fetching addons for menu item:', item.id, err);
           return { ...item, addons: [] };
         }
       })
@@ -65,14 +72,16 @@ export async function GET(
       'SELECT * FROM drinks WHERE business_id = $1 AND is_available = true ORDER BY display_order, created_at DESC',
       [business.id]
     );
+    console.log('[v0] API: Drinks fetched:', drinks.length);
 
     // Get popular dishes
     const popularDishes = await getAll(
       'SELECT * FROM popular_dishes WHERE business_id = $1 ORDER BY display_order, created_at DESC LIMIT 5',
       [business.id]
     );
+    console.log('[v0] API: Popular dishes fetched:', popularDishes.length);
 
-    return NextResponse.json({
+    const response = {
       success: true,
       business: {
         id: business.id,
@@ -87,11 +96,15 @@ export async function GET(
       menuItems: menuItemsWithAddons,
       drinks,
       popularDishes,
-    });
+    };
+    
+    console.log('[v0] API: Returning successful response');
+    return NextResponse.json(response);
   } catch (error) {
     console.error('[v0] Get menu error:', error);
+    console.error('[v0] Error details:', error instanceof Error ? error.message : 'Unknown error');
     return NextResponse.json(
-      { error: 'Failed to fetch menu' },
+      { error: 'Failed to fetch menu', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }

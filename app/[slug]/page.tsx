@@ -37,16 +37,24 @@ export default function RestaurantPage() {
 
   const fetchRestaurantData = async () => {
     try {
+      console.log('[v0] Client: Fetching menu for slug:', slug);
       const response = await fetch(`/api/restaurants/${slug}/menu`);
+      console.log('[v0] Client: API response status:', response.status);
       const data = await response.json();
+      console.log('[v0] Client: API response data:', data);
 
-      if (!response.ok) throw new Error(data.error);
+      if (!response.ok) {
+        console.log('[v0] Client: API returned error:', data.error);
+        throw new Error(data.error || 'Failed to fetch menu');
+      }
 
-      setRestaurant(data.restaurant);
+      console.log('[v0] Client: Setting restaurant data:', data.business?.name);
+      setRestaurant(data.business);
       setMenuItems(data.menuItems || []);
+      console.log('[v0] Client: Menu items set:', data.menuItems?.length || 0);
     } catch (err) {
+      console.error('[v0] Client: Error fetching menu:', err);
       setError('Restaurant not found or error loading menu');
-      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -130,40 +138,40 @@ export default function RestaurantPage() {
                 <p className="text-sm text-muted-foreground">No menu items available</p>
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {menuItems.map((item) => (
                   <div
                     key={item.id}
-                    className="bg-white border border-border rounded-lg p-3 flex gap-3 items-start hover:shadow-sm transition-shadow"
+                    className="bg-white border border-border rounded-lg overflow-hidden flex flex-col hover:shadow-sm transition-shadow"
                   >
                     {item.image_url && (
-                      <div className="relative w-20 h-20 rounded flex-shrink-0">
+                      <div className="relative w-full aspect-square rounded-t flex-shrink-0">
                         <Image
                           src={item.image_url}
                           alt={item.name}
                           fill
-                          className="object-cover rounded"
+                          className="object-cover"
                         />
                       </div>
                     )}
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-medium text-sm">{item.name}</h3>
+                    <div className="p-2 flex-1 flex flex-col">
+                      <h3 className="font-medium text-xs line-clamp-2">{item.name}</h3>
                       {item.description && (
-                        <p className="text-xs text-muted-foreground line-clamp-2">
+                        <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
                           {item.description}
                         </p>
                       )}
-                      <p className="text-sm font-semibold text-primary mt-1">
+                      <p className="text-xs font-semibold text-primary mt-auto mb-2">
                         {formatCurrency(item.price)}
                       </p>
+                      <Button
+                        onClick={() => addToCart(item.id)}
+                        size="sm"
+                        className="h-7 text-xs bg-primary text-white hover:bg-primary-dark w-full"
+                      >
+                        Add
+                      </Button>
                     </div>
-                    <Button
-                      onClick={() => addToCart(item.id)}
-                      size="sm"
-                      className="flex-shrink-0 h-8 text-xs bg-primary text-white hover:bg-primary-dark"
-                    >
-                      Add
-                    </Button>
                   </div>
                 ))}
               </div>
