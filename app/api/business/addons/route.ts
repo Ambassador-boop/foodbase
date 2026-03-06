@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { name, addonType, description, isRequired, allowMultiple, options } = await request.json();
+    const { name, addonType, description, price, imageUrl, isRequired, allowMultiple, options } = await request.json();
 
     if (!name || !addonType) {
       return NextResponse.json(
@@ -92,9 +92,9 @@ export async function POST(request: NextRequest) {
     const addonId = generateId('add');
 
     await query(
-      `INSERT INTO addons (id, business_id, name, addon_type, description, is_required, allow_multiple, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-      [addonId, business.id, name, addonType, description || null, isRequired || false, allowMultiple !== false]
+      `INSERT INTO addons (id, business_id, name, addon_type, description, price, image_url, is_required, allow_multiple, is_available, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+      [addonId, business.id, name, addonType, description || null, price || 0, imageUrl || null, isRequired || false, allowMultiple !== false, true]
     );
 
     // Add options if provided

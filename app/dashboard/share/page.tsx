@@ -1,9 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, Copy, Download } from 'lucide-react';
 import dynamic from 'next/dynamic';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 
 const QRCode = dynamic(() => import('qrcode.react'), { ssr: false });
 
@@ -38,8 +40,9 @@ export default function ShareBusinessPage() {
     }
   };
 
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://foodbase.app';
+  const baseUrl = 'https://myfoodbase.vercel.app';
   const restaurantUrl = business ? `${baseUrl}/${business.slug}` : '';
+  const pdfRef = useRef<HTMLDivElement>(null);
 
   const handleCopyUrl = () => {
     if (restaurantUrl) {
@@ -59,6 +62,32 @@ export default function ShareBusinessPage() {
         link.download = `${business?.slug}-qr-code.png`;
         link.click();
       }
+    }
+  };
+
+  const handleDownloadPDF = async () => {
+    if (!pdfRef.current) return;
+
+    try {
+      const canvas = await html2canvas(pdfRef.current, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+      });
+
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4',
+      });
+
+      const imgWidth = 210; // A4 width in mm
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, imgWidth, imgHeight);
+      pdf.save(`${business?.slug}-qr-code.pdf`);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
     }
   };
 
@@ -91,19 +120,33 @@ export default function ShareBusinessPage() {
           {/* QR Code Section */}
           <div className="bg-white border border-border rounded-lg p-8">
             <div className="flex flex-col items-center space-y-4">
-              <div id="qr-code" className="bg-white p-4 border border-border rounded-lg">
-                <QRCode
-                  value={restaurantUrl}
-                  size={256}
-                  level="H"
-                  includeMargin={true}
-                  renderAs="canvas"
-                />
-              </div>
-              
-              <div className="text-center">
-                <p className="text-sm font-semibold mb-1">{business.name}</p>
-                <p className="text-xs text-muted-foreground mb-4">Scan to order from this restaurant</p>
+              {/* Preview for PDF */}
+              <div ref={pdfRef} className="w-full bg-white p-8 flex flex-col items-center space-y-4">
+                {/* FoodBase Logo and Branding */}
+                <div className="text-center mb-4">
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Powered by</p>
+                  <div className="flex items-center justify-center gap-1">
+                    <span className="text-sm font-bold text-primary">FoodBase</span>
+                  </div>
+                </div>
+
+                {/* QR Code */}
+                <div id="qr-code" className="bg-white p-4 border-4 border-primary rounded-lg">
+                  <QRCode
+                    value={restaurantUrl}
+                    size={240}
+                    level="H"
+                    includeMargin={true}
+                    renderAs="canvas"
+                  />
+                </div>
+
+                {/* Restaurant Info */}
+                <div className="text-center space-y-2">
+                  <p className="text-lg font-bold text-foreground">{business.name}</p>
+                  <p className="text-sm text-primary font-semibold">Scan to order from this restaurant</p>
+                  <p className="text-xs text-muted-foreground mt-2">{restaurantUrl}</p>
+                </div>
               </div>
 
               <div className="flex gap-2 w-full">
@@ -113,7 +156,14 @@ export default function ShareBusinessPage() {
                   className="flex-1 h-8 text-xs gap-1"
                 >
                   <Download className="w-4 h-4" />
-                  Download
+                  Download PNG
+                </Button>
+                <Button
+                  onClick={handleDownloadPDF}
+                  className="flex-1 h-8 text-xs gap-1 bg-primary text-white hover:bg-primary/90"
+                >
+                  <Download className="w-4 h-4" />
+                  Download PDF
                 </Button>
               </div>
             </div>

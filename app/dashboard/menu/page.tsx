@@ -336,54 +336,112 @@ export default function MenuPage() {
         </div>
       )}
 
-      {/* Menu Items List */}
-      <div className="bg-white border border-border rounded-lg overflow-hidden">
-        {menuItems.length === 0 ? (
-          <div className="p-8 text-center">
-            <p className="text-sm text-muted-foreground">No menu items yet. Add your first dish to get started!</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead className="bg-muted/30 border-b border-border">
-                <tr>
-                  <th className="px-3 py-2 text-left font-semibold">Name</th>
-                  <th className="px-3 py-2 text-left font-semibold">Category</th>
-                  <th className="px-3 py-2 text-right font-semibold">Price</th>
-                  <th className="px-3 py-2 text-center font-semibold">Orders</th>
-                  <th className="px-3 py-2 text-center font-semibold">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {menuItems.map((item) => (
-                  <tr key={item.id} className="hover:bg-muted/5">
-                    <td className="px-3 py-2">
-                      <div>
-                        <p className="font-medium text-foreground">{item.name}</p>
-                        <p className="text-muted-foreground line-clamp-1">{item.description}</p>
-                      </div>
-                    </td>
-                    <td className="px-3 py-2 text-muted-foreground">{item.category_name || '—'}</td>
-                    <td className="px-3 py-2 text-right font-medium">{formatCurrency(item.price)}</td>
-                    <td className="px-3 py-2 text-center">{item.order_count}</td>
-                    <td className="px-3 py-2 text-center">
-                      <span
-                        className={`inline-block px-2 py-1 rounded text-xs font-medium ${
-                          item.is_available
-                            ? 'bg-green-50 text-green-700'
-                            : 'bg-gray-50 text-gray-700'
-                        }`}
-                      >
-                        {item.is_available ? 'Available' : 'Unavailable'}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      {/* Search Bar */}
+      {menuItems.length > 0 && (
+        <div className="relative">
+          <Search className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Search menu items..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-9 h-8 text-xs"
+          />
+        </div>
+      )}
+
+      {/* Menu Items Card Grid */}
+      {filteredItems.length === 0 ? (
+        <div className="p-8 text-center bg-white border border-border rounded-lg">
+          <p className="text-sm text-muted-foreground">
+            {menuItems.length === 0 ? 'No menu items yet. Add your first dish to get started!' : 'No items match your search.'}
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredItems.map((item) => (
+            <div key={item.id} className="bg-white border border-border rounded-lg overflow-hidden flex flex-col">
+              {/* Image */}
+              <div className="relative w-full h-40 bg-muted/20 overflow-hidden flex items-center justify-center">
+                {item.image_url ? (
+                  <Image
+                    src={item.image_url}
+                    alt={item.name}
+                    fill
+                    className="object-cover"
+                  />
+                ) : (
+                  <div className="text-muted-foreground text-xs">No image</div>
+                )}
+              </div>
+
+              {/* Content */}
+              <div className="p-3 flex-1 flex flex-col">
+                <h3 className="font-semibold text-sm mb-1 line-clamp-2">{item.name}</h3>
+                <p className="text-xs text-muted-foreground line-clamp-2 mb-3">{item.description}</p>
+
+                <div className="space-y-2 mt-auto">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">Price:</span>
+                    <span className="font-bold text-primary">{formatCurrency(item.price)}</span>
+                  </div>
+                  {item.category_name && (
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">Category:</span>
+                      <span>{item.category_name}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">Orders:</span>
+                    <span className="font-medium">{item.order_count}</span>
+                  </div>
+                </div>
+
+                {/* Status Badge */}
+                <div className="mt-3 mb-3">
+                  <span
+                    className={`inline-block px-2 py-1 rounded text-xs font-medium ${
+                      item.is_available
+                        ? 'bg-green-50 text-green-700'
+                        : 'bg-gray-50 text-gray-700'
+                    }`}
+                  >
+                    {item.is_available ? 'Available' : 'Unavailable'}
+                  </span>
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() => handleEditMenuItem(item)}
+                    variant="outline"
+                    className="flex-1 h-7 text-xs"
+                  >
+                    <Edit2 className="w-3 h-3 mr-1" />
+                    Edit
+                  </Button>
+                  <Button
+                    onClick={() => handleToggleAvailable(item.id, item.is_available)}
+                    variant="outline"
+                    className="flex-1 h-7 text-xs"
+                  >
+                    {item.is_available ? (
+                      <>
+                        <Eye className="w-3 h-3 mr-1" />
+                        Hide
+                      </>
+                    ) : (
+                      <>
+                        <EyeOff className="w-3 h-3 mr-1" />
+                        Show
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

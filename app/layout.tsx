@@ -33,7 +33,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     locale: 'en_NG',
-    url: 'https://foodbase.app',
+    url: 'https://myfoodbase.vercel.app',
     siteName: 'FoodBase',
     description: 'Seamless restaurant ordering and payment platform',
   },
@@ -45,6 +45,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   userScalable: true,
+  colorScheme: 'light',
+  viewportFit: 'cover',
 }
 
 export default function RootLayout({
