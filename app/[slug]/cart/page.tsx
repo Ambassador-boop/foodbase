@@ -124,14 +124,19 @@ export default function CartPage() {
     return images.slice(0, 3); // Limit to 3 images for display
   };
 
-  const cartTotal = cartItems.reduce((total, item) => {
-    const itemPrice = item.price;
-    const addonsPrice = item.addons?.reduce((sum, addon) => sum + addon.price, 0) || 0;
+  const subtotal = cartItems.reduce((total, item) => {
+    const itemPrice = item.price || 0;
+    const addonsPrice = item.addons?.reduce((sum, addon) => sum + (addon.price || 0), 0) || 0;
     return total + (itemPrice + addonsPrice) * item.quantity;
   }, 0);
 
-  const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(amount);
+  const serviceFee = Math.round(subtotal * 0.075); // 7.5% service fee
+  const cartTotal = subtotal + serviceFee;
+
+  const formatCurrency = (amount: number) => {
+    const num = Number(amount) || 0;
+    return new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(num);
+  };
 
   if (loading) {
     return (
@@ -242,15 +247,17 @@ export default function CartPage() {
 
                         {/* Item Details */}
                         <div className="flex-1 min-w-0">
-                          <h3 className="font-medium text-sm line-clamp-2">{getItemName(cartItem)}</h3>
+                          <h3 className={`font-medium ${cartItem.addons && cartItem.addons.length > 0 ? 'text-xs' : 'text-sm'}`}>
+                            {getItemName(cartItem)}
+                          </h3>
                           {cartItem.addons && cartItem.addons.length > 0 && (
-                            <p className="text-xs text-muted-foreground line-clamp-1 mt-1">
+                            <p className="text-xs text-muted-foreground mt-1">
                               {cartItem.addons.map((a) => a.name).join(', ')}
                             </p>
                           )}
                           <p className="text-xs font-semibold text-primary mt-2">
-                            {formatCurrency(itemPrice)}
-                            {addonsPrice > 0 && ` + ${formatCurrency(addonsPrice)}`}
+                            {formatCurrency(itemPrice || 0)}
+                            {addonsPrice > 0 && ` + ${formatCurrency(addonsPrice || 0)}`}
                           </p>
                         </div>
 
@@ -281,7 +288,7 @@ export default function CartPage() {
                           </button>
 
                           <p className="text-xs font-bold mt-2">
-                            {formatCurrency(totalPrice)}
+                            {formatCurrency(totalPrice || 0)}
                           </p>
                         </div>
                       </div>
@@ -299,7 +306,12 @@ export default function CartPage() {
                 <div className="space-y-3">
                   <div className="flex justify-between text-xs">
                     <span className="text-muted-foreground">Subtotal:</span>
-                    <span className="font-medium">{formatCurrency(cartTotal)}</span>
+                    <span className="font-medium">{formatCurrency(subtotal)}</span>
+                  </div>
+
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Service Fee (7.5%):</span>
+                    <span className="font-medium">{formatCurrency(serviceFee)}</span>
                   </div>
 
                   <div className="flex justify-between text-xs border-t border-border pt-3">

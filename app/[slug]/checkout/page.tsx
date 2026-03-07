@@ -27,6 +27,7 @@ export default function CheckoutPage() {
   const [deliveryType, setDeliveryType] = useState<'restaurant' | 'delivery'>('restaurant');
   const [formData, setFormData] = useState({
     customerName: '',
+    customerEmail: '',
     phone: '',
     address: '',
     notes: '',
@@ -51,11 +52,13 @@ export default function CheckoutPage() {
     // Fetch restaurant data
     const fetchRestaurant = async () => {
       try {
+        console.log('[v0] Checkout: Fetching restaurant for slug:', slug);
         const response = await fetch(`/api/restaurants/${slug}/menu`);
         const data = await response.json();
+        console.log('[v0] Checkout: Restaurant data received:', data.business);
         setRestaurant(data.business);
       } catch (err) {
-        console.error('Error fetching restaurant:', err);
+        console.error('[v0] Checkout: Error fetching restaurant:', err);
       } finally {
         setLoadingPage(false);
       }
@@ -103,13 +106,14 @@ export default function CheckoutPage() {
       console.log('[v0] Checkout: Restaurant email:', restaurant.email);
       console.log('[v0] Checkout: Subtotal:', subtotal, 'Service Fee:', serviceFee, 'Delivery:', deliveryFee, 'Total:', cartTotal);
 
-      // Create order
+      // Create order - customer email is required
       const orderResponse = await fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           businessSlug: slug,
           customerName: formData.customerName,
+          email: formData.customerEmail || formData.customerName.toLowerCase().replace(/\s+/g, '') + '@customer.local', // Use provided email or generate one
           phone: formData.phone,
           address: deliveryType === 'delivery' ? formData.address : 'At Restaurant',
           deliveryType,
@@ -288,6 +292,21 @@ export default function CheckoutPage() {
                 placeholder="John Doe"
                 value={formData.customerName}
                 onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
+                className="mt-1 h-8 text-xs"
+              />
+            </div>
+
+            {/* Customer Email */}
+            <div>
+              <Label htmlFor="email" className="text-xs font-semibold">
+                Email Address (Optional)
+              </Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="john@example.com"
+                value={formData.customerEmail}
+                onChange={(e) => setFormData({ ...formData, customerEmail: e.target.value })}
                 className="mt-1 h-8 text-xs"
               />
             </div>
