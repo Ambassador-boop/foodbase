@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
       [cleanBusinessId]
     );
 
-    if (!businessRows.rows || businessRows.rows.length === 0) {
+    if (!businessRows || businessRows.length === 0) {
       console.log('[v0] Order API: Business not found for ID:', cleanBusinessId);
       return NextResponse.json(
         { error: `Business not found` },
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('[v0] Order API: Business query result:', businessRows.rows[0]);
+    console.log('[v0] Order API: Business query result:', businessRows[0]);
     const orderId = generateAlphanumericId();
 
     console.log('[v0] Order API: Creating order', orderId, 'for business', businessId, 'customer:', customerName);
