@@ -38,10 +38,16 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify business exists
+    // Sanitize businessId
+    const cleanBusinessId = businessId.trim();
+
+    // Verify business exists
     const businessResult = await db.query(
-      'SELECT id FROM businesses WHERE id = $1',
-      [businessId]
+      'SELECT id FROM public.businesses WHERE id = $1',
+      [cleanBusinessId]
     );
+
+    console.log('[v0] Order API: Business query result:', businessResult.rows);
 
     if (!businessResult.rows || businessResult.rows.length === 0) {
       console.log('[v0] Order API: Business not found for ID:', businessId);
