@@ -42,20 +42,22 @@ export async function POST(request: NextRequest) {
     const cleanBusinessId = businessId.trim();
 
     // Verify business exists
-    const businessResult = await db.query(
+    // Verify business exists
+    const businessRows = await db.query(
       'SELECT id FROM public.businesses WHERE id = $1',
       [cleanBusinessId]
     );
 
-    console.log('[v0] Order API: Business query result:', businessResult.rows);
-
-    if (!businessResult.rows || businessResult.rows.length === 0) {
-      console.log('[v0] Order API: Business not found for ID:', businessId);
+    // Check if query returned any rows
+    if (!businessRows || businessRows.length === 0) {
+      console.log('[v0] Order API: Business not found for ID:', cleanBusinessId);
       return NextResponse.json(
         { error: `Business not found` },
         { status: 404 }
       );
     }
+
+    console.log('[v0] Order API: Business query result:', businessRows[0]);
     const orderId = generateAlphanumericId();
 
     console.log('[v0] Order API: Creating order', orderId, 'for business', businessId, 'customer:', customerName);
