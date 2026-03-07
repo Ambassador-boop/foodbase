@@ -118,9 +118,11 @@ export default function CartPage() {
     if (item.image_url) images.push(item.image_url);
     if (item.addons && item.addons.length > 0) {
       item.addons.forEach((addon) => {
+        console.log('[v0] Cart display - addon:', addon.name, 'image_url:', addon.image_url);
         if (addon.image_url) images.push(addon.image_url);
       });
     }
+    console.log('[v0] Cart display - total images for', item.name, ':', images.length);
     return images.slice(0, 3); // Limit to 3 images for display
   };
 
@@ -193,8 +195,8 @@ export default function CartPage() {
 
                 <div className="divide-y divide-border max-h-96 overflow-y-auto">
                   {cartItems.map((cartItem, index) => {
-                    const itemPrice = cartItem.price;
-                    const addonsPrice = cartItem.addons?.reduce((sum, addon) => sum + addon.price, 0) || 0;
+                    const itemPrice = Number(cartItem.price) || 0;
+                    const addonsPrice = cartItem.addons?.reduce((sum, addon) => sum + (Number(addon.price) || 0), 0) || 0;
                     const totalPrice = (itemPrice + addonsPrice) * cartItem.quantity;
 
                     const hasAddons = cartItem.addons && cartItem.addons.length > 0;

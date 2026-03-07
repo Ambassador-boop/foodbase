@@ -106,6 +106,10 @@ export default function AddonPage() {
         const response = await fetch(`/api/public/addons/${addon.id}`);
         if (response.ok) {
           const data = await response.json();
+          console.log('[v0] Add-on page: Fetched addon:', data.name, 'with options:', data.options?.length || 0);
+          data.options?.forEach((opt: any) => {
+            console.log('[v0] Option:', opt.name, 'Price:', opt.price, 'Image:', opt.image_url);
+          });
           return {
             id: data.id,
             name: data.name,
@@ -121,6 +125,7 @@ export default function AddonPage() {
       });
 
       const addonDetails = await Promise.all(addonDetailsPromises);
+      console.log('[v0] Add-on page: All addons loaded:', addonDetails.length);
       setAddons(addonDetails);
     } catch (err) {
       console.error('[v0] Error fetching addon details:', err);
@@ -183,6 +188,7 @@ export default function AddonPage() {
           selected.forEach((optionId: string) => {
             const option = addon.options?.find((o: any) => o.id === optionId);
             if (option) {
+              console.log('[v0] Adding addon option to cart:', option.name, 'with image:', option.image_url);
               addonsArray.push({
                 id: option.id,
                 name: option.name,
@@ -194,6 +200,7 @@ export default function AddonPage() {
         } else {
           const option = addon.options?.find((o: any) => o.id === selected);
           if (option) {
+            console.log('[v0] Adding addon option to cart:', option.name, 'with image:', option.image_url);
             addonsArray.push({
               id: option.id,
               name: option.name,
@@ -204,6 +211,8 @@ export default function AddonPage() {
         }
       }
     });
+    
+    console.log('[v0] Final addons array for cart:', addonsArray);
 
     // Create a unique key for this item + addons combination
     const addonsKey = addonsArray.map((a) => a.id).sort().join('-');
@@ -255,7 +264,7 @@ export default function AddonPage() {
   };
 
   const addonsPrice = calculateAddonsPrice();
-  const totalPrice = (selectedItem?.price || 0 + addonsPrice) * quantity;
+  const totalPrice = ((selectedItem?.price || 0) + addonsPrice) * quantity;
 
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(amount);

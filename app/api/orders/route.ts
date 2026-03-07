@@ -21,6 +21,7 @@ export async function POST(request: NextRequest) {
 
     console.log('[v0] Order API: Creating order with fields:', {
       businessSlug,
+      businessSlugType: typeof businessSlug,
       customerName,
       phone,
       subtotal,
@@ -37,16 +38,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get business
+    // Get business (case-insensitive slug lookup) - trim whitespace
+    const trimmedSlug = businessSlug.trim().toLowerCase();
+    console.log('[v0] Order API: Trimmed slug:', trimmedSlug);
+    
     const businessResult = await db.query(
-      'SELECT id FROM businesses WHERE slug = $1',
-      [businessSlug]
+      'SELECT id FROM businesses WHERE LOWER(TRIM(slug)) = $1',
+      [trimmedSlug]
     );
 
     if (!businessResult.rows || businessResult.rows.length === 0) {
-      console.log('[v0] Order API: Business not found for slug:', businessSlug);
+      console.log('[v0] Order API: Business not found for slug:', businessSlug, 'trimmed:', trimmedSlug);
+      console.log('[v0] Order API: Attempting to debug - checking all businesses');
+      // Debug: Try to find all businesses with similar slugs
+      const allBusinesses = await db.query('SELECT id, slug FROM businesses', []);
+      console.log('[v0] Order API: Total businesses in DB:', allBusinesses.rows?.length || 0);
+      if (allBusinesses.rows && allBusinesses.rows.length > 0) {
+        console.log('[v0] Order API: Sample businesses:', allBusinesses.rows.slice(0, 3));
+      }
       return NextResponse.json(
-        { error: 'Business not found' },
+        { error: `Business not found for slug: ${businessSlug}` },
         { status: 404 }
       );
     }
