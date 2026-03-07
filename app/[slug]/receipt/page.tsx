@@ -81,9 +81,16 @@ export default function ReceiptPage({ params }: { params: { slug: string } }) {
       <div className="max-w-2xl mx-auto">
         {/* Success Header */}
         <div className="text-center mb-6 py-4 border-b border-border">
-          <CheckCircle className="w-10 h-10 text-accent mx-auto mb-2" />
+          <CheckCircle className="w-10 h-10 text-accent mx-auto mb-3" />
           <h1 className="text-lg font-bold mb-1">Order Confirmed</h1>
           <p className="text-xs text-muted-foreground">Thank you for your order</p>
+        </div>
+
+        {/* Order Number - Prominently Displayed */}
+        <div className="bg-primary text-white p-6 rounded-lg mb-6 text-center">
+          <p className="text-xs text-white/80 mb-2">Order Number</p>
+          <p className="text-3xl font-bold font-mono mb-2">{order.id}</p>
+          <p className="text-xs text-white/70">Keep this for your reference</p>
         </div>
 
         {/* Order Number and Time */}

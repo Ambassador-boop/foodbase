@@ -91,7 +91,8 @@ export default function RestaurantPage() {
 
   const handleMenuItemClick = (item: MenuItem) => {
     if (item.addons && item.addons.length > 0) {
-      setSelectedItemForAddons(item);
+      // Navigate to add-on page
+      window.location.href = `/${slug}/add-on?itemId=${item.id}`;
     } else {
       addToCart(item.id);
     }
@@ -100,32 +101,60 @@ export default function RestaurantPage() {
   const handleDrinkAdd = (drinkId: string) => {
     const drink = drinks.find((d) => d.id === drinkId);
     if (drink) {
-      setCartItems([
-        ...cartItems,
-        {
-          id: `drink_${drinkId}`,
-          type: 'drink',
-          name: drink.name,
-          price: drink.price,
-          image_url: drink.image_url,
-          quantity: 1,
-          addons: [],
-        },
-      ]);
+      addDrinkToCart(drink);
     }
   };
 
   const addToCart = (itemId: string) => {
     const item = menuItems.find((m) => m.id === itemId);
     if (item) {
+      const existingCartItem = cartItems.find(
+        (ci) => ci.id === itemId && ci.type === 'menu' && (!ci.addons || ci.addons.length === 0)
+      );
+
+      if (existingCartItem) {
+        // Item already in cart, increase quantity
+        const newItems = cartItems.map((ci) =>
+          ci === existingCartItem ? { ...ci, quantity: ci.quantity + 1 } : ci
+        );
+        setCartItems(newItems);
+      } else {
+        setCartItems([
+          ...cartItems,
+          {
+            id: itemId,
+            type: 'menu',
+            name: item.name,
+            price: item.price,
+            image_url: item.image_url,
+            quantity: 1,
+            addons: [],
+          },
+        ]);
+      }
+    }
+  };
+
+  const addDrinkToCart = (drink: Drink) => {
+    const existingCartItem = cartItems.find(
+      (ci) => ci.id === `drink_${drink.id}` && ci.type === 'drink'
+    );
+
+    if (existingCartItem) {
+      // Drink already in cart, increase quantity
+      const newItems = cartItems.map((ci) =>
+        ci === existingCartItem ? { ...ci, quantity: ci.quantity + 1 } : ci
+      );
+      setCartItems(newItems);
+    } else {
       setCartItems([
         ...cartItems,
         {
-          id: itemId,
-          type: 'menu',
-          name: item.name,
-          price: item.price,
-          image_url: item.image_url,
+          id: `drink_${drink.id}`,
+          type: 'drink',
+          name: drink.name,
+          price: drink.price,
+          image_url: drink.image_url,
           quantity: 1,
           addons: [],
         },
@@ -148,6 +177,7 @@ export default function RestaurantPage() {
                   id: option.id,
                   name: option.name,
                   price: option.price,
+                  image_url: option.image_url,
                 });
               }
             });
@@ -158,24 +188,40 @@ export default function RestaurantPage() {
                 id: option.id,
                 name: option.name,
                 price: option.price,
+                image_url: option.image_url,
               });
             }
           }
         }
       });
 
-      setCartItems([
-        ...cartItems,
-        {
-          id: itemId,
-          type: 'menu',
-          name: item.name,
-          price: item.price,
-          image_url: item.image_url,
-          quantity: 1,
-          addons: addonsArray,
-        },
-      ]);
+      // Create a unique key for this item + addons combination
+      const addonsKey = addonsArray.map((a) => a.id).sort().join('-');
+      const cartKey = `${itemId}_${addonsKey}`;
+
+      const existingCartItem = cartItems.find((ci) => ci.cartKey === cartKey);
+
+      if (existingCartItem) {
+        // Same item with same addons exists, increase quantity
+        const newItems = cartItems.map((ci) =>
+          ci === existingCartItem ? { ...ci, quantity: ci.quantity + 1 } : ci
+        );
+        setCartItems(newItems);
+      } else {
+        setCartItems([
+          ...cartItems,
+          {
+            id: itemId,
+            cartKey,
+            type: 'menu',
+            name: item.name,
+            price: item.price,
+            image_url: item.image_url,
+            quantity: 1,
+            addons: addonsArray,
+          },
+        ]);
+      }
     }
   };
 
@@ -242,10 +288,7 @@ export default function RestaurantPage() {
           {/* Menu or Drinks */}
           <div className="space-y-3">
             <div className="bg-white rounded-lg p-4">
-              <h2 className="text-lg font-bold mb-2">{showDrinks ? 'Drinks' : restaurant.name}</h2>
-              {!showDrinks && restaurant.description && (
-                <p className="text-xs text-muted-foreground">{restaurant.description}</p>
-              )}
+              <h2 className="text-lg font-bold mb-2">{showDrinks ? 'Drinks' : 'Our Menu'}</h2>
             </div>
 
             {showDrinks ? (

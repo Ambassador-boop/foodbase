@@ -72,7 +72,8 @@ export default function CheckoutPage() {
   }, 0);
 
   const deliveryFee = deliveryType === 'delivery' ? 1000 : 0;
-  const cartTotal = subtotal + deliveryFee;
+  const serviceFee = Math.round(subtotal * 0.075); // 7.5% service fee
+  const cartTotal = subtotal + deliveryFee + serviceFee;
 
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(amount);
@@ -81,31 +82,27 @@ export default function CheckoutPage() {
     e.preventDefault();
     setError('');
 
-    // Validate form
-    if (!formData.customerName.trim()) {
-      setError('Customer name is required');
-      return;
-    }
-    if (!formData.phone.trim()) {
-      setError('Phone number is required');
-      return;
-    }
-    if (deliveryType === 'delivery' && !formData.address.trim()) {
-      setError('Delivery address is required');
-      return;
-    }
-    if (cartItems.length === 0) {
-      setError('Your cart is empty');
-      return;
-    }
-    if (!restaurant) {
-      setError('Restaurant information not available');
+    // Validate form - check all required fields
+    const missingFields: string[] = [];
+    if (!formData.customerName.trim()) missingFields.push('Name');
+    if (!formData.phone.trim()) missingFields.push('Phone');
+    if (deliveryType === 'delivery' && !formData.address.trim()) missingFields.push('Delivery Address');
+    if (cartItems.length === 0) missingFields.push('Cart');
+    if (!restaurant) missingFields.push('Restaurant info');
+
+    if (missingFields.length > 0) {
+      console.log('[v0] Missing fields:', missingFields);
+      setError(`Missing Fields required: ${missingFields.join(', ')}`);
       return;
     }
 
     setLoading(true);
 
     try {
+      console.log('[v0] Checkout: Starting payment process');
+      console.log('[v0] Checkout: Restaurant email:', restaurant.email);
+      console.log('[v0] Checkout: Subtotal:', subtotal, 'Service Fee:', serviceFee, 'Delivery:', deliveryFee, 'Total:', cartTotal);
+
       // Create order
       const orderResponse = await fetch('/api/orders', {
         method: 'POST',
@@ -120,6 +117,7 @@ export default function CheckoutPage() {
           items: cartItems,
           subtotal,
           deliveryFee,
+          serviceFee,
           total: cartTotal,
         }),
       });
@@ -127,11 +125,15 @@ export default function CheckoutPage() {
       const orderData = await orderResponse.json();
 
       if (!orderResponse.ok) {
+        console.log('[v0] Order creation failed:', orderData.error);
         setError(orderData.error || 'Failed to create order');
         return;
       }
 
+      console.log('[v0] Order created:', orderData.orderId);
+
       // Initialize payment with business owner's email
+      console.log('[v0] Initializing payment with email:', restaurant.email);
       const paymentResponse = await fetch('/api/payments/initialize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -146,9 +148,12 @@ export default function CheckoutPage() {
       const paymentData = await paymentResponse.json();
 
       if (!paymentResponse.ok) {
+        console.log('[v0] Payment initialization failed:', paymentData.error);
         setError(paymentData.error || 'Failed to initialize payment');
         return;
       }
+
+      console.log('[v0] Payment initialized, redirecting to Paystack');
 
       // Redirect to Paystack
       if (paymentData.authorizationUrl) {
@@ -214,6 +219,10 @@ export default function CheckoutPage() {
               <div className="flex justify-between">
                 <span>Subtotal</span>
                 <span>{formatCurrency(subtotal)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Service Fee (7.5%)</span>
+                <span>{formatCurrency(serviceFee)}</span>
               </div>
               <div className="flex justify-between">
                 <span>Delivery</span>

@@ -50,15 +50,27 @@ export async function GET(
       menuItems.map(async (item: any) => {
         try {
           const addons = await getAll(
-            `SELECT a.id, a.name, a.addon_type, a.is_required
+            `SELECT a.id, a.name, a.addon_type, a.is_required, a.allow_multiple, a.description, a.image_url
              FROM menu_item_addons mia
              LEFT JOIN addons a ON mia.addon_id = a.id
              WHERE mia.menu_item_id = $1
-             GROUP BY a.id, a.name, a.addon_type, a.is_required`,
+             GROUP BY a.id, a.name, a.addon_type, a.is_required, a.allow_multiple, a.description, a.image_url`,
             [item.id]
           );
           console.log(`[v0] API: Addons for menu item ${item.id}:`, addons?.length || 0);
-          return { ...item, addons: addons || [] };
+
+          // Get options for each addon
+          const addonsWithOptions = await Promise.all(
+            (addons || []).map(async (addon: any) => {
+              const options = await getAll(
+                'SELECT * FROM addon_options WHERE addon_id = $1 ORDER BY display_order, created_at',
+                [addon.id]
+              );
+              return { ...addon, options: options || [] };
+            })
+          );
+
+          return { ...item, addons: addonsWithOptions };
         } catch (err) {
           // If addon query fails, just return item without addons
           console.error('[v0] Error fetching addons for menu item:', item.id, err);

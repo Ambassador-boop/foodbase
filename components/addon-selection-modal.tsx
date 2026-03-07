@@ -99,13 +99,13 @@ export function AddonSelectionModal({
       }
     }
 
+    // Call the callback which will handle adding to cart
     onAddToCart({
       itemId: item.id,
       quantity,
       selectedAddons,
       totalPrice,
     });
-    onClose();
   };
 
   return (

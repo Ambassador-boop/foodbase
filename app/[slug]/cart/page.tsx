@@ -9,12 +9,13 @@ import { ArrowLeft, Trash2, Plus, Minus, AlertCircle } from 'lucide-react';
 
 interface CartItem {
   id: string;
+  cartKey?: string;
   type: 'menu' | 'drink';
   name: string;
   price: number;
   image_url?: string;
   quantity: number;
-  addons?: { id: string; name: string; price: number }[];
+  addons?: { id: string; name: string; price: number; image_url?: string }[];
 }
 
 interface MenuItem {
@@ -112,6 +113,17 @@ export default function CartPage() {
     return item.name;
   };
 
+  const getItemImages = (item: CartItem): string[] => {
+    const images: string[] = [];
+    if (item.image_url) images.push(item.image_url);
+    if (item.addons && item.addons.length > 0) {
+      item.addons.forEach((addon) => {
+        if (addon.image_url) images.push(addon.image_url);
+      });
+    }
+    return images.slice(0, 3); // Limit to 3 images for display
+  };
+
   const cartTotal = cartItems.reduce((total, item) => {
     const itemPrice = item.price;
     const addonsPrice = item.addons?.reduce((sum, addon) => sum + addon.price, 0) || 0;
@@ -180,17 +192,35 @@ export default function CartPage() {
                     const addonsPrice = cartItem.addons?.reduce((sum, addon) => sum + addon.price, 0) || 0;
                     const totalPrice = (itemPrice + addonsPrice) * cartItem.quantity;
 
+                    const itemImages = getItemImages(cartItem);
+
                     return (
                       <div key={index} className="p-4 flex gap-4">
-                        {/* Item Image */}
-                        {cartItem.image_url && (
-                          <div className="relative w-20 h-20 rounded overflow-hidden flex-shrink-0">
-                            <Image
-                              src={cartItem.image_url}
-                              alt={cartItem.name}
-                              fill
-                              className="object-cover"
-                            />
+                        {/* Item Images - Overlapping */}
+                        {itemImages.length > 0 && (
+                          <div className="relative w-20 h-20 flex-shrink-0">
+                            {itemImages.map((img, imgIdx) => (
+                              <div
+                                key={imgIdx}
+                                className="absolute rounded overflow-hidden"
+                                style={{
+                                  width: '20px',
+                                  height: '20px',
+                                  left: `${imgIdx * 8}px`,
+                                  top: `${imgIdx * 8}px`,
+                                  zIndex: itemImages.length - imgIdx,
+                                  border: '1px solid white',
+                                }}
+                              >
+                                <Image
+                                  src={img}
+                                  alt="item"
+                                  fill
+                                  className="object-cover"
+                                  sizes="20px"
+                                />
+                              </div>
+                            ))}
                           </div>
                         )}
 

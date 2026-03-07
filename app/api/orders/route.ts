@@ -13,10 +13,24 @@ export async function POST(request: NextRequest) {
       address,
       notes,
       items,
+      subtotal,
+      serviceFee,
+      deliveryFee,
       total,
     } = body;
 
+    console.log('[v0] Order API: Creating order with fields:', {
+      businessSlug,
+      customerName,
+      phone,
+      subtotal,
+      serviceFee,
+      deliveryFee,
+      total,
+    });
+
     if (!businessSlug || !customerName || !email || !phone || !address) {
+      console.log('[v0] Order API: Missing required fields');
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
@@ -30,6 +44,7 @@ export async function POST(request: NextRequest) {
     );
 
     if (!businessResult.rows || businessResult.rows.length === 0) {
+      console.log('[v0] Order API: Business not found for slug:', businessSlug);
       return NextResponse.json(
         { error: 'Business not found' },
         { status: 404 }
@@ -39,12 +54,14 @@ export async function POST(request: NextRequest) {
     const businessId = businessResult.rows[0].id;
     const orderId = generateAlphanumericId();
 
+    console.log('[v0] Order API: Creating order', orderId, 'for business', businessId);
+
     // Create order
     const orderResult = await db.query(
       `INSERT INTO orders 
-       (id, business_id, customer_name, email, phone, address, notes, total, payment_status, status)
+       (id, business_id, customer_name, customer_email, customer_phone, address, notes, total_amount, payment_status, status)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-       RETURNING id, total`,
+       RETURNING id, total_amount`,
       [
         orderId,
         businessId,
@@ -60,19 +77,23 @@ export async function POST(request: NextRequest) {
     );
 
     if (!orderResult.rows || orderResult.rows.length === 0) {
+      console.log('[v0] Order API: Failed to insert order');
       return NextResponse.json(
         { error: 'Failed to create order' },
         { status: 500 }
       );
     }
 
+    console.log('[v0] Order API: Order created successfully with total:', orderResult.rows[0].total_amount);
+
     return NextResponse.json({
       success: true,
       orderId,
-      total: orderResult.rows[0].total,
+      total: orderResult.rows[0].total_amount,
+      reference: orderId,
     });
   } catch (error) {
-    console.error('Order creation error:', error);
+    console.error('[v0] Order creation error:', error);
     return NextResponse.json(
       { error: 'Failed to create order' },
       { status: 500 }
