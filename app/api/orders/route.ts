@@ -61,25 +61,34 @@ export async function POST(request: NextRequest) {
 
     console.log('[v0] Order API: Creating order', orderId, 'for business', businessId, 'customer:', customerName);
 
-    // Create order
-    const orderResult = await db.query(
-      `INSERT INTO orders 
-       (id, business_id, customer_name, customer_email, customer_phone, address, notes, total_amount, payment_status, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-       RETURNING id, total_amount`,
-      [
-        orderId,
-        businessId,
-        customerName,
-        email,
-        phone,
-        address,
-        notes || null,
-        total,
-        'pending',
-        'pending',
-      ]
-    );
+    let orderResult;
+
+    try {
+      orderResult = await db.query(
+        `INSERT INTO orders 
+     (id, business_id, customer_name, customer_email, customer_phone, address, notes, total_amount, payment_status, status)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+     RETURNING id, total_amount`,
+        [
+          orderId,
+          businessId,
+          customerName,
+          email,
+          phone,
+          address,
+          notes || null,
+          total,
+          'pending',
+          'pending',
+        ]
+      );
+    } catch (err) {
+      console.error('[v0] Order insert failed:', err);
+      return NextResponse.json(
+        { error: 'Database insert failed' },
+        { status: 500 }
+      );
+    }
 
     if (!orderResult.rows || orderResult.rows.length === 0) {
       console.log('[v0] Order API: Failed to insert order');
