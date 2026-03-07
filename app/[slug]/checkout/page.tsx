@@ -107,11 +107,17 @@ export default function CheckoutPage() {
       console.log('[v0] Checkout: Subtotal:', subtotal, 'Service Fee:', serviceFee, 'Delivery:', deliveryFee, 'Total:', cartTotal);
 
       // Create order - customer email is required
+      if (!restaurant?.id) {
+        setError('Restaurant information missing');
+        setLoading(false);
+        return;
+      }
+
       const orderResponse = await fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          businessSlug: slug,
+          businessId: restaurant.id,
           customerName: formData.customerName,
           email: formData.customerEmail || formData.customerName.toLowerCase().replace(/\s+/g, '') + '@customer.local', // Use provided email or generate one
           phone: formData.phone,

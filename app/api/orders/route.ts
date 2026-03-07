@@ -6,7 +6,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const {
-      businessSlug,
+      businessId,
       customerName,
       email,
       phone,
@@ -20,8 +20,7 @@ export async function POST(request: NextRequest) {
     } = body;
 
     console.log('[v0] Order API: Creating order with fields:', {
-      businessSlug,
-      businessSlugType: typeof businessSlug,
+      businessId,
       customerName,
       phone,
       subtotal,
@@ -30,7 +29,7 @@ export async function POST(request: NextRequest) {
       total,
     });
 
-    if (!businessSlug || !customerName || !email || !phone || !address) {
+    if (!businessId || !customerName || !email || !phone || !address) {
       console.log('[v0] Order API: Missing required fields');
       return NextResponse.json(
         { error: 'Missing required fields' },
@@ -38,34 +37,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get business (case-insensitive slug lookup) - trim whitespace
-    const trimmedSlug = businessSlug.trim().toLowerCase();
-    console.log('[v0] Order API: Trimmed slug:', trimmedSlug);
-    
+    // Verify business exists
     const businessResult = await db.query(
-      'SELECT id FROM businesses WHERE LOWER(TRIM(slug)) = $1',
-      [trimmedSlug]
+      'SELECT id FROM businesses WHERE id = $1',
+      [businessId]
     );
 
     if (!businessResult.rows || businessResult.rows.length === 0) {
-      console.log('[v0] Order API: Business not found for slug:', businessSlug, 'trimmed:', trimmedSlug);
-      console.log('[v0] Order API: Attempting to debug - checking all businesses');
-      // Debug: Try to find all businesses with similar slugs
-      const allBusinesses = await db.query('SELECT id, slug FROM businesses', []);
-      console.log('[v0] Order API: Total businesses in DB:', allBusinesses.rows?.length || 0);
-      if (allBusinesses.rows && allBusinesses.rows.length > 0) {
-        console.log('[v0] Order API: Sample businesses:', allBusinesses.rows.slice(0, 3));
-      }
+      console.log('[v0] Order API: Business not found for ID:', businessId);
       return NextResponse.json(
-        { error: `Business not found for slug: ${businessSlug}` },
+        { error: `Business not found` },
         { status: 404 }
       );
     }
-
-    const businessId = businessResult.rows[0].id;
     const orderId = generateAlphanumericId();
 
-    console.log('[v0] Order API: Creating order', orderId, 'for business', businessId);
+    console.log('[v0] Order API: Creating order', orderId, 'for business', businessId, 'customer:', customerName);
 
     // Create order
     const orderResult = await db.query(
