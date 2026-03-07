@@ -89,15 +89,6 @@ export default function RestaurantPage() {
     }
   };
 
-  const handleMenuItemClick = (item: MenuItem) => {
-    if (item.addons && item.addons.length > 0) {
-      // Navigate to add-on page
-      window.location.href = `/${slug}/add-on?itemId=${item.id}`;
-    } else {
-      addToCart(item.id);
-    }
-  };
-
   const handleDrinkAdd = (drinkId: string) => {
     const drink = drinks.find((d) => d.id === drinkId);
     if (drink) {
@@ -370,7 +361,15 @@ export default function RestaurantPage() {
                           {formatCurrency(item.price)}
                         </p>
                         <Button
-                          onClick={() => handleMenuItemClick(item)}
+                          onClick={() => {
+                            if (item.addons && item.addons.length > 0) {
+                              // Navigate to add-on page
+                              window.location.href = `/${slug}/add-on?itemId=${item.id}`;
+                            } else {
+                              // Add directly to cart
+                              addToCart(item.id);
+                            }
+                          }}
                           size="sm"
                           className="h-7 text-xs bg-primary text-white hover:bg-primary-dark w-full"
                         >

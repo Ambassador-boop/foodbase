@@ -192,36 +192,52 @@ export default function CartPage() {
                     const addonsPrice = cartItem.addons?.reduce((sum, addon) => sum + addon.price, 0) || 0;
                     const totalPrice = (itemPrice + addonsPrice) * cartItem.quantity;
 
-                    const itemImages = getItemImages(cartItem);
+                    const hasAddons = cartItem.addons && cartItem.addons.length > 0;
+                    const itemImages = hasAddons ? getItemImages(cartItem) : [];
 
                     return (
                       <div key={index} className="p-4 flex gap-4">
-                        {/* Item Images - Overlapping */}
-                        {itemImages.length > 0 && (
-                          <div className="relative w-20 h-20 flex-shrink-0">
-                            {itemImages.map((img, imgIdx) => (
-                              <div
-                                key={imgIdx}
-                                className="absolute rounded overflow-hidden"
-                                style={{
-                                  width: '20px',
-                                  height: '20px',
-                                  left: `${imgIdx * 8}px`,
-                                  top: `${imgIdx * 8}px`,
-                                  zIndex: itemImages.length - imgIdx,
-                                  border: '1px solid white',
-                                }}
-                              >
-                                <Image
-                                  src={img}
-                                  alt="item"
-                                  fill
-                                  className="object-cover"
-                                  sizes="20px"
-                                />
-                              </div>
-                            ))}
-                          </div>
+                        {/* Item Images */}
+                        {hasAddons ? (
+                          // Overlapping images for items with add-ons
+                          itemImages.length > 0 && (
+                            <div className="relative w-20 h-20 flex-shrink-0">
+                              {itemImages.map((img, imgIdx) => (
+                                <div
+                                  key={imgIdx}
+                                  className="absolute rounded overflow-hidden"
+                                  style={{
+                                    width: '20px',
+                                    height: '20px',
+                                    left: `${imgIdx * 8}px`,
+                                    top: `${imgIdx * 8}px`,
+                                    zIndex: itemImages.length - imgIdx,
+                                    border: '1px solid white',
+                                  }}
+                                >
+                                  <Image
+                                    src={img}
+                                    alt="item"
+                                    fill
+                                    className="object-cover"
+                                    sizes="20px"
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          )
+                        ) : (
+                          // Single image for items without add-ons
+                          cartItem.image_url && (
+                            <div className="relative w-20 h-20 rounded overflow-hidden flex-shrink-0">
+                              <Image
+                                src={cartItem.image_url}
+                                alt={cartItem.name}
+                                fill
+                                className="object-cover"
+                              />
+                            </div>
+                          )
                         )}
 
                         {/* Item Details */}
