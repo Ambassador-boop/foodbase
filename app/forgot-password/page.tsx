@@ -88,7 +88,7 @@ export default function ForgotPasswordPage() {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-6">
       <div className="w-full max-w-md">
-        <Link href="/" className="flex items-center gap-2 mb-8">
+        <Link href="/forgot-password" className="flex items-center gap-2 mb-8">
           <Image
             src="/foodbase-logo.png"
             alt="FoodBase"
