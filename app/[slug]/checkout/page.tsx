@@ -124,7 +124,12 @@ export default function CheckoutPage() {
           address: deliveryType === 'delivery' ? formData.address : 'At Restaurant',
           deliveryType,
           notes: formData.notes,
-          items: cartItems,
+          items: cartItems.map(item => ({
+            menu_item_id: item.id, // menu item ID
+            quantity: item.quantity,
+            item_price: item.price + (item.addons?.reduce((sum: number, a: any) => sum + a.price, 0) || 0), // price + addons
+            configuration: item.addons || null, // store addons as configuration
+          })),
           subtotal,
           deliveryFee,
           serviceFee,
