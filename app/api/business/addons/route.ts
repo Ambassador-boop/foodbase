@@ -109,20 +109,21 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Link paired menu items as addon options
+    // Link paired menu items to this addon using menu_item_addons table
     if (Array.isArray(pairedMenuItems) && pairedMenuItems.length > 0) {
       for (const menuItemId of pairedMenuItems) {
         // Verify menu item exists and belongs to business
         const menuItem = await getOne(
-          'SELECT id, name, price FROM menu_items WHERE id = $1 AND business_id = $2',
+          'SELECT id FROM menu_items WHERE id = $1 AND business_id = $2',
           [menuItemId, business.id]
         );
         if (menuItem) {
-          const optionId = generateId('opt');
+          // Insert into menu_item_addons to create the relationship
+          const relationId = generateId('rel');
           await query(
-            `INSERT INTO addon_options (id, addon_id, name, price, created_at, updated_at)
-             VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-            [optionId, addonId, menuItem.name, menuItem.price]
+            `INSERT INTO menu_item_addons (id, menu_item_id, addon_id, is_required)
+             VALUES ($1, $2, $3, $4)`,
+            [relationId, menuItemId, addonId, false]
           );
         }
       }

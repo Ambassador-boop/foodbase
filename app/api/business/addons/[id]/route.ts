@@ -30,10 +30,19 @@ export async function GET(
       [id]
     );
 
+    // Get paired menu items for this addon
+    const pairedMenuItems = await getAll(
+      'SELECT menu_item_id FROM menu_item_addons WHERE addon_id = $1',
+      [id]
+    );
+
     return NextResponse.json({
       success: true,
-      ...addon,
-      options: options || [],
+      addon: {
+        ...addon,
+        options: options || [],
+        pairedMenuItems: pairedMenuItems?.map((m: any) => m.menu_item_id) || [],
+      },
     });
   } catch (error) {
     console.error('[v0] Get addon error:', error);
@@ -61,7 +70,7 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { name, addonType, description, price, imageUrl, isRequired, allowMultiple, is_available, options } = body;
+    const { name, addonType, description, price, imageUrl, isRequired, allowMultiple, is_available, options, pairedMenuItems } = body;
 
     // Get business
     const business = await getOne(
@@ -148,6 +157,29 @@ export async function PATCH(
            VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
           [optionId, id, option.name, option.price || 0]
         );
+      }
+    }
+
+    // Update paired menu items if provided
+    if (Array.isArray(pairedMenuItems)) {
+      // Delete existing menu item relationships
+      await query('DELETE FROM menu_item_addons WHERE addon_id = $1', [id]);
+
+      // Add new relationships
+      for (const menuItemId of pairedMenuItems) {
+        // Verify menu item exists and belongs to business
+        const menuItem = await getOne(
+          'SELECT id FROM menu_items WHERE id = $1 AND business_id = $2',
+          [menuItemId, business.id]
+        );
+        if (menuItem) {
+          const relationId = generateId('rel');
+          await query(
+            `INSERT INTO menu_item_addons (id, menu_item_id, addon_id, is_required)
+             VALUES ($1, $2, $3, $4)`,
+            [relationId, menuItemId, id, false]
+          );
+        }
       }
     }
 

@@ -54,7 +54,7 @@ export default function AddonForm({ addon, isEditing = false }: AddonFormProps) 
     imageFile: null as File | null,
     imageUrl: addon?.image_url || '',
     options: addon?.options?.map(o => ({ name: o.name, price: o.price.toString() })) || [{ name: '', price: '' }],
-    pairedMenuItems: [] as string[], // New: paired menu items
+    pairedMenuItems: (addon as any)?.pairedMenuItems || [], // New: paired menu items
   });
   const [previewUrl, setPreviewUrl] = useState<string | null>(addon?.image_url || null);
 
