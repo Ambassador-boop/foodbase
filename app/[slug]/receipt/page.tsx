@@ -65,11 +65,16 @@ export default function ReceiptPage({ params }: { params: { slug: string } }) {
 
   const fetchOrderData = async () => {
     try {
-      console.log('[v0] Receipt: Fetching order data for:', orderId);
+      console.log('[v0] Receipt: Fetching order data for orderId:', orderId);
       const response = await fetch(`/api/orders/${orderId}`);
 
+      console.log('[v0] Receipt: API response status:', response.status);
+      console.log('[v0] Receipt: API response ok:', response.ok);
+
       if (!response.ok) {
-        throw new Error('Failed to fetch order');
+        const errorData = await response.json();
+        console.error('[v0] Receipt: API error response:', errorData);
+        throw new Error(errorData.error || 'Failed to fetch order');
       }
 
       const data = await response.json();

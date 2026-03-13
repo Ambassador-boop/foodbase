@@ -232,10 +232,13 @@ export default function AddonPage() {
         cartKey,
         type: 'menu',
         name: selectedItem.name,
-        price: selectedItem.price,
+        price: Number(selectedItem.price), // Ensure it's a number
         image_url: selectedItem.image_url,
-        quantity,
-        addons: addonsArray,
+        quantity: Number(quantity),
+        addons: addonsArray.map(a => ({
+          ...a,
+          price: Number(a.price), // Ensure addon prices are numbers
+        })),
       });
       sessionStorage.setItem(`cart_${slug}`, JSON.stringify(cartItems));
     }
@@ -252,15 +255,15 @@ export default function AddonPage() {
         if (Array.isArray(selected)) {
           selected.forEach((optionId) => {
             const option = addon.options?.find((o) => o.id === optionId);
-            if (option) total += option.price;
+            if (option) total += Number(option.price) || 0;
           });
         } else {
           const option = addon.options?.find((o) => o.id === selected);
-          if (option) total += option.price;
+          if (option) total += Number(option.price) || 0;
         }
       }
     });
-    return total;
+    return Number(total) || 0;
   };
 
   const getSelectedAddonsDetails = () => {
@@ -310,9 +313,17 @@ export default function AddonPage() {
 
   const addonsPrice = calculateAddonsPrice();
   const selectedAddonsDetails = getSelectedAddonsDetails();
-  const itemPrice = selectedItem?.price || 0;
-  const pricePerUnit = itemPrice + addonsPrice;
-  const totalPrice = pricePerUnit * quantity;
+  const itemPrice = Number(selectedItem?.price) || 0;
+  const pricePerUnit = Number(itemPrice) + Number(addonsPrice);
+  const totalPrice = Number(pricePerUnit) * Number(quantity);
+
+  console.log('[v0] Add-on page calculations:', {
+    itemPrice,
+    addonsPrice,
+    pricePerUnit,
+    quantity,
+    totalPrice,
+  });
 
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(amount);

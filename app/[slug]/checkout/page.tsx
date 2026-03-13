@@ -50,12 +50,13 @@ export default function CheckoutPage() {
 
     // Fetch restaurant data
     const fetchRestaurant = async () => {
-      try {
-        console.log('[v0] Checkout: Fetching restaurant for slug:', slug);
-        const response = await fetch(`/api/restaurants/${slug}/menu`);
-        const data = await response.json();
-        console.log('[v0] Checkout: Restaurant data received:', data.business);
-        setRestaurant(data.business);
+    try {
+      console.log('[v0] Checkout: Fetching restaurant for slug:', slug);
+      console.log('[v0] Checkout: Cart items loaded:', cartItems, 'Total items:', cartItems.length);
+      const response = await fetch(`/api/restaurants/${slug}/menu`);
+      const data = await response.json();
+      console.log('[v0] Checkout: Restaurant data received:', data.business);
+      setRestaurant(data.business);
       } catch (err) {
         console.error('[v0] Checkout: Error fetching restaurant:', err);
       } finally {
@@ -68,14 +69,22 @@ export default function CheckoutPage() {
 
   // Calculate totals
   const subtotal = cartItems.reduce((total, item) => {
-    const itemPrice = item.price;
-    const addonsPrice = item.addons?.reduce((sum: number, addon: any) => sum + addon.price, 0) || 0;
+    const itemPrice = Number(item.price) || 0;
+    const addonsPrice = item.addons?.reduce((sum: number, addon: any) => sum + (Number(addon.price) || 0), 0) || 0;
     return total + (itemPrice + addonsPrice) * item.quantity;
   }, 0);
 
   const deliveryFee = deliveryType === 'delivery' ? 1000 : 0;
-  const serviceFee = Math.round(subtotal * 0.075); // 7.5% service fee
-  const cartTotal = subtotal + deliveryFee + serviceFee;
+  const serviceFee = Math.round(subtotal * 0.075 * 100) / 100; // 7.5% service fee with proper rounding
+  const cartTotal = Math.round((subtotal + deliveryFee + serviceFee) * 100) / 100;
+
+  console.log('[v0] Checkout calculations:', {
+    cartItemsCount: cartItems.length,
+    subtotal,
+    deliveryFee,
+    serviceFee,
+    cartTotal,
+  });
 
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(amount);

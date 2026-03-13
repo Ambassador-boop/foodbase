@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { db, query } from '@/lib/db';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { orderId: string } }
+  { params }: { params: Promise<{ orderId: string }> }
 ) {
   try {
-    const orderId = params.orderId;
+    const resolvedParams = await params;
+    const orderId = resolvedParams.orderId;
 
     if (!orderId) {
       return NextResponse.json(
@@ -16,7 +17,9 @@ export async function GET(
     }
 
     // Fetch complete order data with order items
-    const orderResult = await db.query(
+    console.log('[v0] API: Fetching order with ID:', orderId);
+    
+    const orderResult = await query(
       `SELECT 
         o.id,
         o.business_id,
@@ -38,7 +41,10 @@ export async function GET(
       [orderId]
     );
 
+    console.log('[v0] API: Order result:', orderResult);
+
     if (!orderResult || orderResult.length === 0) {
+      console.log('[v0] API: Order not found for ID:', orderId);
       return NextResponse.json(
         { error: 'Order not found' },
         { status: 404 }
@@ -46,9 +52,10 @@ export async function GET(
     }
 
     const order = orderResult[0];
+    console.log('[v0] API: Order found:', order.id);
 
     // Fetch order items with menu item details
-    const itemsResult = await db.query(
+    const itemsResult = await query(
       `SELECT 
         oi.id,
         oi.menu_item_id,
@@ -64,6 +71,8 @@ export async function GET(
       ORDER BY oi.created_at ASC`,
       [orderId]
     );
+
+    console.log('[v0] API: Items result count:', itemsResult?.length || 0);
 
     // Process items and parse addon configuration
     const items = (itemsResult || []).map((item: any) => {
