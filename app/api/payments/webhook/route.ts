@@ -1,11 +1,13 @@
-import { sql } from '@vercel/postgres';
 import { NextRequest, NextResponse } from 'next/server';
+import { db } from '@/lib/db';
 import crypto from 'crypto';
 
 export async function POST(req: NextRequest) {
   try {
     const signature = req.headers.get('x-paystack-signature');
     const body = await req.text();
+
+    console.log('[v0] Webhook received with signature:', signature);
 
     // Verify webhook signature
     const hash = crypto
@@ -14,29 +16,34 @@ export async function POST(req: NextRequest) {
       .digest('hex');
 
     if (hash !== signature) {
+      console.error('[v0] Invalid webhook signature');
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 
     const event = JSON.parse(body);
+    console.log('[v0] Webhook event:', event.event);
 
     if (event.event === 'charge.success') {
       const { reference, amount, customer } = event.data;
 
+      console.log('[v0] Processing charge.success for reference:', reference);
+
       // Update order status to paid
-      const orderResult = await sql.query(
+      const orderResult = await db.query(
         `UPDATE orders 
-         SET status = 'confirmed', payment_reference = $1
-         WHERE id = (SELECT id FROM orders WHERE paystack_reference = $2)
+         SET payment_status = $1, payment_reference = $2, status = $3
+         WHERE payment_reference = $4 OR id = $5
          RETURNING id, business_id, total_amount`,
-        ['paid', reference]
+        ['completed', reference, 'confirmed', reference, '']
       );
 
-      if (orderResult.rows.length > 0) {
-        const order = orderResult.rows[0];
+      if (orderResult && orderResult.length > 0) {
+        const order = orderResult[0];
+        console.log('[v0] Order updated:', order.id);
 
         // Record transaction
         const transactionId = `txn_${Date.now()}`;
-        await sql.query(
+        await db.query(
           `INSERT INTO transactions (id, business_id, type, amount, description, reference, created_at)
            VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
           [
@@ -50,12 +57,14 @@ export async function POST(req: NextRequest) {
         );
 
         // Update business available balance
-        await sql.query(
+        await db.query(
           `UPDATE businesses 
            SET available_balance = available_balance + $1
            WHERE id = $2`,
           [order.total_amount, order.business_id]
         );
+
+        console.log('[v0] Business balance updated');
       }
 
       return NextResponse.json({ success: true });
@@ -63,7 +72,29 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Webhook processing error:', error);
+    console.error('[v0] Webhook processing error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+// Handle GET requests - used for redirect from Paystack payment success
+export async function GET(req: NextRequest) {
+  try {
+    const searchParams = req.nextUrl.searchParams;
+    const reference = searchParams.get('reference');
+    const trxref = searchParams.get('trxref');
+
+    console.log('[v0] Webhook GET request - reference:', reference, 'trxref:', trxref);
+
+    // Redirect to payment success page with the reference
+    const paymentRef = reference || trxref;
+    if (paymentRef) {
+      return NextResponse.redirect(new URL(`/payment-success?reference=${paymentRef}`, req.url));
+    }
+
+    return NextResponse.json({ error: 'No reference provided' }, { status: 400 });
+  } catch (error) {
+    console.error('[v0] Webhook GET error:', error);
+    return NextResponse.json({ error: 'Failed to process redirect' }, { status: 500 });
   }
 }

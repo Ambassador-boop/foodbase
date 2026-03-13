@@ -35,6 +35,9 @@ export async function initializePayment(
   reference: string,
   metadata?: Record<string, any>
 ): Promise<PaystackInitializeResponse> {
+  // Get the base URL for redirects - handle both development and production
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://myfoodbase.vercel.app';
+  
   const response = await fetch(`${PAYSTACK_BASE_URL}/transaction/initialize`, {
     method: 'POST',
     headers: {
@@ -45,6 +48,7 @@ export async function initializePayment(
       amount: Math.round(amount * 100),
       email,
       reference,
+      redirect_url: `${baseUrl}/api/payments/webhook?reference=${reference}`,
       metadata,
     }),
   });
