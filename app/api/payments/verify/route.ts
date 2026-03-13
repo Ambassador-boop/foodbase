@@ -34,13 +34,30 @@ export async function POST(request: NextRequest) {
     if (paymentData.status === 'success') {
       console.log('[v0] Payment successful for reference:', reference);
 
+      let orderId = paymentData.metadata?.orderId;
+      let businessSlug = '';
+
       // Update order payment status in database
-      if (paymentData.metadata?.orderId) {
-        await db.query(
-          'UPDATE orders SET payment_status = $1, payment_reference = $2, paid_at = NOW() WHERE id = $3',
-          ['completed', reference, paymentData.metadata.orderId]
+      if (orderId) {
+        const updateResult = await db.query(
+          'UPDATE orders SET payment_status = $1, payment_reference = $2, paid_at = NOW() WHERE id = $3 RETURNING business_id',
+          ['completed', reference, orderId]
         );
         console.log('[v0] Order updated with payment status');
+
+        // Fetch business slug from the business_id
+        if (updateResult && updateResult.length > 0) {
+          const businessId = updateResult[0].business_id;
+          const businessResult = await db.query(
+            'SELECT slug FROM public.businesses WHERE id = $1',
+            [businessId]
+          );
+
+          if (businessResult && businessResult.length > 0) {
+            businessSlug = businessResult[0].slug;
+            console.log('[v0] Business slug fetched:', businessSlug);
+          }
+        }
       }
 
       return NextResponse.json({
@@ -48,6 +65,8 @@ export async function POST(request: NextRequest) {
         status: 'success',
         amount: paymentData.amount / 100,
         reference: paymentData.reference,
+        orderId,
+        businessSlug,
         message: 'Payment verified successfully',
       });
     }
