@@ -263,8 +263,56 @@ export default function AddonPage() {
     return total;
   };
 
+  const getSelectedAddonsDetails = () => {
+    const details: Array<{
+      id: string;
+      name: string;
+      price: number;
+      count: number;
+    }> = [];
+
+    addons.forEach((addon) => {
+      const selected = selectedAddons[addon.id];
+      if (selected) {
+        if (Array.isArray(selected)) {
+          selected.forEach((optionId) => {
+            const option = addon.options?.find((o) => o.id === optionId);
+            if (option) {
+              const existing = details.find((d) => d.id === option.id);
+              if (existing) {
+                existing.count++;
+              } else {
+                details.push({
+                  id: option.id,
+                  name: option.name,
+                  price: option.price,
+                  count: 1,
+                });
+              }
+            }
+          });
+        } else {
+          const option = addon.options?.find((o) => o.id === selected);
+          if (option) {
+            details.push({
+              id: option.id,
+              name: option.name,
+              price: option.price,
+              count: 1,
+            });
+          }
+        }
+      }
+    });
+
+    return details;
+  };
+
   const addonsPrice = calculateAddonsPrice();
-  const totalPrice = ((selectedItem?.price || 0) + addonsPrice) * quantity;
+  const selectedAddonsDetails = getSelectedAddonsDetails();
+  const itemPrice = selectedItem?.price || 0;
+  const pricePerUnit = itemPrice + addonsPrice;
+  const totalPrice = pricePerUnit * quantity;
 
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(amount);
@@ -431,15 +479,44 @@ export default function AddonPage() {
             </div>
           </div>
 
-          <div className="space-y-2">
+          {/* Selected Items Summary */}
+          {selectedAddonsDetails.length > 0 && (
+            <div className="bg-muted/30 rounded-lg p-3 space-y-2 border border-border">
+              <p className="text-xs font-semibold text-muted-foreground">Selected Add-ons:</p>
+              <div className="space-y-1">
+                {selectedAddonsDetails.map((addon) => (
+                  <div key={addon.id} className="flex justify-between text-xs">
+                    <span>
+                      {addon.name}
+                      {addon.count > 1 && <span className="text-muted-foreground ml-1">× {addon.count}</span>}
+                    </span>
+                    <span className="font-medium">{formatCurrency(addon.price * addon.count)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Price Breakdown */}
+          <div className="space-y-2 bg-muted/20 rounded-lg p-3 border border-border">
             <div className="flex justify-between text-xs">
-              <span className="text-muted-foreground">Item Price:</span>
-              <span className="font-medium">{formatCurrency(selectedItem.price * quantity)}</span>
+              <span className="text-muted-foreground">Item:</span>
+              <span className="font-medium">{formatCurrency(itemPrice)}</span>
             </div>
             {addonsPrice > 0 && (
               <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground">Add-ons:</span>
-                <span className="font-medium">+{formatCurrency(addonsPrice * quantity)}</span>
+                <span className="text-muted-foreground">Add-ons Total:</span>
+                <span className="font-medium">+{formatCurrency(addonsPrice)}</span>
+              </div>
+            )}
+            <div className="flex justify-between text-xs font-semibold border-t border-border pt-2">
+              <span>Per Item:</span>
+              <span>{formatCurrency(pricePerUnit)}</span>
+            </div>
+            {quantity > 1 && (
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>× Quantity ({quantity})</span>
+                <span>{formatCurrency(pricePerUnit)} × {quantity}</span>
               </div>
             )}
             <div className="flex justify-between font-bold text-sm pt-2 border-t border-border">

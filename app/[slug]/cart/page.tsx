@@ -118,22 +118,27 @@ export default function CartPage() {
     if (item.image_url) images.push(item.image_url);
     if (item.addons && item.addons.length > 0) {
       item.addons.forEach((addon) => {
-        console.log('[v0] Cart display - addon:', addon.name, 'image_url:', addon.image_url);
         if (addon.image_url) images.push(addon.image_url);
       });
     }
-    console.log('[v0] Cart display - total images for', item.name, ':', images.length);
     return images.slice(0, 3); // Limit to 3 images for display
   };
 
+  // Helper to count addon quantities
+  const getAddonQuantity = (addons: CartItem['addons'], addonId: string): number => {
+    if (!addons) return 0;
+    return addons.filter((a) => a.id === addonId).length;
+  };
+
   const subtotal = cartItems.reduce((total, item) => {
-    const itemPrice = item.price || 0;
-    const addonsPrice = item.addons?.reduce((sum, addon) => sum + (addon.price || 0), 0) || 0;
-    return total + (itemPrice + addonsPrice) * item.quantity;
+    const itemPrice = Number(item.price) || 0;
+    const addonsPrice = item.addons?.reduce((sum, addon) => sum + (Number(addon.price) || 0), 0) || 0;
+    const itemTotal = (itemPrice + addonsPrice) * item.quantity;
+    return total + itemTotal;
   }, 0);
 
-  const serviceFee = Math.round(subtotal * 0.075); // 7.5% service fee
-  const cartTotal = subtotal + serviceFee;
+  const serviceFee = Math.round(subtotal * 0.075 * 100) / 100; // 7.5% service fee
+  const cartTotal = Math.round((subtotal + serviceFee) * 100) / 100;
 
   const formatCurrency = (amount: number) => {
     const num = Number(amount) || 0;
@@ -197,45 +202,15 @@ export default function CartPage() {
                   {cartItems.map((cartItem, index) => {
                     const itemPrice = Number(cartItem.price) || 0;
                     const addonsPrice = cartItem.addons?.reduce((sum, addon) => sum + (Number(addon.price) || 0), 0) || 0;
-                    const totalPrice = (itemPrice + addonsPrice) * cartItem.quantity;
+                    const itemTotal = (itemPrice + addonsPrice) * cartItem.quantity;
 
                     const hasAddons = cartItem.addons && cartItem.addons.length > 0;
-                    const itemImages = hasAddons ? getItemImages(cartItem) : [];
 
                     return (
-                      <div key={index} className="p-4 flex gap-4">
-                        {/* Item Images */}
-                        {hasAddons ? (
-                          // Overlapping images for items with add-ons
-                          itemImages.length > 0 && (
-                            <div className="relative w-20 h-20 flex-shrink-0">
-                              {itemImages.map((img, imgIdx) => (
-                                <div
-                                  key={imgIdx}
-                                  className="absolute rounded overflow-hidden"
-                                  style={{
-                                    width: '20px',
-                                    height: '20px',
-                                    left: `${imgIdx * 8}px`,
-                                    top: `${imgIdx * 8}px`,
-                                    zIndex: itemImages.length - imgIdx,
-                                    border: '1px solid white',
-                                  }}
-                                >
-                                  <Image
-                                    src={img}
-                                    alt="item"
-                                    fill
-                                    className="object-cover"
-                                    sizes="20px"
-                                  />
-                                </div>
-                              ))}
-                            </div>
-                          )
-                        ) : (
-                          // Single image for items without add-ons
-                          cartItem.image_url && (
+                      <div key={index} className="p-4">
+                        <div className="flex gap-4">
+                          {/* Item Image */}
+                          {cartItem.image_url && (
                             <div className="relative w-20 h-20 rounded overflow-hidden flex-shrink-0">
                               <Image
                                 src={cartItem.image_url}
@@ -244,27 +219,56 @@ export default function CartPage() {
                                 className="object-cover"
                               />
                             </div>
-                          )
-                        )}
-
-                        {/* Item Details */}
-                        <div className="flex-1 min-w-0">
-                          <h3 className={`font-medium ${cartItem.addons && cartItem.addons.length > 0 ? 'text-xs' : 'text-sm'}`}>
-                            {getItemName(cartItem)}
-                          </h3>
-                          {cartItem.addons && cartItem.addons.length > 0 && (
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {cartItem.addons.map((a) => a.name).join(', ')}
-                            </p>
                           )}
-                          <p className="text-xs font-semibold text-primary mt-2">
-                            {formatCurrency(itemPrice || 0)}
-                            {addonsPrice > 0 && ` + ${formatCurrency(addonsPrice || 0)}`}
-                          </p>
+
+                          {/* Item Details */}
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-medium text-sm">
+                              {cartItem.name}
+                            </h3>
+                            <p className="text-xs font-semibold text-primary mt-1">
+                              {formatCurrency(itemPrice || 0)}
+                            </p>
+
+                            {/* Nested Addons Display */}
+                            {hasAddons && (
+                              <div className="mt-2 ml-2 space-y-1 border-l-2 border-border pl-2">
+                                {cartItem.addons!.map((addon, addonIdx) => {
+                                  const addonQuantity = getAddonQuantity(cartItem.addons, addon.id);
+                                  return (
+                                    <div key={addonIdx} className="text-xs">
+                                      <div className="flex justify-between gap-2">
+                                        <div className="flex-1">
+                                          <span className="text-muted-foreground">
+                                            {addon.name}
+                                            {addonQuantity > 1 && <span className="ml-1">× {addonQuantity}</span>}
+                                          </span>
+                                        </div>
+                                        <span className="font-medium text-muted-foreground">
+                                          +{formatCurrency(Number(addon.price) || 0)}
+                                        </span>
+                                      </div>
+                                      {addon.image_url && (
+                                        <div className="relative w-12 h-12 rounded overflow-hidden mt-1">
+                                          <Image
+                                            src={addon.image_url}
+                                            alt={addon.name}
+                                            fill
+                                            className="object-cover"
+                                          />
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+
                         </div>
 
-                        {/* Quantity Controls */}
-                        <div className="flex flex-col items-end gap-2">
+                        {/* Quantity Controls & Price */}
+                        <div className="flex justify-between items-end mt-2">
                           <div className="flex items-center gap-2 border border-border rounded">
                             <button
                               onClick={() => updateQuantity(index, cartItem.quantity - 1)}
@@ -281,17 +285,18 @@ export default function CartPage() {
                             </button>
                           </div>
 
-                          <button
-                            onClick={() => removeFromCart(index)}
-                            className="text-red-600 hover:text-red-700 text-xs font-medium flex items-center gap-1"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                            Remove
-                          </button>
-
-                          <p className="text-xs font-bold mt-2">
-                            {formatCurrency(totalPrice || 0)}
-                          </p>
+                          <div className="flex flex-col items-end gap-2">
+                            <p className="text-xs font-bold">
+                              {formatCurrency(itemTotal || 0)}
+                            </p>
+                            <button
+                              onClick={() => removeFromCart(index)}
+                              className="text-red-600 hover:text-red-700 text-xs font-medium flex items-center gap-1"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              Remove
+                            </button>
+                          </div>
                         </div>
                       </div>
                     );
@@ -308,17 +313,17 @@ export default function CartPage() {
                 <div className="space-y-3">
                   <div className="flex justify-between text-xs">
                     <span className="text-muted-foreground">Subtotal:</span>
-                    <span className="font-medium">{formatCurrency(subtotal)}</span>
+                    <span className="font-medium">{formatCurrency(subtotal || 0)}</span>
                   </div>
 
                   <div className="flex justify-between text-xs">
                     <span className="text-muted-foreground">Service Fee (7.5%):</span>
-                    <span className="font-medium">{formatCurrency(serviceFee)}</span>
+                    <span className="font-medium">+{formatCurrency(serviceFee || 0)}</span>
                   </div>
 
                   <div className="flex justify-between text-xs border-t border-border pt-3">
                     <span className="font-bold">Total:</span>
-                    <span className="font-bold text-primary text-sm">{formatCurrency(cartTotal)}</span>
+                    <span className="font-bold text-primary text-sm">{formatCurrency(cartTotal || 0)}</span>
                   </div>
                 </div>
 
