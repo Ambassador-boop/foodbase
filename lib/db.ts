@@ -35,8 +35,8 @@ function buildQuery(queryString: string, values: any[] = []): any {
 // Query helper - converts $1, $2 params to template literal style
 export async function query(queryString: string, values: any[] = []) {
   try {
-    // Use sql.query() for conventional function calls with $1, $2 placeholders
-    const result = await (sql as any).query(queryString, values);
+    // For Neon SQL template literals, we need to pass values directly
+    const result = await sql(queryString, values);
     return result;
   } catch (error) {
     console.error('[v0] Database query error:', error);

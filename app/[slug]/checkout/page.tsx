@@ -27,7 +27,6 @@ export default function CheckoutPage() {
   const [deliveryType, setDeliveryType] = useState<'restaurant' | 'delivery'>('restaurant');
   const [formData, setFormData] = useState({
     customerName: '',
-    customerEmail: '',
     phone: '',
     address: '',
     notes: '',
@@ -92,6 +91,7 @@ export default function CheckoutPage() {
     if (deliveryType === 'delivery' && !formData.address.trim()) missingFields.push('Delivery Address');
     if (cartItems.length === 0) missingFields.push('Cart');
     if (!restaurant) missingFields.push('Restaurant info');
+    if (!restaurant?.email) missingFields.push('Business email');
 
     if (missingFields.length > 0) {
       console.log('[v0] Missing fields:', missingFields);
@@ -119,7 +119,7 @@ export default function CheckoutPage() {
         body: JSON.stringify({
           businessId: restaurant.id,
           customerName: formData.customerName,
-          email: formData.customerEmail || formData.customerName.toLowerCase().replace(/\s+/g, '') + '@customer.local', // Use provided email or generate one
+          email: restaurant.email, // Use business email for orders
           phone: formData.phone,
           address: deliveryType === 'delivery' ? formData.address : 'At Restaurant',
           deliveryType,
@@ -303,21 +303,6 @@ export default function CheckoutPage() {
                 placeholder="John Doe"
                 value={formData.customerName}
                 onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
-                className="mt-1 h-8 text-xs"
-              />
-            </div>
-
-            {/* Customer Email */}
-            <div>
-              <Label htmlFor="email" className="text-xs font-semibold">
-                Email Address (Optional)
-              </Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="john@example.com"
-                value={formData.customerEmail}
-                onChange={(e) => setFormData({ ...formData, customerEmail: e.target.value })}
                 className="mt-1 h-8 text-xs"
               />
             </div>

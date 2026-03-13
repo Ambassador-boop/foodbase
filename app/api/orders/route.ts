@@ -29,34 +29,50 @@ export async function POST(request: NextRequest) {
       total,
     });
 
-    if (!businessId || !customerName || !email || !phone || !address) {
+    if (!businessId) {
+      console.log('[v0] Order API: Missing businessId');
+      return NextResponse.json(
+        { error: 'Business ID is required' },
+        { status: 400 }
+      );
+    }
+
+    if (!customerName || !email || !phone || !address) {
       console.log('[v0] Order API: Missing required fields');
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: 'Missing required fields: name, email, phone, and address are required' },
         { status: 400 }
       );
     }
 
     // Verify business exists
-    // Sanitize businessId
-    const cleanBusinessId = businessId.trim();
+    const cleanBusinessId = String(businessId).trim();
+    console.log('[v0] Order API: Verifying business with ID:', cleanBusinessId);
 
-    // Verify business exists
-    // Verify business exists
-    const businessRows = await db.query(
-      'SELECT id FROM public.businesses WHERE id = $1',
-      [cleanBusinessId]
-    );
+    let businessRows;
+    try {
+      businessRows = await db.query(
+        'SELECT id, name FROM public.businesses WHERE id = $1',
+        [cleanBusinessId]
+      );
+    } catch (err) {
+      console.error('[v0] Order API: Database query error:', err);
+      return NextResponse.json(
+        { error: 'Database error while verifying business' },
+        { status: 500 }
+      );
+    }
 
     if (!businessRows || businessRows.length === 0) {
       console.log('[v0] Order API: Business not found for ID:', cleanBusinessId);
+      console.log('[v0] Order API: Query returned:', businessRows);
       return NextResponse.json(
-        { error: `Business not found` },
+        { error: 'Business not found. Please check your restaurant link.' },
         { status: 404 }
       );
     }
 
-    console.log('[v0] Order API: Business query result:', businessRows[0]);
+    console.log('[v0] Order API: Business verified:', businessRows[0].name);
     const orderId = generateAlphanumericId();
 
     console.log('[v0] Order API: Creating order', orderId, 'for business', businessId, 'customer:', customerName);
@@ -66,8 +82,8 @@ export async function POST(request: NextRequest) {
     try {
       orderResult = await db.query(
         `INSERT INTO orders 
-     (id, business_id, customer_name, customer_email, customer_phone, address, notes, total_amount, payment_status, status)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+     (id, business_id, customer_name, customer_email, customer_phone, address, notes, total_amount, payment_status, status, created_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, NOW())
      RETURNING id, total_amount`,
         [
           orderId,
@@ -90,7 +106,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!orderResult.rows || orderResult.rows.length === 0) {
+    if (!orderResult || orderResult.length === 0) {
       console.log('[v0] Order API: Failed to insert order');
       return NextResponse.json(
         { error: 'Failed to create order' },
@@ -98,45 +114,49 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('[v0] Order API: Order created successfully with total:', orderResult.rows[0].total_amount);
+    console.log('[v0] Order API: Order created successfully with total:', orderResult[0].total_amount);
 
     console.log('[v0] Items received from checkout:', items);
 
     // Insert order items
     if (items && Array.isArray(items) && items.length > 0) {
-      for (const item of items) {
-        try {
+      try {
+        for (const item of items) {
           console.log('[v0] Attempting to insert item:', item);
 
           const itemId = generateAlphanumericId();
 
-          await db.query(
+          const itemResult = await db.query(
             `INSERT INTO order_items
-      (id, order_id, menu_item_id, quantity, item_price, configuration)
-      VALUES ($1, $2, $3, $4, $5, $6)`,
+      (id, order_id, menu_item_id, quantity, item_price, configuration, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, NOW())
+      RETURNING id`,
             [
               itemId,
               orderId,
               item.menu_item_id,
               item.quantity || 1,
               item.item_price,
-              item.configuration || null
+              item.configuration ? JSON.stringify(item.configuration) : null
             ]
           );
 
-          console.log('[v0] Item inserted successfully');
-
-        } catch (err) {
-          console.error('[v0] Item insert FAILED:', err);
+          if (itemResult && itemResult.length > 0) {
+            console.log('[v0] Item inserted successfully:', itemResult[0].id);
+          } else {
+            console.error('[v0] Item insert returned no rows');
+          }
         }
+      } catch (err) {
+        console.error('[v0] Order items insert FAILED:', err);
+        // Don't fail the entire order creation, just log the error
       }
     }
-
 
     return NextResponse.json({
       success: true,
       orderId,
-      total: orderResult.rows[0].total_amount,
+      total: orderResult[0].total_amount,
       reference: orderId,
     });
   } catch (error) {
