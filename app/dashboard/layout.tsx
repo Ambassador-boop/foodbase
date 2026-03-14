@@ -1,11 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Menu, X, LogOut, BarChart3, Utensils, Plus, Droplet, FolderOpen, Zap, ShoppingCart, DollarSign, Share2 } from 'lucide-react';
+import { Menu, X, LogOut, BarChart3, Utensils, Plus, Droplet, FolderOpen, Zap, ShoppingCart, DollarSign, Share2, ChevronDown } from 'lucide-react';
 
 const navigationItems = [
   { label: 'Dashboard', href: '/dashboard', icon: BarChart3 },
@@ -19,14 +19,51 @@ const navigationItems = [
   { label: 'Share Business', href: '/dashboard/share', icon: Share2 },
 ];
 
+interface Business {
+  id: string;
+  name: string;
+  slug: string;
+}
+
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [businesses, setBusinesses] = useState<Business[]>([]);
+  const [currentBusiness, setCurrentBusiness] = useState<Business | null>(null);
+  const [businessDropdownOpen, setBusinessDropdownOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
+
+  useEffect(() => {
+    const fetchUserBusinesses = async () => {
+      try {
+        const response = await fetch('/api/business');
+        const data = await response.json();
+        if (response.ok && data.businesses) {
+          setBusinesses(data.businesses);
+          // Set current business from localStorage or first business
+          const savedBusinessId = localStorage.getItem('currentBusinessId');
+          const current = data.businesses.find((b: Business) => b.id === savedBusinessId) || data.businesses[0];
+          if (current) {
+            setCurrentBusiness(current);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch businesses:', error);
+      }
+    };
+
+    fetchUserBusinesses();
+  }, []);
+
+  const handleBusinessSwitch = (business: Business) => {
+    setCurrentBusiness(business);
+    localStorage.setItem('currentBusinessId', business.id);
+    setBusinessDropdownOpen(false);
+  };
 
   const handleLogout = async () => {
     try {
@@ -53,7 +90,7 @@ export default function DashboardLayout({
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="p-4 border-b border-border">
+        <div className="p-4 border-b border-border flex-shrink-0">
           <Link href="/" className="flex items-center gap-2 mb-4">
             <Image
               src="/foodbase-logo.png"
@@ -70,6 +107,42 @@ export default function DashboardLayout({
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {/* Business Switcher */}
+        {businesses.length > 0 && currentBusiness && (
+          <div className="px-3 py-3 border-b border-border flex-shrink-0">
+            <div className="relative">
+              <button
+                onClick={() => setBusinessDropdownOpen(!businessDropdownOpen)}
+                className="w-full text-left px-2 py-2 rounded hover:bg-muted/5 transition-colors flex items-center justify-between gap-2"
+              >
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-foreground truncate">{currentBusiness.name}</p>
+                  <p className="text-xs text-muted-foreground truncate">{currentBusiness.slug}</p>
+                </div>
+                <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform ${businessDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {businessDropdownOpen && businesses.length > 1 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-border rounded shadow-lg z-10">
+                  {businesses.map((business) => (
+                    <button
+                      key={business.id}
+                      onClick={() => handleBusinessSwitch(business)}
+                      className={`w-full text-left px-3 py-2 text-xs transition-colors ${
+                        business.id === currentBusiness.id
+                          ? 'bg-primary/10 text-primary font-semibold'
+                          : 'hover:bg-muted/5 text-foreground'
+                      }`}
+                    >
+                      {business.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         <nav className="flex-1 overflow-y-auto p-3 space-y-1">
           {navigationItems.map((item) => {
@@ -119,7 +192,9 @@ export default function DashboardLayout({
           <div className="flex items-center gap-3">
             <div className="text-right text-xs">
               <p className="font-semibold text-foreground">Business Owner</p>
-              <p className="text-muted-foreground">Managing your restaurant</p>
+              {currentBusiness && (
+                <p className="text-muted-foreground">Managing {currentBusiness.name}</p>
+              )}
             </div>
           </div>
         </header>

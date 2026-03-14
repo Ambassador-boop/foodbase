@@ -13,18 +13,17 @@ export async function GET(request: NextRequest) {
     }
 
     const verified = await jwtVerify(token, secret);
-    const userId = verified.payload.userId as string;
     const role = verified.payload.role as string;
 
     if (role !== 'admin') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const businesses = await db.query(
-      'SELECT id, name, slug, email, phone, created_at, is_active FROM businesses ORDER BY created_at DESC'
+    const businesses = await db(
+      'SELECT id, name, slug, email, phone, logo_url, created_at, is_active FROM businesses ORDER BY created_at DESC'
     );
 
-    return NextResponse.json({ businesses: businesses.rows || [] });
+    return NextResponse.json({ businesses: businesses || [] });
   } catch (error) {
     console.error('Error fetching businesses:', error);
     return NextResponse.json(

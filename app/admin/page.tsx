@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { BarChart3, Building2, DollarSign, Users, AlertCircle, TrendingUp } from 'lucide-react';
+import { Building2, DollarSign, Users, AlertCircle, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
 
 interface AdminMetrics {
@@ -19,13 +19,12 @@ export default function AdminPage() {
   useEffect(() => {
     const fetchMetrics = async () => {
       try {
-        // This would call an admin API endpoint to fetch metrics
-        setMetrics({
-          totalBusinesses: 0,
-          totalRevenue: 0,
-          totalOrders: 0,
-          totalUsers: 0,
-        });
+        const response = await fetch('/api/admin/metrics');
+        const data = await response.json();
+
+        if (!response.ok) throw new Error(data.error);
+
+        setMetrics(data);
       } catch (err) {
         setError('Failed to load metrics');
         console.error(err);
@@ -95,7 +94,7 @@ export default function AdminPage() {
               </div>
               <DollarSign className="w-5 h-5 text-green-500/40 flex-shrink-0" />
             </div>
-            <p className="text-xs text-muted-foreground mt-3">Platform commission</p>
+            <p className="text-xs text-muted-foreground mt-3">Platform revenue</p>
           </div>
 
           <div className="bg-white border border-border rounded-lg p-4">
@@ -135,34 +134,6 @@ export default function AdminPage() {
               Platform Settings
             </button>
           </Link>
-        </div>
-      </div>
-
-      {/* System Status */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-white border border-border rounded-lg p-4">
-          <h2 className="text-sm font-semibold mb-3">System Status</h2>
-          <div className="space-y-2 text-xs">
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Database</span>
-              <span className="text-green-600 font-medium">Operational</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Payment Gateway</span>
-              <span className="text-green-600 font-medium">Connected</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Email Service</span>
-              <span className="text-green-600 font-medium">Active</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white border border-border rounded-lg p-4">
-          <h2 className="text-sm font-semibold mb-3">Recent Activity</h2>
-          <p className="text-xs text-muted-foreground text-center py-6">
-            No recent activity to display
-          </p>
         </div>
       </div>
     </div>
