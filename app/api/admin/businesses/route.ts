@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
-import { db } from '@/lib/db';
+import { sql } from '@/lib/db';
 
 const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'secret');
 
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const businesses = await db(
+    const businesses = await sql.query(
       'SELECT id, name, slug, email, phone, logo_url, created_at, is_active FROM businesses ORDER BY created_at DESC'
     );
 

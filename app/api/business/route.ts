@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
-import { db } from '@/lib/db';
+import { sql } from '@/lib/db';
 
 const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'secret');
 
@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     const userId = verified.payload.userId as string;
 
     // Get all businesses owned by this user
-    const businesses = await db(
+    const businesses = await sql.query(
       'SELECT id, name, slug, email, is_active FROM businesses WHERE owner_id = $1 ORDER BY created_at DESC',
       [userId]
     );

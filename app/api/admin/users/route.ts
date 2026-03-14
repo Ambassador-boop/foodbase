@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
-import { db } from '@/lib/db';
+import { sql } from '@/lib/db';
 
 const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'secret');
 
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const users = await db(
+    const users = await sql.query(
       'SELECT id, first_name, last_name, email, phone, role, is_active, created_at FROM users ORDER BY created_at DESC'
     );
 
@@ -59,12 +59,12 @@ export async function POST(request: NextRequest) {
 
     const userId = `user_${Date.now()}`;
 
-    await db(
+    await sql.query(
       'INSERT INTO users (id, first_name, last_name, email, phone, role, password_hash, is_active, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())',
       [userId, first_name, last_name, email, phone || null, userRole, password_hash || null, true]
     );
 
-    const user = await db(
+    const user = await sql.query(
       'SELECT id, first_name, last_name, email, phone, role, is_active, created_at FROM users WHERE id = $1',
       [userId]
     );

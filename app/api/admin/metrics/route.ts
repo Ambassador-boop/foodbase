@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
-import { db } from '@/lib/db';
+import { sql } from '@/lib/db';
 
 const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'secret');
 
@@ -20,19 +20,19 @@ export async function GET(request: NextRequest) {
     }
 
     // Get total businesses
-    const businessesResult = await db('SELECT COUNT(*) as count FROM businesses WHERE is_active = true');
+    const businessesResult = await sql.query('SELECT COUNT(*) as count FROM businesses WHERE is_active = true');
     const totalBusinesses = businessesResult[0]?.count || 0;
 
     // Get total orders
-    const ordersResult = await db('SELECT COUNT(*) as count FROM orders');
+    const ordersResult = await sql.query('SELECT COUNT(*) as count FROM orders');
     const totalOrders = ordersResult[0]?.count || 0;
 
     // Get total revenue from transactions
-    const revenueResult = await db('SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE status = \'completed\'');
+    const revenueResult = await sql.query('SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE status = \'completed\'');
     const totalRevenue = revenueResult[0]?.total || 0;
 
     // Get total users
-    const usersResult = await db('SELECT COUNT(*) as count FROM users');
+    const usersResult = await sql.query('SELECT COUNT(*) as count FROM users');
     const totalUsers = usersResult[0]?.count || 0;
 
     return NextResponse.json({

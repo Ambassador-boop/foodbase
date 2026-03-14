@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
-import { db } from '@/lib/db';
+import { sql } from '@/lib/db';
 
 const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'secret');
 
@@ -22,7 +22,7 @@ export async function GET(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const business = await db(
+    const business = await sql.query(
       'SELECT * FROM businesses WHERE id = $1',
       [params.businessId]
     );
@@ -73,7 +73,7 @@ export async function PUT(
       is_active,
     } = await request.json();
 
-    await db(
+    await sql.query(
       `UPDATE businesses SET 
         name = $1, email = $2, phone = $3, description = $4, 
         logo_url = $5, address = $6, city = $7, state = $8, 
@@ -96,7 +96,7 @@ export async function PUT(
       ]
     );
 
-    const business = await db(
+    const business = await sql.query(
       'SELECT * FROM businesses WHERE id = $1',
       [params.businessId]
     );
@@ -129,7 +129,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    await db('DELETE FROM businesses WHERE id = $1', [params.businessId]);
+    await sql.query('DELETE FROM businesses WHERE id = $1', [params.businessId]);
 
     return NextResponse.json({ success: true });
   } catch (error) {

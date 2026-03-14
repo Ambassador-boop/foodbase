@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
-import { db } from '@/lib/db';
+import { sql } from '@/lib/db';
 
 const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'secret');
 
@@ -22,7 +22,7 @@ export async function GET(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const user = await db(
+    const user = await sql.query(
       'SELECT id, first_name, last_name, email, phone, role, is_active, created_at FROM users WHERE id = $1',
       [params.userId]
     );
@@ -68,12 +68,12 @@ export async function PUT(
       );
     }
 
-    await db(
+    await sql.query(
       'UPDATE users SET first_name = $1, last_name = $2, email = $3, phone = $4, role = $5, is_active = $6, updated_at = NOW() WHERE id = $7',
       [first_name, last_name, email, phone || null, userRole, is_active, params.userId]
     );
 
-    const user = await db(
+    const user = await sql.query(
       'SELECT id, first_name, last_name, email, phone, role, is_active, created_at FROM users WHERE id = $1',
       [params.userId]
     );
@@ -106,7 +106,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    await db('DELETE FROM users WHERE id = $1', [params.userId]);
+    await sql.query('DELETE FROM users WHERE id = $1', [params.userId]);
 
     return NextResponse.json({ success: true });
   } catch (error) {

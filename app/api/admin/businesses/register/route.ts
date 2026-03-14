@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
-import { db } from '@/lib/db';
+import { sql } from '@/lib/db';
 
 const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'secret');
 
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
 
     const businessId = `business_${Date.now()}`;
 
-    await db(
+    await sql.query(
       `INSERT INTO businesses 
         (id, owner_id, name, slug, email, phone, description, logo_url, address, city, state, country, postal_code, is_active, created_at, updated_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), NOW())`,
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
       ]
     );
 
-    const business = await db(
+    const business = await sql.query(
       'SELECT * FROM businesses WHERE id = $1',
       [businessId]
     );
