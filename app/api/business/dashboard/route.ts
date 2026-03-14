@@ -1,32 +1,28 @@
-import { sql } from '@vercel/postgres';
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyToken } from '@/lib/auth';
+import { getCurrentUser } from '@/lib/auth';
+import { getOne, getAll } from '@/lib/db';
 
 export async function GET(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-    const user = await verifyToken(token);
-    if (!user || user.role !== 'business_owner') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    const currentUser = await getCurrentUser();
+    if (!currentUser || currentUser.role !== 'business_owner') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Get business by owner_id
-    const { rows: businessRows } = await sql.query(
+    const businessData = await getOne(
       'SELECT * FROM businesses WHERE owner_id = $1 LIMIT 1',
-      [user.userId]
+      [currentUser.id]
     );
 
-    if (businessRows.length === 0) {
+    if (!businessData) {
       return NextResponse.json({ error: 'Business not found' }, { status: 404 });
     }
 
-    const businessData = businessRows[0];
     const businessId = businessData.id;
 
     // Get today's revenue and orders count
-    const { rows: todayRows } = await sql.query(
+    const todayStats = await getOne(
       `SELECT 
         COUNT(*) as order_count,
         COALESCE(SUM(total_amount), 0) as revenue
@@ -37,10 +33,8 @@ export async function GET(request: NextRequest) {
       [businessId]
     );
 
-    const todayStats = todayRows[0] || { order_count: 0, revenue: 0 };
-
     // Get last 7 days analytics for chart
-    const { rows: chartRows } = await sql.query(
+    const chartRows = await getAll(
       `SELECT 
         DATE(date) as date,
         COALESCE(SUM(total_revenue), 0) as revenue
@@ -54,7 +48,7 @@ export async function GET(request: NextRequest) {
 
     const metrics = {
       totalOrders: businessData.total_orders || 0,
-      todayRevenue: parseInt(todayStats.revenue) || 0,
+      todayRevenue: parseInt(todayStats?.revenue || 0) || 0,
       availableBalance: parseFloat(businessData.available_balance) || 0,
       pendingWithdrawals: parseFloat(businessData.pending_balance) || 0,
     };

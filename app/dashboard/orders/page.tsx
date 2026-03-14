@@ -26,17 +26,7 @@ export default function OrdersPage() {
 
   const fetchOrders = useCallback(async () => {
     try {
-      const token = localStorage.getItem('auth_token');
-      if (!token) {
-        setError('Authentication required');
-        return;
-      }
-
-      const response = await fetch('/api/business/orders', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const response = await fetch('/api/business/orders');
 
       if (!response.ok) {
         throw new Error('Failed to fetch orders');

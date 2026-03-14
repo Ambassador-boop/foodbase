@@ -28,17 +28,7 @@ export default function DashboardPage() {
 
   const fetchMetrics = useCallback(async () => {
     try {
-      const token = localStorage.getItem('auth_token');
-      if (!token) {
-        setError('Authentication required');
-        return;
-      }
-
-      const response = await fetch('/api/business/dashboard', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const response = await fetch('/api/business/dashboard');
 
       if (!response.ok) throw new Error('Failed to fetch metrics');
 
@@ -72,109 +62,101 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       <div>
-        <h1 className="text-2xl font-bold mb-1">Dashboard</h1>
-        <p className="text-xs text-muted-foreground">Overview of your restaurant performance</p>
+        <h1 className="text-lg font-bold mb-0.5">Dashboard</h1>
+        <p className="text-xs text-muted-foreground">Restaurant performance overview</p>
       </div>
 
       {error && (
-        <div className="p-3 bg-red-50 border border-red-200 rounded text-red-700 text-xs flex items-start gap-2">
-          <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+        <div className="p-2 bg-red-50 border border-red-200 rounded text-red-700 text-xs flex items-start gap-2">
+          <AlertCircle className="w-3 h-3 flex-shrink-0 mt-0.5" />
           <span>{error}</span>
         </div>
       )}
 
-      {/* Metrics Card - Rectangular Single Card */}
-      <div className="bg-white border border-border rounded-lg p-6">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+      {/* Metrics Card - Compact Grid */}
+      <div className="bg-white border border-border rounded-lg p-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {/* Total Orders */}
-          <div className="flex items-center gap-4">
-            <div className="flex-shrink-0">
-              <ShoppingCart className="w-8 h-8 text-blue-500" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground mb-1">Total Orders</p>
-              <p className="text-2xl font-bold text-foreground">{metrics?.totalOrders || 0}</p>
+          <div className="flex items-center gap-2">
+            <ShoppingCart className="w-5 h-5 text-blue-500 flex-shrink-0" />
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground truncate">Orders</p>
+              <p className="text-sm font-bold text-foreground">{metrics?.totalOrders || 0}</p>
             </div>
           </div>
 
           {/* Today's Revenue */}
-          <div className="flex items-center gap-4">
-            <div className="flex-shrink-0">
-              <TrendingUp className="w-8 h-8 text-green-500" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground mb-1">Today's Revenue</p>
-              <p className="text-2xl font-bold text-foreground">{formatCurrency(metrics?.todayRevenue || 0)}</p>
+          <div className="flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-green-500 flex-shrink-0" />
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground truncate">Today</p>
+              <p className="text-sm font-bold text-foreground truncate">{formatCurrency(metrics?.todayRevenue || 0)}</p>
             </div>
           </div>
 
           {/* Available Balance */}
-          <div className="flex items-center gap-4">
-            <div className="flex-shrink-0">
-              <DollarSign className="w-8 h-8 text-emerald-500" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground mb-1">Available Balance</p>
-              <p className="text-2xl font-bold text-foreground">{formatCurrency(metrics?.availableBalance || 0)}</p>
+          <div className="flex items-center gap-2">
+            <DollarSign className="w-5 h-5 text-emerald-500 flex-shrink-0" />
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground truncate">Available</p>
+              <p className="text-sm font-bold text-foreground truncate">{formatCurrency(metrics?.availableBalance || 0)}</p>
             </div>
           </div>
 
           {/* Pending */}
-          <div className="flex items-center gap-4">
-            <div className="flex-shrink-0">
-              <AlertCircle className="w-8 h-8 text-amber-500" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground mb-1">Pending</p>
-              <p className="text-2xl font-bold text-foreground">{formatCurrency(metrics?.pendingWithdrawals || 0)}</p>
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0" />
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground truncate">Pending</p>
+              <p className="text-sm font-bold text-foreground truncate">{formatCurrency(metrics?.pendingWithdrawals || 0)}</p>
             </div>
           </div>
         </div>
       </div>
 
       {/* Revenue Chart */}
-      <div className="bg-white border border-border rounded-lg p-6">
-        <h2 className="text-sm font-semibold mb-4">Revenue Overview (Last 7 Days)</h2>
+      <div className="bg-white border border-border rounded-lg p-3">
+        <h2 className="text-xs font-semibold mb-2">Revenue (7 Days)</h2>
         {chartData.length > 0 ? (
-          <ResponsiveContainer width="100%" height={isMobile ? 250 : 300}>
+          <ResponsiveContainer width="100%" height={isMobile ? 180 : 200}>
             <BarChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-              <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 12 }} />
+              <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+              <YAxis tick={{ fontSize: 10 }} />
               <Tooltip formatter={(value) => formatCurrency(Number(value))} />
-              <Bar dataKey="revenue" fill="#3b82f6" radius={[8, 8, 0, 0]} />
+              <Bar dataKey="revenue" fill="#3b82f6" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         ) : (
-          <div className="text-center py-12">
-            <p className="text-muted-foreground text-sm">No revenue data available yet</p>
+          <div className="text-center py-8">
+            <p className="text-muted-foreground text-xs">No data</p>
           </div>
         )}
       </div>
 
       {/* Quick Actions */}
-      <div className="bg-white border border-border rounded-lg p-4">
-        <h2 className="text-sm font-semibold mb-3">Quick Actions</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+      <div className="bg-white border border-border rounded-lg p-2">
+        <h2 className="text-xs font-semibold mb-2">Actions</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5">
           <Link href="/dashboard/menu">
-            <Button variant="outline" className="w-full h-8 text-xs">
-              Add Menu Item
+            <Button variant="outline" className="w-full h-7 text-xs">
+              Menu
             </Button>
           </Link>
           <Link href="/dashboard/orders">
-            <Button variant="outline" className="w-full h-8 text-xs">
-              View Orders
+            <Button variant="outline" className="w-full h-7 text-xs">
+              Orders
             </Button>
           </Link>
           <Link href="/dashboard/share">
-            <Button variant="outline" className="w-full h-8 text-xs">
-              Share Business
+            <Button variant="outline" className="w-full h-7 text-xs">
+              Share
             </Button>
           </Link>
           <Link href="/dashboard/finance">
-            <Button variant="outline" className="w-full h-8 text-xs">
+            <Button variant="outline" className="w-full h-7 text-xs">
               Finance
             </Button>
           </Link>
