@@ -1,9 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { TrendingUp, AlertCircle, DollarSign, ShoppingCart } from 'lucide-react';
 import Link from 'next/link';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface DashboardMetrics {
   totalOrders: number;
@@ -12,36 +14,51 @@ interface DashboardMetrics {
   pendingWithdrawals: number;
 }
 
+interface AnalyticsData {
+  date: string;
+  revenue: number;
+}
+
 export default function DashboardPage() {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
+  const [chartData, setChartData] = useState<AnalyticsData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const isMobile = useIsMobile();
+
+  const fetchMetrics = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        setError('Authentication required');
+        return;
+      }
+
+      const response = await fetch('/api/business/dashboard', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) throw new Error('Failed to fetch metrics');
+
+      const data = await response.json();
+      setMetrics(data.metrics);
+      setChartData(data.chartData || []);
+      setError('');
+    } catch (err) {
+      setError('Failed to load metrics');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const fetchMetrics = async () => {
-      try {
-        const response = await fetch('/api/business');
-        const data = await response.json();
-
-        if (!response.ok) throw new Error(data.error);
-
-        const business = data.business;
-        setMetrics({
-          totalOrders: business.total_orders || 0,
-          todayRevenue: 0,
-          availableBalance: business.available_balance || 0,
-          pendingWithdrawals: business.pending_balance || 0,
-        });
-      } catch (err) {
-        setError('Failed to load metrics');
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchMetrics();
-  }, []);
+    const interval = setInterval(fetchMetrics, 10000);
+    return () => clearInterval(interval);
+  }, [fetchMetrics]);
 
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(amount);
@@ -68,39 +85,73 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Metrics Grid - Square Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-2 gap-4 max-w-md">
-        <div className="bg-white border border-border rounded-lg p-6 aspect-square flex flex-col justify-between">
-          <div>
-            <p className="text-xs text-muted-foreground mb-2">Total Orders</p>
-            <p className="text-3xl font-bold text-foreground">{metrics?.totalOrders || 0}</p>
+      {/* Metrics Card - Rectangular Single Card */}
+      <div className="bg-white border border-border rounded-lg p-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+          {/* Total Orders */}
+          <div className="flex items-center gap-4">
+            <div className="flex-shrink-0">
+              <ShoppingCart className="w-8 h-8 text-blue-500" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Total Orders</p>
+              <p className="text-2xl font-bold text-foreground">{metrics?.totalOrders || 0}</p>
+            </div>
           </div>
-          <ShoppingCart className="w-6 h-6 text-primary/40" />
-        </div>
 
-        <div className="bg-white border border-border rounded-lg p-6 aspect-square flex flex-col justify-between">
-          <div>
-            <p className="text-xs text-muted-foreground mb-2">Today's Revenue</p>
-            <p className="text-xl font-bold text-foreground">{formatCurrency(metrics?.todayRevenue || 0)}</p>
+          {/* Today's Revenue */}
+          <div className="flex items-center gap-4">
+            <div className="flex-shrink-0">
+              <TrendingUp className="w-8 h-8 text-green-500" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Today's Revenue</p>
+              <p className="text-2xl font-bold text-foreground">{formatCurrency(metrics?.todayRevenue || 0)}</p>
+            </div>
           </div>
-          <TrendingUp className="w-6 h-6 text-accent/40" />
-        </div>
 
-        <div className="bg-white border border-border rounded-lg p-6 aspect-square flex flex-col justify-between">
-          <div>
-            <p className="text-xs text-muted-foreground mb-2">Available Balance</p>
-            <p className="text-xl font-bold text-foreground">{formatCurrency(metrics?.availableBalance || 0)}</p>
+          {/* Available Balance */}
+          <div className="flex items-center gap-4">
+            <div className="flex-shrink-0">
+              <DollarSign className="w-8 h-8 text-emerald-500" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Available Balance</p>
+              <p className="text-2xl font-bold text-foreground">{formatCurrency(metrics?.availableBalance || 0)}</p>
+            </div>
           </div>
-          <DollarSign className="w-6 h-6 text-green-500/40" />
-        </div>
 
-        <div className="bg-white border border-border rounded-lg p-6 aspect-square flex flex-col justify-between">
-          <div>
-            <p className="text-xs text-muted-foreground mb-2">Pending</p>
-            <p className="text-xl font-bold text-foreground">{formatCurrency(metrics?.pendingWithdrawals || 0)}</p>
+          {/* Pending */}
+          <div className="flex items-center gap-4">
+            <div className="flex-shrink-0">
+              <AlertCircle className="w-8 h-8 text-amber-500" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Pending</p>
+              <p className="text-2xl font-bold text-foreground">{formatCurrency(metrics?.pendingWithdrawals || 0)}</p>
+            </div>
           </div>
-          <AlertCircle className="w-6 h-6 text-warning/40" />
         </div>
+      </div>
+
+      {/* Revenue Chart */}
+      <div className="bg-white border border-border rounded-lg p-6">
+        <h2 className="text-sm font-semibold mb-4">Revenue Overview (Last 7 Days)</h2>
+        {chartData.length > 0 ? (
+          <ResponsiveContainer width="100%" height={isMobile ? 250 : 300}>
+            <BarChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+              <YAxis tick={{ fontSize: 12 }} />
+              <Tooltip formatter={(value) => formatCurrency(Number(value))} />
+              <Bar dataKey="revenue" fill="#3b82f6" radius={[8, 8, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground text-sm">No revenue data available yet</p>
+          </div>
+        )}
       </div>
 
       {/* Quick Actions */}
@@ -128,18 +179,6 @@ export default function DashboardPage() {
             </Button>
           </Link>
         </div>
-      </div>
-
-      {/* Getting Started */}
-      <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 space-y-3">
-        <h2 className="text-sm font-semibold">Getting Started</h2>
-        <ol className="text-xs text-muted-foreground space-y-2 list-decimal list-inside">
-          <li><strong>Create Categories</strong> - Organize your menu into logical groups</li>
-          <li><strong>Add Menu Items</strong> - Upload dishes with prices and images</li>
-          <li><strong>Define Add-ons</strong> - Set up proteins, sides, and toppings</li>
-          <li><strong>Add Drinks</strong> - Include beverage options</li>
-          <li><strong>Share Your Store</strong> - Generate QR code for customers to order</li>
-        </ol>
       </div>
     </div>
   );
