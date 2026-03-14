@@ -171,8 +171,9 @@ export default function ReceiptPage({ params }: { params: { slug: string } }) {
 
           {orderData.items.map((item, idx) => {
             const hasAddons = item.addons && item.addons.length > 0;
-            const perUnitPrice = item.item_price / item.quantity;
-            const addonsTotal = item.addons?.reduce((sum, addon) => sum + addon.price, 0) || 0;
+            const perUnitPrice = item.item_price / item.quantity; // item_price is total for all quantities
+            const addonPricePerUnit = item.addons?.reduce((sum, addon) => sum + addon.price, 0) || 0;
+            const addonsTotal = addonPricePerUnit * item.quantity;
 
             return (
               <div key={idx} className="border-b border-border pb-4 last:border-b-0 last:pb-0">
@@ -222,7 +223,7 @@ export default function ReceiptPage({ params }: { params: { slug: string } }) {
                               </p>
                             </div>
                             <p className="text-xs font-medium text-muted-foreground">
-                              +{formatCurrency(addon.price * quantity)}
+                              +{formatCurrency(addon.price)}
                             </p>
                           </div>
                           {addon.image_url && (

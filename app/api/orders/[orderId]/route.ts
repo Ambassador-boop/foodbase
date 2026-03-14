@@ -97,11 +97,11 @@ export async function GET(
       };
     });
 
-    // Calculate totals
+    // Calculate totals - item_price is the total price for that order_item (already includes quantity)
     const subtotal = items.reduce((total, item) => {
-      const basePrice = item.item_price / item.quantity; // Get per-unit price
       const addonTotal = item.addons?.reduce((sum: number, addon: any) => sum + (parseFloat(addon.price) || 0), 0) || 0;
-      return total + (basePrice + addonTotal) * item.quantity;
+      // item.item_price is already the total for this item * quantity, addon prices are per addon * quantity
+      return total + item.item_price + (addonTotal * item.quantity);
     }, 0);
 
     const serviceFee = Math.round(subtotal * 0.075 * 100) / 100; // 7.5% service fee

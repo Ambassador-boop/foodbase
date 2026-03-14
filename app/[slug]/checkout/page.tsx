@@ -136,7 +136,8 @@ export default function CheckoutPage() {
           items: cartItems.map(item => ({
             menu_item_id: item.id, // menu item ID
             quantity: item.quantity,
-            item_price: item.price + (item.addons?.reduce((sum: number, a: any) => sum + a.price, 0) || 0), // price + addons
+            // item_price is total for this order line: (base price + addons) * quantity
+            item_price: (item.price + (item.addons?.reduce((sum: number, a: any) => sum + a.price, 0) || 0)) * item.quantity,
             configuration: item.addons || null, // store addons as configuration
           })),
           subtotal,
