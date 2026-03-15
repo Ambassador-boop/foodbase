@@ -114,30 +114,33 @@ export default function DashboardLayout({
             <div className="relative">
               <button
                 onClick={() => setBusinessDropdownOpen(!businessDropdownOpen)}
-                className="w-full text-left px-2 py-2 rounded hover:bg-muted/5 transition-colors flex items-center justify-between gap-2"
+                className="w-full text-left px-3 py-2.5 rounded-lg bg-primary/5 hover:bg-primary/10 transition-all flex items-center justify-between gap-2 border border-primary/20"
               >
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="text-xs font-semibold text-foreground truncate">{currentBusiness.name}</p>
                   <p className="text-xs text-muted-foreground truncate">{currentBusiness.slug}</p>
                 </div>
-                <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform ${businessDropdownOpen ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 text-primary ${businessDropdownOpen ? 'rotate-180' : ''}`} />
               </button>
 
               {businessDropdownOpen && businesses.length > 1 && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-border rounded shadow-lg z-10">
-                  {businesses.map((business) => (
-                    <button
-                      key={business.id}
-                      onClick={() => handleBusinessSwitch(business)}
-                      className={`w-full text-left px-3 py-2 text-xs transition-colors ${
-                        business.id === currentBusiness.id
-                          ? 'bg-primary/10 text-primary font-semibold'
-                          : 'hover:bg-muted/5 text-foreground'
-                      }`}
-                    >
-                      {business.name}
-                    </button>
-                  ))}
+                <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-border rounded-lg shadow-lg z-10 overflow-hidden">
+                  <div className="max-h-56 overflow-y-auto">
+                    {businesses.map((business, index) => (
+                      <button
+                        key={business.id}
+                        onClick={() => handleBusinessSwitch(business)}
+                        className={`w-full text-left px-3 py-2.5 text-xs transition-colors ${
+                          business.id === currentBusiness.id
+                            ? 'bg-primary text-white font-semibold'
+                            : 'hover:bg-muted/30 text-foreground'
+                        } ${index !== businesses.length - 1 ? 'border-b border-muted/20' : ''}`}
+                      >
+                        <span className="block truncate font-medium">{business.name}</span>
+                        <span className="block text-xs opacity-75 truncate">{business.slug}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>

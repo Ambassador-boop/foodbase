@@ -114,57 +114,56 @@ export default function BusinessesPage() {
                   </div>
                 )}
 
-              <div className="flex-1 md:flex-none p-4 space-y-3">
-                <div>
-                  <h3 className="text-sm font-semibold text-foreground">{business.name}</h3>
-                  <p className="text-xs text-muted-foreground">{business.slug}</p>
-                </div>
+                <div className="flex-1 md:flex-none p-4 space-y-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-foreground">{business.name}</h3>
+                    <p className="text-xs text-muted-foreground">{business.slug}</p>
+                  </div>
 
-                <div className="space-y-1 text-xs text-muted-foreground">
-                  <p>📧 {business.email}</p>
-                  {business.phone && <p>📱 {business.phone}</p>}
-                </div>
+                  <div className="space-y-1 text-xs text-muted-foreground">
+                    <p>{'📧 ' + business.email}</p>
+                    {business.phone && <p>{'📱 ' + business.phone}</p>}
+                  </div>
 
-                <div className="flex items-center justify-between pt-2">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
-                        business.is_active
-                          ? 'bg-green-50 text-green-700'
-                          : 'bg-gray-50 text-gray-700'
-                      }`}
-                    >
-                      {business.is_active ? 'Active' : 'Inactive'}
+                  <div className="flex items-center justify-between pt-2">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
+                          business.is_active
+                            ? 'bg-green-50 text-green-700'
+                            : 'bg-gray-50 text-gray-700'
+                        }`}
+                      >
+                        {business.is_active ? 'Active' : 'Inactive'}
+                      </span>
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(business.created_at).toLocaleDateString()}
                     </span>
                   </div>
-                  <span className="text-xs text-muted-foreground">
-                    {new Date(business.created_at).toLocaleDateString()}
-                  </span>
+
+                  <div className="flex gap-2 pt-2 border-t border-border">
+                    <Link href={`/admin/businesses/${business.id}`} className="flex-1">
+                      <button className="w-full py-1.5 text-xs text-primary border border-primary rounded hover:bg-primary/5 transition-colors flex items-center justify-center gap-1">
+                        <Eye className="w-3 h-3" />
+                        View
+                      </button>
+                    </Link>
+                    <Link href={`/admin/businesses/edit/${business.id}`} className="flex-1">
+                      <button className="w-full py-1.5 text-xs text-primary border border-primary rounded hover:bg-primary/5 transition-colors flex items-center justify-center gap-1">
+                        <Edit2 className="w-3 h-3" />
+                        Edit
+                      </button>
+                    </Link>
+                    <button
+                      onClick={() => deleteBusiness(business.id)}
+                      className="flex-1 py-1.5 text-xs text-red-600 border border-red-200 rounded hover:bg-red-50 transition-colors flex items-center justify-center gap-1"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      Delete
+                    </button>
                   </div>
                 </div>
-
-                <div className="flex gap-2 pt-2 border-t border-border md:border-t">
-                  <Link href={`/admin/businesses/${business.id}`} className="flex-1">
-                    <button className="w-full py-1.5 text-xs text-primary border border-primary rounded hover:bg-primary/5 transition-colors flex items-center justify-center gap-1">
-                      <Eye className="w-3 h-3" />
-                      View
-                    </button>
-                  </Link>
-                  <Link href={`/admin/businesses/edit/${business.id}`} className="flex-1">
-                    <button className="w-full py-1.5 text-xs text-primary border border-primary rounded hover:bg-primary/5 transition-colors flex items-center justify-center gap-1">
-                      <Edit2 className="w-3 h-3" />
-                      Edit
-                    </button>
-                  </Link>
-                  <button
-                    onClick={() => deleteBusiness(business.id)}
-                    className="flex-1 py-1.5 text-xs text-red-600 border border-red-200 rounded hover:bg-red-50 transition-colors flex items-center justify-center gap-1"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                    Delete
-                  </button>
-                </div>
-              </div>
               </div>
             </div>
           ))}
