@@ -59,7 +59,7 @@ export default function RefundPolicyPage() {
             If you cancel your subscription mid-month, you will receive a pro-rated refund for the unused portion of your subscription, calculated on a daily basis. For example, if you paid ₦15,000 for a 30-day month and cancel after 10 days of use, you will receive a refund of ₦10,000 (calculated as ₦500/day × 20 remaining days). Pro-rated refunds are automatically processed within 7-10 business days of cancellation.
           </p>
 
-          <h2 className="text-2xl font-bold mb-4">2. Payment Processing Refunds</h3>
+          <h2 className="text-2xl font-bold mb-4">2. Payment Processing Refunds</h2>
           <p className="text-muted-foreground mb-8">
             FoodBase does not directly hold customer order payments. All customer payments are processed through Paystack and transferred directly to your restaurant's account. Transaction fees (1.5% + ₦100 per transaction) charged by Paystack are non-refundable as they represent the cost of payment processing services. For refunds related to customer orders, please refer to our dispute resolution process or contact Paystack directly.
           </p>

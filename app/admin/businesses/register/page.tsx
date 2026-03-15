@@ -24,6 +24,7 @@ export default function RegisterBusinessPage() {
   const [usersLoading, setUsersLoading] = useState(true);
   const [logoPreview, setLogoPreview] = useState('');
   const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [cloudinaryError, setCloudinaryError] = useState('');
 
   const [formData, setFormData] = useState({
     owner_id: '',
@@ -39,6 +40,11 @@ export default function RegisterBusinessPage() {
   });
 
   useEffect(() => {
+    // Check if Cloudinary is configured
+    if (!process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME) {
+      setCloudinaryError('Cloudinary is not properly configured. Please ensure NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME is set in environment variables.');
+    }
+
     const fetchUsers = async () => {
       try {
         const response = await fetch('/api/admin/users');
@@ -133,6 +139,13 @@ export default function RegisterBusinessPage() {
         <div className="p-3 bg-red-50 border border-red-200 rounded text-red-700 text-xs flex items-start gap-2">
           <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
           <span>{error}</span>
+        </div>
+      )}
+
+      {cloudinaryError && (
+        <div className="p-3 bg-yellow-50 border border-yellow-200 rounded text-yellow-700 text-xs flex items-start gap-2">
+          <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+          <span>{cloudinaryError}</span>
         </div>
       )}
 

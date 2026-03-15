@@ -6,7 +6,7 @@ const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'secret');
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { businessId: string } }
+  { params }: { params: Promise<{ businessId: string }> }
 ) {
   try {
     const token = request.cookies.get('auth_token')?.value;
@@ -22,9 +22,10 @@ export async function GET(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    const { businessId } = await params;
     const business = await sql.query(
       'SELECT * FROM businesses WHERE id = $1',
-      [params.businessId]
+      [businessId]
     );
 
     if (!business || business.length === 0) {
@@ -43,7 +44,7 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { businessId: string } }
+  { params }: { params: Promise<{ businessId: string }> }
 ) {
   try {
     const token = request.cookies.get('auth_token')?.value;
@@ -73,6 +74,7 @@ export async function PUT(
       is_active,
     } = await request.json();
 
+    const { businessId } = await params;
     await sql.query(
       `UPDATE businesses SET 
         name = $1, email = $2, phone = $3, description = $4, 
@@ -92,13 +94,13 @@ export async function PUT(
         country || null,
         postal_code || null,
         is_active,
-        params.businessId,
+        businessId,
       ]
     );
 
     const business = await sql.query(
       'SELECT * FROM businesses WHERE id = $1',
-      [params.businessId]
+      [businessId]
     );
 
     return NextResponse.json({ business: business[0] });
@@ -113,7 +115,7 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { businessId: string } }
+  { params }: { params: Promise<{ businessId: string }> }
 ) {
   try {
     const token = request.cookies.get('auth_token')?.value;
@@ -129,7 +131,8 @@ export async function DELETE(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    await sql.query('DELETE FROM businesses WHERE id = $1', [params.businessId]);
+    const { businessId } = await params;
+    await sql.query('DELETE FROM businesses WHERE id = $1', [businessId]);
 
     return NextResponse.json({ success: true });
   } catch (error) {

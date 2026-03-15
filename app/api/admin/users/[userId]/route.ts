@@ -6,7 +6,7 @@ const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'secret');
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { userId: string } }
+  { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
     const token = request.cookies.get('auth_token')?.value;
@@ -22,9 +22,10 @@ export async function GET(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    const { userId } = await params;
     const user = await sql.query(
       'SELECT id, first_name, last_name, email, phone, role, is_active, created_at FROM users WHERE id = $1',
-      [params.userId]
+      [userId]
     );
 
     if (!user || user.length === 0) {
@@ -43,7 +44,7 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { userId: string } }
+  { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
     const token = request.cookies.get('auth_token')?.value;
@@ -68,14 +69,15 @@ export async function PUT(
       );
     }
 
+    const { userId } = await params;
     await sql.query(
       'UPDATE users SET first_name = $1, last_name = $2, email = $3, phone = $4, role = $5, is_active = $6, updated_at = NOW() WHERE id = $7',
-      [first_name, last_name, email, phone || null, userRole, is_active, params.userId]
+      [first_name, last_name, email, phone || null, userRole, is_active, userId]
     );
 
     const user = await sql.query(
       'SELECT id, first_name, last_name, email, phone, role, is_active, created_at FROM users WHERE id = $1',
-      [params.userId]
+      [userId]
     );
 
     return NextResponse.json({ user: user[0] });
@@ -90,7 +92,7 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { userId: string } }
+  { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
     const token = request.cookies.get('auth_token')?.value;
@@ -106,7 +108,8 @@ export async function DELETE(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    await sql.query('DELETE FROM users WHERE id = $1', [params.userId]);
+    const { userId } = await params;
+    await sql.query('DELETE FROM users WHERE id = $1', [userId]);
 
     return NextResponse.json({ success: true });
   } catch (error) {

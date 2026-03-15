@@ -101,19 +101,20 @@ export default function BusinessesPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {businesses.map((business) => (
             <div key={business.id} className="bg-white border border-border rounded-lg overflow-hidden hover:shadow-md transition-shadow">
-              {/* Logo Section */}
-              {business.logo_url && (
-                <div className="h-32 bg-muted/5 overflow-hidden relative">
-                  <Image
-                    src={business.logo_url}
-                    alt={business.name}
-                    fill
-                    className="object-cover"
-                  />
-                </div>
-              )}
+              {/* Logo Section - Left on mobile, hidden on desktop */}
+              <div className="flex md:flex-col gap-3 md:gap-0">
+                {business.logo_url && (
+                  <div className="w-24 h-24 md:w-full md:h-32 flex-shrink-0 bg-muted/5 overflow-hidden relative">
+                    <Image
+                      src={business.logo_url}
+                      alt={business.name}
+                      fill
+                      className="object-cover"
+                    />
+                  </div>
+                )}
 
-              <div className="p-4 space-y-3">
+              <div className="flex-1 md:flex-none p-4 space-y-3">
                 <div>
                   <h3 className="text-sm font-semibold text-foreground">{business.name}</h3>
                   <p className="text-xs text-muted-foreground">{business.slug}</p>
@@ -139,9 +140,10 @@ export default function BusinessesPage() {
                   <span className="text-xs text-muted-foreground">
                     {new Date(business.created_at).toLocaleDateString()}
                   </span>
+                  </div>
                 </div>
 
-                <div className="flex gap-2 pt-2 border-t border-border">
+                <div className="flex gap-2 pt-2 border-t border-border md:border-t">
                   <Link href={`/admin/businesses/${business.id}`} className="flex-1">
                     <button className="w-full py-1.5 text-xs text-primary border border-primary rounded hover:bg-primary/5 transition-colors flex items-center justify-center gap-1">
                       <Eye className="w-3 h-3" />
@@ -162,6 +164,7 @@ export default function BusinessesPage() {
                     Delete
                   </button>
                 </div>
+              </div>
               </div>
             </div>
           ))}
