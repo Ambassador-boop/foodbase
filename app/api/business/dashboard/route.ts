@@ -28,34 +28,54 @@ export async function GET(request: NextRequest) {
         COALESCE(SUM(total_amount), 0) as revenue
       FROM orders 
       WHERE business_id = $1 
-      AND DATE(created_at) = CURRENT_DATE
-      AND status = 'completed'`,
+      AND DATE(created_at) = CURRENT_DATE`,
       [businessId]
     );
 
-    // Get last 7 days analytics for chart
-    const chartRows = await getAll(
+    // Get completed orders count
+    const completedStats = await getOne(
+      `SELECT COUNT(*) as completed_count
+       FROM orders 
+       WHERE business_id = $1 
+       AND status = 'completed'`,
+      [businessId]
+    );
+
+    // Get total revenue
+    const totalRevenueStats = await getOne(
+      `SELECT COALESCE(SUM(total_amount), 0) as total
+       FROM orders 
+       WHERE business_id = $1`,
+      [businessId]
+    );
+
+    // Get last 7 days data from orders (not analytics table, since it might not be populated)
+    const last7Days = await getAll(
       `SELECT 
-        DATE(date) as date,
-        COALESCE(SUM(total_revenue), 0) as revenue
-      FROM analytics 
+        DATE(created_at) as date,
+        COALESCE(SUM(total_amount), 0) as revenue,
+        COUNT(*) as orders
+      FROM orders 
       WHERE business_id = $1 
-      AND date >= CURRENT_DATE - INTERVAL '7 days'
-      GROUP BY DATE(date)
-      ORDER BY DATE(date) ASC`,
+      AND created_at >= CURRENT_DATE - INTERVAL '7 days'
+      GROUP BY DATE(created_at)
+      ORDER BY DATE(created_at) ASC`,
       [businessId]
     );
 
     const metrics = {
       totalOrders: businessData.total_orders || 0,
-      todayRevenue: parseInt(todayStats?.revenue || 0) || 0,
+      todayRevenue: parseFloat(todayStats?.revenue || 0) || 0,
       availableBalance: parseFloat(businessData.available_balance) || 0,
       pendingWithdrawals: parseFloat(businessData.pending_balance) || 0,
+      totalRevenue: parseFloat(totalRevenueStats?.total || 0) || 0,
+      completedOrders: parseInt(completedStats?.completed_count || 0) || 0,
     };
 
-    const formattedChartData = chartRows.map((row: any) => ({
+    const formattedChartData = last7Days.map((row: any) => ({
       date: new Date(row.date).toLocaleDateString('en-NG', { month: 'short', day: 'numeric' }),
-      revenue: parseInt(row.revenue),
+      revenue: parseFloat(row.revenue) || 0,
+      orders: parseInt(row.orders) || 0,
     }));
 
     return NextResponse.json({

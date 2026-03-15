@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { query } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 
 export async function PATCH(
@@ -8,10 +8,14 @@ export async function PATCH(
 ) {
   try {
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     const user = await verifyToken(token);
-    if (!user || user.role !== 'business_owner') {
+    
+    if (!user || (user as any).role !== 'business_owner') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -29,27 +33,33 @@ export async function PATCH(
     }
 
     // Verify order belongs to user's business
-    const orderResult = await db(
+    const userId = (user as any).userId || (user as any).id;
+
+    const orderResult = await query(
       `SELECT o.id FROM orders o
        JOIN businesses b ON o.business_id = b.id
        WHERE o.id = $1 AND b.owner_id = $2`,
-      [orderId, user.userId || user.id]
+      [orderId, userId]
     );
 
     if (!orderResult || orderResult.length === 0) {
-      return NextResponse.json({ error: 'Order not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Order not found or not authorized' }, { status: 404 });
     }
 
     // Update status
     const completedAt = status === 'completed' ? new Date().toISOString() : null;
-    await db(
-      `UPDATE orders SET status = $1, completed_at = $2 WHERE id = $3`,
+
+    await query(
+      `UPDATE orders SET status = $1, completed_at = $2, updated_at = NOW() WHERE id = $3`,
       [status, completedAt, orderId]
     );
 
     return NextResponse.json({ success: true, status });
   } catch (error) {
-    console.error('Failed to update order status:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('Status API error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }

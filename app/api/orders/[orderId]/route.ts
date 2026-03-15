@@ -17,8 +17,6 @@ export async function GET(
     }
 
     // Fetch complete order data with order items
-    console.log('[v0] API: Fetching order with ID:', orderId);
-    
     const orderResult = await query(
       `SELECT 
         o.id,
@@ -41,10 +39,7 @@ export async function GET(
       [orderId]
     );
 
-    console.log('[v0] API: Order result:', orderResult);
-
     if (!orderResult || orderResult.length === 0) {
-      console.log('[v0] API: Order not found for ID:', orderId);
       return NextResponse.json(
         { error: 'Order not found' },
         { status: 404 }
@@ -52,7 +47,6 @@ export async function GET(
     }
 
     const order = orderResult[0];
-    console.log('[v0] API: Order found:', order.id);
 
     // Fetch order items with menu item details
     const itemsResult = await query(
@@ -71,8 +65,6 @@ export async function GET(
       ORDER BY oi.created_at ASC`,
       [orderId]
     );
-
-    console.log('[v0] API: Items result count:', itemsResult?.length || 0);
 
     // Process items and parse addon configuration
     const items = (itemsResult || []).map((item: any) => {

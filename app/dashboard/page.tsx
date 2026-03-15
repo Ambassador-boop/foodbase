@@ -2,9 +2,9 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { TrendingUp, AlertCircle, DollarSign, ShoppingCart } from 'lucide-react';
+import { TrendingUp, AlertCircle, DollarSign, ShoppingCart, Activity } from 'lucide-react';
 import Link from 'next/link';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ComposedChart, Area, AreaChart } from 'recharts';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 interface DashboardMetrics {
@@ -12,11 +12,14 @@ interface DashboardMetrics {
   todayRevenue: number;
   availableBalance: number;
   pendingWithdrawals: number;
+  totalRevenue?: number;
+  completedOrders?: number;
 }
 
 interface AnalyticsData {
   date: string;
   revenue: number;
+  orders?: number;
 }
 
 export default function DashboardPage() {
@@ -116,22 +119,59 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Revenue Chart */}
-      <div className="bg-white border border-border rounded-lg p-3">
-        <h2 className="text-xs font-semibold mb-2">Revenue (7 Days)</h2>
+      {/* Revenue Chart - Nerd Design */}
+      <div className="bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700 rounded-lg p-4 text-white">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-sm font-mono font-bold text-cyan-400">REVENUE_ANALYTICS</h2>
+            <p className="text-xs text-slate-400 mt-0.5">7-day performance metrics</p>
+          </div>
+          <Activity className="w-5 h-5 text-green-400 animate-pulse" />
+        </div>
+        
         {chartData.length > 0 ? (
-          <ResponsiveContainer width="100%" height={isMobile ? 180 : 200}>
-            <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-              <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-              <YAxis tick={{ fontSize: 10 }} />
-              <Tooltip formatter={(value) => formatCurrency(Number(value))} />
-              <Bar dataKey="revenue" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <>
+            <ResponsiveContainer width="100%" height={isMobile ? 200 : 240}>
+              <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 10 }}>
+                <defs>
+                  <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.01}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+                <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#94a3b8' }} />
+                <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} width={45} />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '4px' }}
+                  formatter={(value) => [formatCurrency(Number(value)), 'Revenue']}
+                  labelStyle={{ color: '#06b6d4' }}
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="revenue" 
+                  stroke="#06b6d4" 
+                  fillOpacity={1} 
+                  fill="url(#colorRevenue)" 
+                  strokeWidth={2}
+                  name="Revenue"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+            <div className="mt-4 pt-4 border-t border-slate-700 grid grid-cols-2 gap-2 text-xs">
+              <div className="bg-slate-800 rounded p-2">
+                <span className="text-slate-400">Total Revenue:</span>
+                <p className="text-green-400 font-mono font-bold mt-1">{formatCurrency(metrics?.totalRevenue || 0)}</p>
+              </div>
+              <div className="bg-slate-800 rounded p-2">
+                <span className="text-slate-400">Completed Orders:</span>
+                <p className="text-blue-400 font-mono font-bold mt-1">{metrics?.completedOrders || 0}</p>
+              </div>
+            </div>
+          </>
         ) : (
           <div className="text-center py-8">
-            <p className="text-muted-foreground text-xs">No data</p>
+            <p className="text-slate-400 text-xs font-mono">[ NO_DATA_AVAILABLE ]</p>
           </div>
         )}
       </div>

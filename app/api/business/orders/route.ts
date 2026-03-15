@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
-import { getAll } from '@/lib/db';
+import { getAll, query } from '@/lib/db';
 
 export async function GET(req: NextRequest) {
   try {
@@ -31,7 +31,31 @@ export async function GET(req: NextRequest) {
     params.push(limit, offset);
 
     const rows = await getAll(queryStr, params);
-    return NextResponse.json(rows);
+    
+    // Enrich orders with menu items
+    const enrichedRows = await Promise.all(
+      rows.map(async (order: any) => {
+        try {
+          const items = await query(
+            `SELECT mi.name, oi.quantity
+             FROM order_items oi
+             LEFT JOIN menu_items mi ON oi.menu_item_id = mi.id
+             WHERE oi.order_id = $1
+             LIMIT 2`,
+            [order.id]
+          );
+          return {
+            ...order,
+            menu_items: items || [],
+          };
+        } catch (err) {
+          console.error('Error fetching menu items for order:', order.id, err);
+          return order;
+        }
+      })
+    );
+
+    return NextResponse.json(enrichedRows);
   } catch (error) {
     console.error('Failed to fetch orders:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

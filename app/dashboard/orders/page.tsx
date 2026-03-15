@@ -16,6 +16,10 @@ interface Order {
   total_amount: number;
   created_at: string;
   business_name: string;
+  menu_items?: Array<{
+    name: string;
+    quantity: number;
+  }>;
 }
 
 export default function OrdersPage() {
@@ -145,11 +149,29 @@ export default function OrdersPage() {
               <div className="space-y-2 mb-3">
                 <p className="text-xs text-muted-foreground">{order.customer_phone}</p>
                 <p className="text-xs text-muted-foreground line-clamp-1">{order.address}</p>
+                
+                {/* Menu Items Preview */}
+                {order.menu_items && order.menu_items.length > 0 && (
+                  <div className="pt-2 space-y-1 border-t border-border">
+                    {order.menu_items.slice(0, 2).map((item, idx) => (
+                      <p key={idx} className="text-xs text-muted-foreground">
+                        • {item.name} {item.quantity > 1 && `(x${item.quantity})`}
+                      </p>
+                    ))}
+                    {order.menu_items.length > 2 && (
+                      <p className="text-xs text-muted-foreground italic">+{order.menu_items.length - 2} more</p>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center justify-between pt-3 border-t border-border">
-                <span className={`px-2 py-1 rounded text-xs font-medium capitalize ${getStatusColor(order.status)}`}>
-                  {order.status}
+                <span className={`px-2 py-1 rounded text-xs font-medium capitalize ${
+                  order.payment_status === 'paid' ? 'bg-green-100 text-green-800' :
+                  order.payment_status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                  'bg-red-100 text-red-800'
+                }`}>
+                  {order.payment_status}
                 </span>
                 <p className="font-semibold text-sm">{formatCurrency(order.total_amount)}</p>
               </div>
@@ -163,9 +185,9 @@ export default function OrdersPage() {
             <thead className="bg-gray-50 border-b border-border">
               <tr>
                 <th className="px-6 py-3 text-left font-semibold text-xs text-muted-foreground">Customer</th>
-                <th className="px-6 py-3 text-left font-semibold text-xs text-muted-foreground">Phone</th>
-                <th className="px-6 py-3 text-left font-semibold text-xs text-muted-foreground">Address</th>
-                <th className="px-6 py-3 text-left font-semibold text-xs text-muted-foreground">Status</th>
+                <th className="px-6 py-3 text-left font-semibold text-xs text-muted-foreground">Items</th>
+                <th className="px-6 py-3 text-left font-semibold text-xs text-muted-foreground">Payment</th>
+                <th className="px-6 py-3 text-left font-semibold text-xs text-muted-foreground">Order Status</th>
                 <th className="px-6 py-3 text-left font-semibold text-xs text-muted-foreground">Amount</th>
                 <th className="px-6 py-3 text-left font-semibold text-xs text-muted-foreground">Action</th>
               </tr>
@@ -177,11 +199,34 @@ export default function OrdersPage() {
                     <p className="font-semibold text-sm">{order.customer_name}</p>
                     <p className="text-xs text-muted-foreground">#{order.id.slice(0, 8)}</p>
                   </td>
-                  <td className="px-6 py-4 text-sm">{order.customer_phone}</td>
-                  <td className="px-6 py-4 text-sm text-muted-foreground line-clamp-1">{order.address}</td>
+                  <td className="px-6 py-4 text-sm text-muted-foreground">
+                    {order.menu_items && order.menu_items.length > 0 ? (
+                      <div className="space-y-1">
+                        {order.menu_items.slice(0, 2).map((item, idx) => (
+                          <div key={idx} className="text-xs">
+                            {item.name} {item.quantity > 1 && `(x${item.quantity})`}
+                          </div>
+                        ))}
+                        {order.menu_items.length > 2 && (
+                          <div className="text-xs italic text-muted-foreground">+{order.menu_items.length - 2} more</div>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </td>
                   <td className="px-6 py-4">
-                    <span className={`px-2 py-1 rounded text-xs font-medium capitalize ${getStatusColor(order.status)}`}>
-                      {order.status}
+                    <span className={`px-2 py-1 rounded text-xs font-medium capitalize ${
+                      order.payment_status === 'paid' ? 'bg-green-100 text-green-800' :
+                      order.payment_status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                      'bg-red-100 text-red-800'
+                    }`}>
+                      {order.payment_status}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className={`px-2 py-1 rounded text-xs font-medium capitalize flex items-center gap-1 w-fit ${getStatusColor(order.status)}`}>
+                      {getStatusIcon(order.status)} {order.status}
                     </span>
                   </td>
                   <td className="px-6 py-4 font-semibold text-sm">{formatCurrency(order.total_amount)}</td>

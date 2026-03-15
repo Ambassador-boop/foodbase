@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { AlertCircle, Clock, CheckCircle, ArrowLeft } from 'lucide-react';
+import { AlertCircle, Clock, CheckCircle, ArrowLeft, ChevronDown } from 'lucide-react';
 
 interface OrderItem {
   id: string;
@@ -79,29 +79,39 @@ export default function OrderDetailsPage() {
     }
   };
 
-  const handleStatusUpdate = async () => {
-    if (selectedStatus === orderData?.order.status) return;
+  const handleStatusUpdate = async (newStatus: string) => {
+    if (newStatus === orderData?.order.status) return;
 
     setUpdating(true);
     try {
       const token = localStorage.getItem('auth_token');
+      if (!token) {
+        throw new Error('No auth token found');
+      }
+
       const response = await fetch(`/api/orders/${orderId}/status`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
+          'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({ status: selectedStatus }),
+        body: JSON.stringify({ status: newStatus }),
       });
 
-      if (!response.ok) throw new Error('Failed to update status');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update status');
+      }
+
+      const responseData = await response.json();
 
       setOrderData((prev) =>
-        prev ? { ...prev, order: { ...prev.order, status: selectedStatus } } : null
+        prev ? { ...prev, order: { ...prev.order, status: newStatus } } : null
       );
+      setSelectedStatus(newStatus);
     } catch (err) {
       console.error('Error updating status:', err);
-      alert('Failed to update order status');
+      alert(`Failed to update order status: ${err instanceof Error ? err.message : 'Unknown error'}`);
       setSelectedStatus(orderData?.order.status || '');
     } finally {
       setUpdating(false);
@@ -173,33 +183,28 @@ export default function OrderDetailsPage() {
           </div>
         </div>
 
-        {/* Status Update Section */}
+        {/* Status Update Section - Dropdown */}
         <div className="space-y-3 mb-6 pb-6 border-b border-border">
           <label className="block text-sm font-semibold">Update Order Status</label>
-          <div className="flex gap-2 flex-wrap">
-            {statuses.map((status) => (
-              <button
-                key={status}
-                onClick={() => setSelectedStatus(status)}
+          <div className="relative">
+            <div className="relative inline-block w-full sm:w-auto">
+              <select
+                value={selectedStatus}
+                onChange={(e) => handleStatusUpdate(e.target.value)}
                 disabled={updating}
-                className={`px-3 py-2 rounded text-xs font-medium capitalize transition-colors ${
-                  selectedStatus === status
-                    ? 'bg-primary text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                } ${updating ? 'opacity-50 cursor-not-allowed' : ''}`}
+                className="appearance-none px-4 py-2 pr-10 border border-border rounded-lg text-sm font-medium bg-white cursor-pointer hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                {status}
-              </button>
-            ))}
+                {statuses.map((status) => (
+                  <option key={status} value={status} className="capitalize">
+                    {status.charAt(0).toUpperCase() + status.slice(1)}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none text-muted-foreground" />
+            </div>
           </div>
-          {selectedStatus !== orderData.order.status && (
-            <Button
-              onClick={handleStatusUpdate}
-              disabled={updating}
-              className="w-full h-9 text-sm"
-            >
-              {updating ? 'Updating...' : 'Update Status'}
-            </Button>
+          {updating && (
+            <p className="text-xs text-blue-600 animate-pulse">Updating status...</p>
           )}
         </div>
 
