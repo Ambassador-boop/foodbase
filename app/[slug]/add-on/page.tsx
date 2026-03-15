@@ -6,7 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ArrowLeft, AlertCircle, Plus, Minus } from 'lucide-react';
+import { ArrowLeft, AlertCircle, Plus, Minus, X } from 'lucide-react';
 
 interface AddonOption {
   id: string;
@@ -54,8 +54,11 @@ export default function AddonPage() {
   const [addons, setAddons] = useState<Addon[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [selectedAddons, setSelectedAddons] = useState<Record<string, string | string[]>>({});
+  const [selectedAddons, setSelectedAddons] = useState<Record<string, Array<{ id: string; quantity: number }>>>({});
   const [quantity, setQuantity] = useState(1);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalAddon, setModalAddon] = useState<{ id: string; name: string; price: number; optionId: string } | null>(null);
+  const [modalQuantity, setModalQuantity] = useState(1);
 
   useEffect(() => {
     if (!itemId) {
@@ -133,30 +136,44 @@ export default function AddonPage() {
     }
   };
 
-  const handleOptionSelect = (addonId: string, optionId: string, allowMultiple: boolean) => {
+  const handleOptionSelect = (addon: Addon, option: AddonOption) => {
+    // Open modal to let user select quantity
+    setModalAddon({
+      id: addon.id,
+      name: option.name,
+      price: option.price,
+      optionId: option.id,
+    });
+    setModalQuantity(1);
+    setModalOpen(true);
+  };
+
+  const handleModalConfirm = () => {
+    if (!modalAddon) return;
+
     setSelectedAddons((prev) => {
-      const current = prev[addonId];
-      if (allowMultiple) {
-        if (Array.isArray(current)) {
-          return {
-            ...prev,
-            [addonId]: current.includes(optionId)
-              ? current.filter((id) => id !== optionId)
-              : [...current, optionId],
-          };
-        } else {
-          return {
-            ...prev,
-            [addonId]: [optionId],
-          };
-        }
-      } else {
+      const current = prev[modalAddon.id] || [];
+      const existingIndex = current.findIndex((item) => item.id === modalAddon.optionId);
+
+      if (existingIndex >= 0) {
+        // Update existing addon quantity
+        const updated = [...current];
+        updated[existingIndex].quantity = modalQuantity;
         return {
           ...prev,
-          [addonId]: current === optionId ? undefined : optionId,
+          [modalAddon.id]: updated,
+        };
+      } else {
+        // Add new addon with quantity
+        return {
+          ...prev,
+          [modalAddon.id]: [...current, { id: modalAddon.optionId, quantity: modalQuantity }],
         };
       }
     });
+
+    setModalOpen(false);
+    setModalAddon(null);
   };
 
   const handleAddToCart = () => {
@@ -179,16 +196,17 @@ export default function AddonPage() {
       cartItems = [];
     }
 
-    // Build addons array
+    // Build addons array - expand by quantity
     const addonsArray: any[] = [];
     addons.forEach((addon) => {
       if (selectedAddons[addon.id]) {
         const selected = selectedAddons[addon.id];
-        if (Array.isArray(selected)) {
-          selected.forEach((optionId: string) => {
-            const option = addon.options?.find((o: any) => o.id === optionId);
-            if (option) {
-              console.log('[v0] Adding addon option to cart:', option.name, 'with image:', option.image_url);
+        selected.forEach((item: any) => {
+          const option = addon.options?.find((o: any) => o.id === item.id);
+          if (option) {
+            // Add the addon multiple times based on quantity
+            for (let i = 0; i < item.quantity; i++) {
+              console.log('[v0] Adding addon option to cart:', option.name, 'quantity:', item.quantity);
               addonsArray.push({
                 id: option.id,
                 name: option.name,
@@ -196,19 +214,8 @@ export default function AddonPage() {
                 image_url: option.image_url,
               });
             }
-          });
-        } else {
-          const option = addon.options?.find((o: any) => o.id === selected);
-          if (option) {
-            console.log('[v0] Adding addon option to cart:', option.name, 'with image:', option.image_url);
-            addonsArray.push({
-              id: option.id,
-              name: option.name,
-              price: option.price,
-              image_url: option.image_url,
-            });
           }
-        }
+        });
       }
     });
     
@@ -277,34 +284,22 @@ export default function AddonPage() {
     addons.forEach((addon) => {
       const selected = selectedAddons[addon.id];
       if (selected) {
-        if (Array.isArray(selected)) {
-          selected.forEach((optionId) => {
-            const option = addon.options?.find((o) => o.id === optionId);
-            if (option) {
-              const existing = details.find((d) => d.id === option.id);
-              if (existing) {
-                existing.count++;
-              } else {
-                details.push({
-                  id: option.id,
-                  name: option.name,
-                  price: option.price,
-                  count: 1,
-                });
-              }
-            }
-          });
-        } else {
-          const option = addon.options?.find((o) => o.id === selected);
+        selected.forEach((item) => {
+          const option = addon.options?.find((o) => o.id === item.id);
           if (option) {
-            details.push({
-              id: option.id,
-              name: option.name,
-              price: option.price,
-              count: 1,
-            });
+            const existing = details.find((d) => d.id === option.id);
+            if (existing) {
+              existing.count += item.quantity;
+            } else {
+              details.push({
+                id: option.id,
+                name: option.name,
+                price: option.price,
+                count: item.quantity,
+              });
+            }
           }
-        }
+        });
       }
     });
 
@@ -423,20 +418,28 @@ export default function AddonPage() {
 
                 <div className="space-y-2">
                   {addon.options.map((option) => {
-                    const selected = Array.isArray(selectedAddons[addon.id])
-                      ? (selectedAddons[addon.id] as string[]).includes(option.id)
-                      : selectedAddons[addon.id] === option.id;
+                    const selected = (selectedAddons[addon.id] || []).some((item) => item.id === option.id);
 
                     return (
                       <div
                         key={option.id}
                         className="flex items-center gap-3 p-3 rounded border border-border hover:bg-muted cursor-pointer"
+                        onClick={() => {
+                          if (selected) {
+                            // Remove addon
+                            setSelectedAddons((prev) => ({
+                              ...prev,
+                              [addon.id]: (prev[addon.id] || []).filter((item) => item.id !== option.id),
+                            }));
+                          } else {
+                            // Open modal to select quantity
+                            handleOptionSelect(addon, option);
+                          }
+                        }}
                       >
                         <Checkbox
                           checked={selected}
-                          onCheckedChange={() =>
-                            handleOptionSelect(addon.id, option.id, addon.allow_multiple)
-                          }
+                          onCheckedChange={() => {}}
                           className="w-4 h-4 flex-shrink-0"
                         />
 
@@ -550,6 +553,64 @@ export default function AddonPage() {
           </Link>
         </div>
       </div>
+
+      {/* Quantity Modal */}
+      {modalOpen && modalAddon && (
+        <div className="fixed inset-0 bg-black/50 flex items-end z-50">
+          <div className="bg-white w-full rounded-t-lg p-6 space-y-4 animate-in slide-in-from-bottom">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold">Choose Quantity</h3>
+              <button
+                onClick={() => setModalOpen(false)}
+                className="p-1 hover:bg-muted rounded"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="bg-muted/50 rounded-lg p-4">
+              <p className="text-xs text-muted-foreground mb-1">Add-on</p>
+              <p className="text-sm font-semibold">{modalAddon.name}</p>
+              <p className="text-xs text-primary font-medium mt-2">+{formatCurrency(modalAddon.price)}</p>
+            </div>
+
+            <div>
+              <p className="text-xs font-semibold mb-3">Quantity</p>
+              <div className="flex items-center gap-4 justify-center">
+                <button
+                  onClick={() => setModalQuantity(Math.max(1, modalQuantity - 1))}
+                  className="p-2 hover:bg-muted rounded border border-border"
+                >
+                  <Minus className="w-4 h-4" />
+                </button>
+                <span className="text-2xl font-bold w-12 text-center">{modalQuantity}</span>
+                <button
+                  onClick={() => setModalQuantity(modalQuantity + 1)}
+                  className="p-2 hover:bg-muted rounded border border-border"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                onClick={() => setModalOpen(false)}
+                variant="outline"
+                className="flex-1 h-9 text-sm"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleModalConfirm}
+                className="flex-1 h-9 bg-primary text-white hover:bg-primary-dark text-sm font-medium"
+              >
+                Confirm
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

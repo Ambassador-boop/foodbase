@@ -21,14 +21,35 @@ export async function GET(request: NextRequest) {
 
     const businessId = businessData.id;
 
-    // Get today's revenue and orders count
+    // Get today's revenue (completed transactions only) and orders count
     const todayStats = await getOne(
       `SELECT 
         COUNT(*) as order_count,
         COALESCE(SUM(total_amount), 0) as revenue
       FROM orders 
       WHERE business_id = $1 
-      AND DATE(created_at) = CURRENT_DATE`,
+      AND DATE(created_at) = CURRENT_DATE
+      AND status = 'completed'`,
+      [businessId]
+    );
+
+    // Get today's pending revenue
+    const todayPendingStats = await getOne(
+      `SELECT 
+        COALESCE(SUM(total_amount), 0) as pending_revenue
+      FROM orders 
+      WHERE business_id = $1 
+      AND DATE(created_at) = CURRENT_DATE
+      AND status = 'pending'`,
+      [businessId]
+    );
+
+    // Get orders in last 30 days
+    const last30DaysOrders = await getOne(
+      `SELECT COUNT(*) as order_count
+       FROM orders 
+       WHERE business_id = $1 
+       AND created_at >= CURRENT_DATE - INTERVAL '30 days'`,
       [businessId]
     );
 
@@ -41,11 +62,12 @@ export async function GET(request: NextRequest) {
       [businessId]
     );
 
-    // Get total revenue
+    // Get total revenue (all completed transactions)
     const totalRevenueStats = await getOne(
       `SELECT COALESCE(SUM(total_amount), 0) as total
        FROM orders 
-       WHERE business_id = $1`,
+       WHERE business_id = $1
+       AND status = 'completed'`,
       [businessId]
     );
 
@@ -64,8 +86,10 @@ export async function GET(request: NextRequest) {
     );
 
     const metrics = {
-      totalOrders: parseInt(todayStats?.order_count || 0) || 0,
+      todayOrders: parseInt(todayStats?.order_count || 0) || 0,
       todayRevenue: parseFloat(todayStats?.revenue || 0) || 0,
+      todayPendingRevenue: parseFloat(todayPendingStats?.pending_revenue || 0) || 0,
+      last30DaysOrders: parseInt(last30DaysOrders?.order_count || 0) || 0,
       availableBalance: parseFloat(businessData.available_balance) || 0,
       pendingWithdrawals: parseFloat(businessData.pending_balance) || 0,
       totalRevenue: parseFloat(totalRevenueStats?.total || 0) || 0,
