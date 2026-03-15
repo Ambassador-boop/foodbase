@@ -84,18 +84,13 @@ export default function OrderDetailsPage() {
 
     setUpdating(true);
     try {
-      const token = localStorage.getItem('auth_token');
-      if (!token) {
-        throw new Error('No auth token found');
-      }
-
       const response = await fetch(`/api/orders/${orderId}/status`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({ status: newStatus }),
+        credentials: 'include', // Include cookies for authentication
       });
 
       if (!response.ok) {
@@ -111,7 +106,8 @@ export default function OrderDetailsPage() {
       setSelectedStatus(newStatus);
     } catch (err) {
       console.error('Error updating status:', err);
-      alert(`Failed to update order status: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      alert(`Failed to update order status: ${errorMessage}`);
       setSelectedStatus(orderData?.order.status || '');
     } finally {
       setUpdating(false);

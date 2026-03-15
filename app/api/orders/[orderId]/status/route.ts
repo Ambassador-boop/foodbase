@@ -1,19 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
-import { verifyToken } from '@/lib/auth';
+import { verifyJWT, getAuthCookie } from '@/lib/auth';
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ orderId: string }> }
 ) {
   try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
+    // Try to get token from Authorization header first (for API calls with Bearer token)
+    let token = request.headers.get('authorization')?.replace('Bearer ', '');
+    
+    // If no token in header, try to get from cookies (for server-side requests)
+    if (!token) {
+      const authCookie = request.cookies.get('auth_token')?.value;
+      token = authCookie;
+    }
     
     if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: 'No auth token found' }, { status: 401 });
     }
 
-    const user = await verifyToken(token);
+    const user = await verifyJWT(token);
     
     if (!user || (user as any).role !== 'business_owner') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });

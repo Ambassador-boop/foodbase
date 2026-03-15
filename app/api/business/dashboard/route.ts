@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
     );
 
     const metrics = {
-      totalOrders: businessData.total_orders || 0,
+      totalOrders: parseInt(todayStats?.order_count || 0) || 0,
       todayRevenue: parseFloat(todayStats?.revenue || 0) || 0,
       availableBalance: parseFloat(businessData.available_balance) || 0,
       pendingWithdrawals: parseFloat(businessData.pending_balance) || 0,

@@ -145,7 +145,6 @@ export default function ShareBusinessPage() {
                 <div className="text-center space-y-2">
                   <p className="text-lg font-bold text-foreground">{business.name}</p>
                   <p className="text-sm text-primary font-semibold">Scan to order from this restaurant</p>
-                  <p className="text-xs text-muted-foreground mt-2">{restaurantUrl}</p>
                 </div>
               </div>
 
