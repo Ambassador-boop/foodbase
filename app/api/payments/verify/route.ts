@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
       // Update order payment status in database
       if (orderId) {
         const updateResult = await db.query(
-          'UPDATE orders SET payment_status = $1, payment_reference = $2, paid_at = NOW() WHERE id = $3 RETURNING business_id, customer_name',
+          'UPDATE orders SET payment_status = $1, payment_reference = $2, paid_at = NOW() WHERE id = $3 RETURNING business_id, customer_name, total_amount',
           ['completed', reference, orderId]
         );
         console.log('[v0] Order updated with payment status');
@@ -50,6 +50,8 @@ export async function POST(request: NextRequest) {
         if (updateResult && updateResult.length > 0) {
           businessId = updateResult[0].business_id;
           const customerName = updateResult[0].customer_name;
+          const totalAmount = updateResult[0].total_amount;
+          
           const businessResult = await db.query(
             'SELECT slug FROM public.businesses WHERE id = $1',
             [businessId]
@@ -59,6 +61,20 @@ export async function POST(request: NextRequest) {
             businessSlug = businessResult[0].slug;
             console.log('[v0] Business slug fetched:', businessSlug);
           }
+
+          // Insert transaction details into transactions table
+          try {
+            await db.query(
+              `INSERT INTO transactions (order_id, business_id, amount, transaction_type, status, payment_reference, created_at)
+               VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+              [orderId, businessId, totalAmount, 'income', 'completed', reference]
+            );
+            console.log('[v0] Transaction record inserted for order:', orderId);
+          } catch (transactionError) {
+            console.error('[v0] Error inserting transaction record:', transactionError);
+            // Don't fail payment verification if transaction insert fails
+          }
+        }
 
           // Send OneSignal notification
           try {
