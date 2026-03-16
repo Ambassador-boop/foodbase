@@ -1,8 +1,37 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, TrendingUp, TrendingDown } from 'lucide-react';
+import { format, parseISO } from 'date-fns';
+
+interface Transaction {
+  id: string;
+  order_id: string;
+  amount: number;
+  type: 'inflow' | 'outflow'; // inflow for orders, outflow for withdrawals/refunds
+  status: 'completed' | 'pending' | 'failed';
+  created_at: string;
+  description?: string;
+}
+
+interface Refund {
+  id: string;
+  transaction_id: string;
+  order_id: string;
+  amount: number;
+  status: 'pending' | 'completed' | 'failed';
+  created_at: string;
+}
+
+interface Withdrawal {
+  id: string;
+  amount: number;
+  status: 'pending' | 'completed' | 'failed';
+  created_at: string;
+  bank_account_number?: string;
+}
 
 interface Business {
   available_balance: number;
@@ -11,52 +40,93 @@ interface Business {
 
 export default function FinancePage() {
   const [business, setBusiness] = useState<Business | null>(null);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [refunds, setRefunds] = useState<Refund[]>([]);
+  const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [showBankForm, setShowBankForm] = useState(false);
-  const [bankData, setBankData] = useState({
-    accountHolder: '',
-    accountNumber: '',
-    bankCode: '',
-  });
 
   useEffect(() => {
-    fetchBusiness();
+    fetchData();
+
+    // Poll for new records every 3 seconds
+    const interval = setInterval(fetchData, 3000);
+    return () => clearInterval(interval);
   }, []);
 
-  const fetchBusiness = async () => {
+  const fetchData = useCallback(async () => {
     try {
-      const response = await fetch('/api/business');
-      const data = await response.json();
+      const [businessRes, transactionsRes, refundsRes, withdrawalsRes] = await Promise.all([
+        fetch('/api/business'),
+        fetch('/api/business/transactions'),
+        fetch('/api/business/refunds'),
+        fetch('/api/business/withdrawals'),
+      ]);
 
-      if (!response.ok) throw new Error(data.error);
+      if (businessRes.ok) {
+        const data = await businessRes.json();
+        setBusiness(data.business);
+      }
 
-      setBusiness(data.business);
+      if (transactionsRes.ok) {
+        const data = await transactionsRes.json();
+        setTransactions(data || []);
+      }
+
+      if (refundsRes.ok) {
+        const data = await refundsRes.json();
+        setRefunds(data || []);
+      }
+
+      if (withdrawalsRes.ok) {
+        const data = await withdrawalsRes.json();
+        setWithdrawals(data || []);
+      }
+
+      setError('');
     } catch (err) {
+      console.error('[v0] Error fetching finance data:', err);
       setError('Failed to load finance data');
-      console.error(err);
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleRequestWithdrawal = async () => {
-    if (!bankData.accountHolder || !bankData.accountNumber || !bankData.bankCode) {
-      setError('All bank details are required');
-      return;
-    }
-
-    try {
-      // API call for withdrawal request would go here
-      alert('Withdrawal request submitted');
-      setShowBankForm(false);
-    } catch (err) {
-      setError('Failed to submit withdrawal request');
-    }
-  };
+  }, []);
 
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(amount);
+
+  const allRecords = [
+    ...transactions.map((t) => ({
+      id: t.id,
+      type: 'transaction' as const,
+      amount: t.amount,
+      direction: t.type,
+      status: t.status,
+      created_at: t.created_at,
+      order_id: t.order_id,
+      description: t.description,
+    })),
+    ...refunds.map((r) => ({
+      id: r.id,
+      type: 'refund' as const,
+      amount: r.amount,
+      direction: 'outflow' as const,
+      status: r.status,
+      created_at: r.created_at,
+      order_id: r.order_id,
+      description: `Refund for Order ${r.order_id.slice(0, 8)}`,
+    })),
+    ...withdrawals.map((w) => ({
+      id: w.id,
+      type: 'withdrawal' as const,
+      amount: w.amount,
+      direction: 'outflow' as const,
+      status: w.status,
+      created_at: w.created_at,
+      order_id: undefined,
+      description: `Withdrawal to ${w.bank_account_number || 'Bank Account'}`,
+    })),
+  ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   if (loading) {
     return (
@@ -70,7 +140,7 @@ export default function FinancePage() {
     <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-bold mb-1">Finance</h1>
-        <p className="text-xs text-muted-foreground">Manage payments and withdrawals</p>
+        <p className="text-xs text-muted-foreground">Manage payments, refunds, and withdrawals</p>
       </div>
 
       {error && (
@@ -96,73 +166,85 @@ export default function FinancePage() {
         </div>
       )}
 
-      {/* Withdrawal Form */}
-      {!showBankForm ? (
-        <Button
-          onClick={() => setShowBankForm(true)}
-          className="w-full h-9 bg-primary text-white hover:bg-primary-dark text-sm font-medium"
-        >
-          Request Withdrawal
+      {/* Withdraw Funds Button */}
+      <Link href="/dashboard/finance/withdraw">
+        <Button className="w-full h-9 bg-primary text-white hover:bg-primary-dark text-sm font-medium">
+          Withdraw Funds
         </Button>
-      ) : (
-        <div className="bg-white border border-border rounded-lg p-4 space-y-3">
-          <h2 className="text-sm font-semibold">Withdrawal Details</h2>
+      </Link>
 
-          <div>
-            <label className="text-xs font-semibold block mb-1">Account Holder Name</label>
-            <input
-              type="text"
-              placeholder="John Doe"
-              value={bankData.accountHolder}
-              onChange={(e) => setBankData({ ...bankData, accountHolder: e.target.value })}
-              className="w-full h-8 text-xs border border-input rounded px-2 py-1"
-            />
-          </div>
-
-          <div>
-            <label className="text-xs font-semibold block mb-1">Account Number</label>
-            <input
-              type="text"
-              placeholder="0123456789"
-              value={bankData.accountNumber}
-              onChange={(e) => setBankData({ ...bankData, accountNumber: e.target.value })}
-              className="w-full h-8 text-xs border border-input rounded px-2 py-1"
-            />
-          </div>
-
-          <div>
-            <label className="text-xs font-semibold block mb-1">Bank Code</label>
-            <input
-              type="text"
-              placeholder="999"
-              value={bankData.bankCode}
-              onChange={(e) => setBankData({ ...bankData, bankCode: e.target.value })}
-              className="w-full h-8 text-xs border border-input rounded px-2 py-1"
-            />
-          </div>
-
-          <div className="flex gap-2 pt-2">
-            <Button
-              onClick={() => setShowBankForm(false)}
-              variant="outline"
-              className="flex-1 h-8 text-xs"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleRequestWithdrawal}
-              className="flex-1 h-8 bg-primary text-white hover:bg-primary-dark text-xs"
-            >
-              Submit Request
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* Withdrawal History */}
+      {/* Records Section */}
       <div className="bg-white border border-border rounded-lg p-4">
-        <h2 className="text-sm font-semibold mb-3">Withdrawal History</h2>
-        <p className="text-xs text-muted-foreground text-center py-8">No withdrawals yet</p>
+        <h2 className="text-sm font-semibold mb-4">Money Flow & Transactions</h2>
+
+        {allRecords.length === 0 ? (
+          <p className="text-xs text-muted-foreground text-center py-8">No transactions yet</p>
+        ) : (
+          <div className="space-y-2">
+            {allRecords.map((record) => (
+              <Link
+                key={`${record.type}-${record.id}`}
+                href={
+                  record.type === 'transaction'
+                    ? `/dashboard/finance/transaction/${record.order_id}`
+                    : record.type === 'refund'
+                      ? `/dashboard/finance/transaction/${record.order_id}/refund`
+                      : `/dashboard/finance/withdrawal/${record.id}`
+                }
+              >
+                <div className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 border border-transparent hover:border-border transition-all cursor-pointer">
+                  <div className="flex items-center gap-3 flex-1">
+                    <div className={`p-2 rounded-full ${
+                      record.direction === 'inflow'
+                        ? 'bg-green-100'
+                        : 'bg-red-100'
+                    }`}>
+                      {record.direction === 'inflow' ? (
+                        <TrendingUp className="w-4 h-4 text-green-600" />
+                      ) : (
+                        <TrendingDown className="w-4 h-4 text-red-600" />
+                      )}
+                    </div>
+
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-gray-900">
+                        {record.type === 'transaction' && 'Order Payment'}
+                        {record.type === 'refund' && 'Refund'}
+                        {record.type === 'withdrawal' && 'Withdrawal'}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {record.description}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {format(parseISO(record.created_at), 'MMM dd, yyyy hh:mm a')}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="text-right">
+                    <p className={`text-sm font-semibold ${
+                      record.direction === 'inflow'
+                        ? 'text-green-600'
+                        : 'text-red-600'
+                    }`}>
+                      {record.direction === 'inflow' ? '+' : '-'}
+                      {formatCurrency(record.amount)}
+                    </p>
+                    <span className={`text-xs font-medium px-2 py-1 rounded inline-block mt-1 ${
+                      record.status === 'completed'
+                        ? 'bg-green-100 text-green-800'
+                        : record.status === 'pending'
+                          ? 'bg-yellow-100 text-yellow-800'
+                          : 'bg-red-100 text-red-800'
+                    }`}>
+                      {record.status}
+                    </span>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -56,10 +56,34 @@ export async function PATCH(
     // Update status
     const completedAt = status === 'completed' ? new Date().toISOString() : null;
 
-    await query(
-      `UPDATE orders SET status = $1, completed_at = $2, updated_at = NOW() WHERE id = $3`,
+    const updateResult = await query(
+      `UPDATE orders SET status = $1, completed_at = $2, updated_at = NOW() WHERE id = $3 RETURNING business_id, customer_name, payment_status`,
       [status, completedAt, orderId]
     );
+
+    // Send notification if status changes
+    if (updateResult && updateResult.length > 0) {
+      const { business_id, customer_name, payment_status } = updateResult[0];
+      try {
+        await fetch(
+          `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/notifications/send-order`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              orderId,
+              customerName: customer_name,
+              businessId: business_id,
+              paymentStatus: payment_status,
+            }),
+          }
+        );
+      } catch (notificationError) {
+        console.error('[v0] Error sending status notification:', notificationError);
+      }
+    }
 
     return NextResponse.json({ success: true, status });
   } catch (error) {

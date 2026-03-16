@@ -36,18 +36,20 @@ export async function POST(request: NextRequest) {
 
       let orderId = paymentData.metadata?.orderId;
       let businessSlug = '';
+      let businessId = '';
 
       // Update order payment status in database
       if (orderId) {
         const updateResult = await db.query(
-          'UPDATE orders SET payment_status = $1, payment_reference = $2, paid_at = NOW() WHERE id = $3 RETURNING business_id',
+          'UPDATE orders SET payment_status = $1, payment_reference = $2, paid_at = NOW() WHERE id = $3 RETURNING business_id, customer_name',
           ['completed', reference, orderId]
         );
         console.log('[v0] Order updated with payment status');
 
-        // Fetch business slug from the business_id
+        // Fetch business slug and info from the business_id
         if (updateResult && updateResult.length > 0) {
-          const businessId = updateResult[0].business_id;
+          businessId = updateResult[0].business_id;
+          const customerName = updateResult[0].customer_name;
           const businessResult = await db.query(
             'SELECT slug FROM public.businesses WHERE id = $1',
             [businessId]
@@ -56,6 +58,34 @@ export async function POST(request: NextRequest) {
           if (businessResult && businessResult.length > 0) {
             businessSlug = businessResult[0].slug;
             console.log('[v0] Business slug fetched:', businessSlug);
+          }
+
+          // Send OneSignal notification
+          try {
+            const notificationResponse = await fetch(
+              `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/notifications/send-order`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  orderId,
+                  customerName,
+                  businessId,
+                  paymentStatus: 'completed',
+                }),
+              }
+            );
+
+            if (!notificationResponse.ok) {
+              console.error('[v0] Failed to send notification');
+            } else {
+              console.log('[v0] Notification sent for order:', orderId);
+            }
+          } catch (notificationError) {
+            console.error('[v0] Error sending notification:', notificationError);
+            // Don't fail payment verification if notification fails
           }
         }
       }
