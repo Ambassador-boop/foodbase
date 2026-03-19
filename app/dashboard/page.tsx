@@ -88,8 +88,9 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Metrics Card - Unified */}
+      {/* Compact Unified Metrics Card - Fully Responsive, No Scroll */}
       <div className="bg-white border border-border rounded-lg p-4">
+        {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-semibold text-foreground">Key Metrics</h2>
           <button
@@ -101,49 +102,42 @@ export default function DashboardPage() {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        {/* Metrics Cards */}
+        <div className="flex gap-2">
           {/* Today's Orders */}
-          <div className="flex items-start justify-between p-3 border border-border rounded-lg hover:bg-muted/30 transition-colors">
-            <div className="flex-1">
-              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Today Orders</p>
-              <p className="text-xl font-bold text-foreground mt-1">{hideValues ? '••' : metrics?.todayOrders || 0}</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                {hideValues ? '••' : `${metrics?.last30DaysOrders || 0} in last 30 days`}
-              </p>
-            </div>
-            <ShoppingCart className="w-6 h-6 text-primary/20 flex-shrink-0" />
+          <div className="flex-1 flex flex-col items-center gap-1 bg-primary/5 p-2 rounded-lg border border-primary/10">
+            <ShoppingCart className="w-5 h-5 text-primary mb-1" />
+            <p className="text-[10px] text-muted-foreground font-medium uppercase text-center">Today Orders</p>
+            <p className="text-sm font-bold text-foreground">{hideValues ? '••' : metrics?.todayOrders || 0}</p>
+            <p className="text-[10px] text-muted-foreground text-center">
+              {hideValues ? '••' : `${metrics?.last30DaysOrders || 0} last 30 days`}
+            </p>
           </div>
 
-          {/* Revenue */}
-          <div className="flex items-start justify-between p-3 border border-border rounded-lg hover:bg-muted/30 transition-colors">
-            <div className="flex-1">
-              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Today Revenue</p>
-              <p className="text-xl font-bold text-foreground mt-1">{hideValues ? '••' : formatCurrency(metrics?.todayRevenue || 0)}</p>
-              <p className="text-xs text-green-600 mt-1">
-                {hideValues ? '••' : `+${formatCurrency(metrics?.todayPendingRevenue || 0)} pending`}
-              </p>
-            </div>
-            <TrendingUp className="w-6 h-6 text-primary/20 flex-shrink-0" />
+          {/* Today Revenue */}
+          <div className="flex-1 flex flex-col items-center gap-1 bg-green-50 p-2 rounded-lg border border-green-200">
+            <TrendingUp className="w-5 h-5 text-green-600 mb-1" />
+            <p className="text-[10px] text-muted-foreground font-medium uppercase text-center">Today Revenue</p>
+            <p className="text-sm font-bold text-foreground">{hideValues ? '••' : formatCurrency(metrics?.todayRevenue || 0)}</p>
+            <p className="text-[10px] text-green-600 text-center">
+              {hideValues ? '••' : `+${formatCurrency(metrics?.todayPendingRevenue || 0)} pending`}
+            </p>
           </div>
 
           {/* Available Balance */}
-          <div className="flex items-start justify-between p-3 border border-border rounded-lg hover:bg-muted/30 transition-colors">
-            <div className="flex-1">
-              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Available</p>
-              <p className="text-xl font-bold text-foreground mt-1">{hideValues ? '••' : formatCurrency(metrics?.availableBalance || 0)}</p>
-              <p className="text-xs text-muted-foreground mt-1">Ready for withdrawal</p>
-            </div>
-            <DollarSign className="w-6 h-6 text-primary/20 flex-shrink-0" />
+          <div className="flex-1 flex flex-col items-center gap-1 bg-blue-50 p-2 rounded-lg border border-blue-200">
+            <DollarSign className="w-5 h-5 text-blue-600 mb-1" />
+            <p className="text-[10px] text-muted-foreground font-medium uppercase text-center">Available</p>
+            <p className="text-sm font-bold text-foreground">{hideValues ? '••' : formatCurrency(metrics?.availableBalance || 0)}</p>
+            <p className="text-[10px] text-muted-foreground text-center">Ready for withdrawal</p>
           </div>
 
           {/* Pending Balance */}
-          <div className="flex items-start justify-between p-3 border border-border rounded-lg hover:bg-muted/30 transition-colors">
-            <div className="flex-1">
-              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Pending</p>
-              <p className="text-xl font-bold text-foreground mt-1">{hideValues ? '••' : formatCurrency(metrics?.pendingWithdrawals || 0)}</p>
-              <p className="text-xs text-muted-foreground mt-1">Awaiting settlement</p>
-            </div>
-            <AlertCircle className="w-6 h-6 text-primary/20 flex-shrink-0" />
+          <div className="flex-1 flex flex-col items-center gap-1 bg-yellow-50 p-2 rounded-lg border border-yellow-200">
+            <AlertCircle className="w-5 h-5 text-yellow-600 mb-1" />
+            <p className="text-[10px] text-muted-foreground font-medium uppercase text-center">Pending</p>
+            <p className="text-sm font-bold text-foreground">{hideValues ? '••' : formatCurrency(metrics?.pendingWithdrawals || 0)}</p>
+            <p className="text-[10px] text-muted-foreground text-center">Awaiting settlement</p>
           </div>
         </div>
       </div>
@@ -157,31 +151,31 @@ export default function DashboardPage() {
           </div>
           <Activity className="w-5 h-5 text-primary/50" />
         </div>
-        
+
         {chartData.length > 0 ? (
           <>
             <ResponsiveContainer width="100%" height={isMobile ? 200 : 240}>
               <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 10 }}>
                 <defs>
                   <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0.01}/>
+                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0.01} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                 <XAxis dataKey="date" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
                 <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} width={45} tickFormatter={formatYAxis} />
-                <Tooltip 
+                <Tooltip
                   contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '4px', color: 'hsl(var(--foreground))' }}
                   formatter={(value) => [formatCurrency(Number(value)), 'Revenue']}
                   labelStyle={{ color: 'hsl(var(--foreground))' }}
                 />
-                <Area 
-                  type="monotone" 
-                  dataKey="revenue" 
-                  stroke="hsl(var(--primary))" 
-                  fillOpacity={1} 
-                  fill="url(#colorRevenue)" 
+                <Area
+                  type="monotone"
+                  dataKey="revenue"
+                  stroke="hsl(var(--primary))"
+                  fillOpacity={1}
+                  fill="url(#colorRevenue)"
                   strokeWidth={2}
                   name="Revenue"
                 />
