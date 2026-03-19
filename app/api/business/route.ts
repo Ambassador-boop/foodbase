@@ -1,36 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCurrentUser } from '@/lib/auth';
-import { query, getAll } from '@/lib/db';
+import { jwtVerify } from 'jose';
+import { sql } from '@/lib/db';
+
+const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'secret');
 
 export async function GET(request: NextRequest) {
   try {
-    const currentUser = await getCurrentUser();
+    const token = request.cookies.get('auth_token')?.value;
 
-    if (!currentUser) {
+    if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (currentUser.role === 'business_owner') {
-      // Get business info with financial data
-      const businesses = await getAll(
-        `SELECT id, name, slug, email, is_active, available_balance, pending_balance 
-         FROM businesses WHERE owner_id = $1 ORDER BY created_at DESC`,
-        [currentUser.id]
-      );
+    const verified = await jwtVerify(token, secret);
+    const userId = verified.payload.userId as string;
 
-      if (businesses && businesses.length > 0) {
-        return NextResponse.json({
-          success: true,
-          business: businesses[0],
-          businesses: businesses || [],
-        });
-      }
-    }
+    // Get all businesses owned by this user
+    const businesses = await sql.query(
+      'SELECT id, name, slug, email, is_active FROM businesses WHERE owner_id = $1 ORDER BY created_at DESC',
+      [userId]
+    );
 
     return NextResponse.json({
       success: true,
-      business: null,
-      businesses: [],
+      businesses: businesses || [],
     });
   } catch (error) {
     console.error('[v0] Get business error:', error);
