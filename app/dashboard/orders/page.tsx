@@ -40,7 +40,9 @@ export default function OrdersPage() {
 
   const fetchOrders = useCallback(async () => {
     try {
-      const response = await fetch('/api/business/orders');
+      const response = await fetch('/api/business/orders', {
+        credentials: 'include'
+      });
 
       if (!response.ok) {
         throw new Error('Failed to fetch orders');
@@ -202,11 +204,10 @@ export default function OrdersPage() {
                       <button
                         key={date}
                         onClick={() => handleDateSelect(date)}
-                        className={`w-full text-left px-3 py-2 rounded text-xs transition-colors ${
-                          selectedDate === date
+                        className={`w-full text-left px-3 py-2 rounded text-xs transition-colors ${selectedDate === date
                             ? 'bg-blue-100 text-blue-900'
                             : 'hover:bg-gray-100'
-                        }`}
+                          }`}
                       >
                         <div className="font-medium">{format(parseISO(date), 'MMM dd, yyyy')}</div>
                         <div className="text-muted-foreground text-xs">
@@ -289,13 +290,12 @@ export default function OrdersPage() {
 
                           <div className="flex items-center justify-between pt-3 border-t border-border">
                             <span
-                              className={`px-2 py-1 rounded text-xs font-medium capitalize ${
-                                order.payment_status === 'paid'
+                              className={`px-2 py-1 rounded text-xs font-medium capitalize ${order.payment_status === 'paid'
                                   ? 'bg-green-100 text-green-800'
                                   : order.payment_status === 'pending'
                                     ? 'bg-yellow-100 text-yellow-800'
                                     : 'bg-red-100 text-red-800'
-                              }`}
+                                }`}
                             >
                               {order.payment_status}
                             </span>
@@ -357,13 +357,12 @@ export default function OrdersPage() {
                               </td>
                               <td className="px-6 py-4">
                                 <span
-                                  className={`px-2 py-1 rounded text-xs font-medium capitalize ${
-                                    order.payment_status === 'paid'
+                                  className={`px-2 py-1 rounded text-xs font-medium capitalize ${order.payment_status === 'paid'
                                       ? 'bg-green-100 text-green-800'
                                       : order.payment_status === 'pending'
                                         ? 'bg-yellow-100 text-yellow-800'
                                         : 'bg-red-100 text-red-800'
-                                  }`}
+                                    }`}
                                 >
                                   {order.payment_status}
                                 </span>
