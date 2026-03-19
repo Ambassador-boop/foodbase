@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
     params.push(limit, offset);
 
     const rows = await getAll(queryStr, params);
-    
+
     // Enrich orders with menu items
     const enrichedRows = await Promise.all(
       rows.map(async (order: any) => {
@@ -46,6 +46,7 @@ export async function GET(req: NextRequest) {
           );
           return {
             ...order,
+            total_amount: Number(order.total_amount),
             menu_items: items || [],
           };
         } catch (err) {
