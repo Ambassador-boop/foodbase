@@ -233,7 +233,7 @@ export default function CartPage() {
                             {/* Nested Addons Display */}
                             {hasAddons && (
                               <div className="mt-2 ml-2 space-y-1 border-l-2 border-border pl-2">
-                                {cartItem.addons!.map((addon, addonIdx) => {
+                                {[...new Map(cartItem.addons!.map(a => [a.id, a])).values()].map((addon, addonIdx) => {
                                   const addonQuantity = getAddonQuantity(cartItem.addons, addon.id);
                                   return (
                                     <div key={addonIdx} className="text-xs">
