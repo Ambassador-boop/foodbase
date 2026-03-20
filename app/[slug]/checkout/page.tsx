@@ -50,13 +50,13 @@ export default function CheckoutPage() {
 
     // Fetch restaurant data
     const fetchRestaurant = async () => {
-    try {
-      console.log('[v0] Checkout: Fetching restaurant for slug:', slug);
-      console.log('[v0] Checkout: Cart items loaded:', cartItems, 'Total items:', cartItems.length);
-      const response = await fetch(`/api/restaurants/${slug}/menu`);
-      const data = await response.json();
-      console.log('[v0] Checkout: Restaurant data received:', data.business);
-      setRestaurant(data.business);
+      try {
+        console.log('[v0] Checkout: Fetching restaurant for slug:', slug);
+        console.log('[v0] Checkout: Cart items loaded:', cartItems, 'Total items:', cartItems.length);
+        const response = await fetch(`/api/restaurants/${slug}/menu`);
+        const data = await response.json();
+        console.log('[v0] Checkout: Restaurant data received:', data.business);
+        setRestaurant(data.business);
       } catch (err) {
         console.error('[v0] Checkout: Error fetching restaurant:', err);
       } finally {
@@ -137,7 +137,7 @@ export default function CheckoutPage() {
             menu_item_id: item.id, // menu item ID
             quantity: item.quantity,
             // item_price is total for this order line: (base price + addons) * quantity
-            item_price: (item.price + (item.addons?.reduce((sum: number, a: any) => sum + a.price, 0) || 0)) * item.quantity,
+            item_price: item.price,
             configuration: item.addons || null, // store addons as configuration
           })),
           subtotal,
