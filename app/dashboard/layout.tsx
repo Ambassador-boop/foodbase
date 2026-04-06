@@ -63,11 +63,13 @@ export default function DashboardLayout({
 
   const handleBusinessSwitch = (business: Business) => {
     setIsAnimating(true);
+    localStorage.setItem('currentBusinessId', business.id);
     setTimeout(() => {
       setCurrentBusiness(business);
-      localStorage.setItem('currentBusinessId', business.id);
       setBusinessDropdownOpen(false);
       setIsAnimating(false);
+      // Reload the page to refresh data with new business ID
+      router.refresh();
     }, 150);
   };
 

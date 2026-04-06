@@ -25,7 +25,12 @@ export default function NotificationsPage() {
 
   const fetchNotifications = async () => {
     try {
-      const response = await fetch('/api/business/notifications');
+      const businessId = localStorage.getItem('currentBusinessId');
+      const url = businessId
+        ? `/api/business/notifications?businessId=${businessId}`
+        : '/api/business/notifications';
+
+      const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
         setNotifications(data.notifications || []);

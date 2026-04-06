@@ -9,17 +9,30 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get business
+    // Get businessId from query params or use the first one
+    const { searchParams } = new URL(request.url);
+    let businessId = searchParams.get('businessId');
+
+    if (!businessId) {
+      const businessData = await getOne(
+        'SELECT id FROM businesses WHERE owner_id = $1 LIMIT 1',
+        [currentUser.id]
+      );
+      if (!businessData) {
+        return NextResponse.json({ error: 'Business not found' }, { status: 404 });
+      }
+      businessId = businessData.id;
+    }
+
+    // Verify the business belongs to the current user
     const businessData = await getOne(
-      'SELECT * FROM businesses WHERE owner_id = $1 LIMIT 1',
-      [currentUser.id]
+      'SELECT id FROM businesses WHERE id = $1 AND owner_id = $2',
+      [businessId, currentUser.id]
     );
 
     if (!businessData) {
-      return NextResponse.json({ error: 'Business not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Business not found or unauthorized' }, { status: 404 });
     }
-
-    const businessId = businessData.id;
 
     // Today's orders
     const todayOrders = await getOne(

@@ -10,7 +10,12 @@ export default function NotificationsIcon() {
   useEffect(() => {
     const fetchUnreadCount = async () => {
       try {
-        const response = await fetch('/api/business/notifications/count');
+        const businessId = localStorage.getItem('currentBusinessId');
+        const url = businessId
+          ? `/api/business/notifications/count?businessId=${businessId}`
+          : '/api/business/notifications/count';
+
+        const response = await fetch(url);
         if (response.ok) {
           const data = await response.json();
           setUnreadCount(data.unreadCount || 0);

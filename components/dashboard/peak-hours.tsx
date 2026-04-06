@@ -17,7 +17,12 @@ export default function PeakHours({ timeRange = 'today' }: { timeRange?: string 
   useEffect(() => {
     const fetchHourlyData = async () => {
       try {
-        const response = await fetch(`/api/business/dashboard/hourly?timeRange=${timeRange}`);
+        const businessId = localStorage.getItem('currentBusinessId');
+        const url = businessId
+          ? `/api/business/dashboard/hourly?timeRange=${timeRange}&businessId=${businessId}`
+          : `/api/business/dashboard/hourly?timeRange=${timeRange}`;
+
+        const response = await fetch(url);
         if (response.ok) {
           const result = await response.json();
           setData(result.data || []);

@@ -20,7 +20,13 @@ export default function RecentOrders() {
   useEffect(() => {
     const fetchOrders = async () => {
       try {
-        const response = await fetch('/api/business/orders?limit=10&sort=latest');
+        const businessId = localStorage.getItem('currentBusinessId');
+        const params = new URLSearchParams({ limit: '10', sort: 'latest' });
+        if (businessId) {
+          params.append('businessId', businessId);
+        }
+
+        const response = await fetch(`/api/business/orders?${params.toString()}`);
         if (response.ok) {
           const data = await response.json();
           setOrders(data.orders || []);

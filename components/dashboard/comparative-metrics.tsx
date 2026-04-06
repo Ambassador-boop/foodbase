@@ -18,7 +18,12 @@ export default function ComparativeMetrics() {
   useEffect(() => {
     const fetchComparisons = async () => {
       try {
-        const response = await fetch('/api/business/dashboard/comparisons');
+        const businessId = localStorage.getItem('currentBusinessId');
+        const url = businessId
+          ? `/api/business/dashboard/comparisons?businessId=${businessId}`
+          : '/api/business/dashboard/comparisons';
+
+        const response = await fetch(url);
         if (response.ok) {
           const data = await response.json();
           setComparisons(data.comparisons || []);
@@ -75,7 +80,7 @@ export default function ComparativeMetrics() {
                 ) : (
                   <TrendingDown className="w-4 h-4" />
                 )}
-                <span className="text-sm font-semibold">{item.changePercent.toFixed(0)}%</span>
+                <span className="text-sm font-semibold">{(item.changePercent || 0).toFixed(0)}%</span>
               </div>
             </div>
           ))}

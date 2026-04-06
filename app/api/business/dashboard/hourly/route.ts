@@ -11,18 +11,28 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const timeRange = searchParams.get('timeRange') || 'today';
+    let businessId = searchParams.get('businessId');
 
-    // Get business
+    if (!businessId) {
+      const businessData = await getOne(
+        'SELECT id FROM businesses WHERE owner_id = $1 LIMIT 1',
+        [currentUser.id]
+      );
+      if (!businessData) {
+        return NextResponse.json({ error: 'Business not found' }, { status: 404 });
+      }
+      businessId = businessData.id;
+    }
+
+    // Verify the business belongs to the current user
     const businessData = await getOne(
-      'SELECT * FROM businesses WHERE owner_id = $1 LIMIT 1',
-      [currentUser.id]
+      'SELECT id FROM businesses WHERE id = $1 AND owner_id = $2',
+      [businessId, currentUser.id]
     );
 
     if (!businessData) {
-      return NextResponse.json({ error: 'Business not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Business not found or unauthorized' }, { status: 404 });
     }
-
-    const businessId = businessData.id;
 
     // Determine date filter based on time range
     let dateFilter = `DATE(created_at) = CURRENT_DATE`;

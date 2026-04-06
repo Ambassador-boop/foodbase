@@ -42,7 +42,12 @@ export default function DashboardPage() {
 
   const fetchMetrics = useCallback(async () => {
     try {
-      const response = await fetch('/api/business/dashboard');
+      const businessId = localStorage.getItem('currentBusinessId');
+      const url = businessId 
+        ? `/api/business/dashboard?businessId=${businessId}`
+        : '/api/business/dashboard';
+
+      const response = await fetch(url);
 
       if (!response.ok) throw new Error('Failed to fetch metrics');
 

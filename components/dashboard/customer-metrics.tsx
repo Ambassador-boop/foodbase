@@ -16,7 +16,12 @@ export default function CustomerMetrics() {
   useEffect(() => {
     const fetchMetrics = async () => {
       try {
-        const response = await fetch('/api/business/dashboard/customer-metrics');
+        const businessId = localStorage.getItem('currentBusinessId');
+        const url = businessId
+          ? `/api/business/dashboard/customer-metrics?businessId=${businessId}`
+          : '/api/business/dashboard/customer-metrics';
+
+        const response = await fetch(url);
         if (response.ok) {
           const data = await response.json();
           setMetrics(data.metrics);
@@ -74,7 +79,7 @@ export default function CustomerMetrics() {
           <h3 className="text-sm font-semibold text-foreground">Repeat Rate</h3>
           <RotateCcw className="w-5 h-5 text-purple-600" />
         </div>
-        <p className="text-2xl font-bold text-foreground">{metrics.repeatCustomerRate.toFixed(1)}%</p>
+        <p className="text-2xl font-bold text-foreground">{(metrics.repeatCustomerRate || 0).toFixed(1)}%</p>
         <p className="text-xs text-muted-foreground mt-1">Returning customers</p>
       </div>
     </div>

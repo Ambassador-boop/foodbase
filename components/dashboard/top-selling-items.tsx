@@ -20,7 +20,13 @@ export default function TopSellingItems({ timeRange = 'today' }: { timeRange?: s
   useEffect(() => {
     const fetchTopItems = async () => {
       try {
-        const response = await fetch(`/api/business/menu-items?sort=order_count&limit=6&timeRange=${timeRange}`);
+        const businessId = localStorage.getItem('currentBusinessId');
+        const params = new URLSearchParams({ sort: 'order_count', limit: '6', timeRange });
+        if (businessId) {
+          params.append('businessId', businessId);
+        }
+
+        const response = await fetch(`/api/business/menu-items?${params.toString()}`);
         if (response.ok) {
           const data = await response.json();
           setItems(data.items || []);
