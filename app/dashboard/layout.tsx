@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Menu, X, LogOut, BarChart3, Utensils, Plus, Droplet, FolderOpen, Zap, ShoppingCart, DollarSign, Share2, ChevronDown } from 'lucide-react';
+import NotificationsIcon from '@/components/dashboard/notifications-icon';
 
 const navigationItems = [
   { label: 'Dashboard', href: '/dashboard', icon: BarChart3 },
@@ -34,6 +35,7 @@ export default function DashboardLayout({
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [currentBusiness, setCurrentBusiness] = useState<Business | null>(null);
   const [businessDropdownOpen, setBusinessDropdownOpen] = useState(false);
+  const [isAnimating, setIsAnimating] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -60,9 +62,13 @@ export default function DashboardLayout({
   }, []);
 
   const handleBusinessSwitch = (business: Business) => {
-    setCurrentBusiness(business);
-    localStorage.setItem('currentBusinessId', business.id);
-    setBusinessDropdownOpen(false);
+    setIsAnimating(true);
+    setTimeout(() => {
+      setCurrentBusiness(business);
+      localStorage.setItem('currentBusinessId', business.id);
+      setBusinessDropdownOpen(false);
+      setIsAnimating(false);
+    }, 150);
   };
 
   const handleLogout = async () => {
@@ -192,7 +198,11 @@ export default function DashboardLayout({
           >
             <Menu className="w-5 h-5" />
           </button>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
+            <Link href="/dashboard/analytics" className="p-2 hover:bg-muted rounded transition-colors" title="Go to analytics">
+              <BarChart3 className="w-5 h-5 text-muted-foreground" />
+            </Link>
+            <NotificationsIcon />
             <div className="text-right text-xs">
               <p className="font-semibold text-foreground">Business Owner</p>
               {currentBusiness && (
@@ -203,7 +213,7 @@ export default function DashboardLayout({
         </header>
 
         {/* Main content area */}
-        <main className="flex-1 overflow-auto">
+        <main className={`flex-1 overflow-auto transition-all duration-300 ${isAnimating ? 'opacity-50 scale-98' : 'opacity-100 scale-100'}`}>
           <div className="p-4 lg:p-6">
             {children}
           </div>

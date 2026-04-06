@@ -2,18 +2,23 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { TrendingUp, AlertCircle, DollarSign, ShoppingCart, Activity, Eye, EyeOff } from 'lucide-react';
+import { TrendingUp, AlertCircle, DollarSign, ShoppingCart, Activity, Eye, EyeOff, BarChart3 } from 'lucide-react';
 import Link from 'next/link';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ComposedChart, Area, AreaChart } from 'recharts';
 import { useIsMobile } from '@/hooks/use-mobile';
+import TopSellingItems from '@/components/dashboard/top-selling-items';
+import PeakHours from '@/components/dashboard/peak-hours';
+import CustomerMetrics from '@/components/dashboard/customer-metrics';
+import RecentOrders from '@/components/dashboard/recent-orders';
+import ComparativeMetrics from '@/components/dashboard/comparative-metrics';
+import TimeRangeSelector from '@/components/dashboard/time-range-selector';
 
 interface DashboardMetrics {
   todayOrders: number;
   todayRevenue: number;
-  todayPendingRevenue: number;
   last30DaysOrders: number;
   availableBalance: number;
-  pendingWithdrawals: number;
+  pendingBalance: number;
   totalRevenue?: number;
   completedOrders?: number;
 }
@@ -24,12 +29,15 @@ interface AnalyticsData {
   orders?: number;
 }
 
+type TimeRange = 'today' | 'week' | 'month' | 'last30' | 'custom';
+
 export default function DashboardPage() {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [chartData, setChartData] = useState<AnalyticsData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [hideValues, setHideValues] = useState(false);
+  const [timeRange, setTimeRange] = useState<TimeRange>('today');
   const isMobile = useIsMobile();
 
   const fetchMetrics = useCallback(async () => {
@@ -88,56 +96,66 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Compact Unified Metrics Card - Fully Responsive, No Scroll */}
+      {/* Key Metrics Card - Matching Design Image */}
       <div className="bg-white border border-border rounded-lg p-4">
         {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-foreground">Key Metrics</h2>
+        <div className="flex items-center justify-between mb-4 pb-4 border-b border-border">
+          <h2 className="text-lg font-semibold text-foreground">Key Metrics</h2>
           <button
             onClick={() => setHideValues(!hideValues)}
-            className="p-1 hover:bg-muted rounded text-muted-foreground"
+            className="p-1.5 hover:bg-muted rounded text-muted-foreground"
             aria-label="Toggle values visibility"
           >
-            {hideValues ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            {hideValues ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
           </button>
         </div>
 
-        {/* Metrics Cards */}
-        <div className="flex gap-2">
+        {/* Metrics Grid - 4 columns on desktop, 2x2 on mobile */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
           {/* Today's Orders */}
-          <div className="flex-1 flex flex-col items-center gap-1 bg-primary/5 p-2 rounded-lg border border-primary/10">
-            <ShoppingCart className="w-5 h-5 text-primary mb-1" />
-            <p className="text-[10px] text-muted-foreground font-medium uppercase text-center">Today Orders</p>
-            <p className="text-sm font-bold text-foreground">{hideValues ? '••' : metrics?.todayOrders || 0}</p>
-            <p className="text-[10px] text-muted-foreground text-center">
-              {hideValues ? '••' : `${metrics?.last30DaysOrders || 0} last 30 days`}
+          <div className="flex flex-col items-start gap-2 p-4 bg-blue-50 rounded-lg border border-blue-200/50">
+            <ShoppingCart className="w-6 h-6 text-blue-600" />
+            <p className="text-xs font-medium text-muted-foreground">Today Orders</p>
+            <p className="text-2xl font-bold text-foreground">{hideValues ? '••' : metrics?.todayOrders || 0}</p>
+            <p className="text-xs text-muted-foreground">
+              {hideValues ? '••' : `${metrics?.last30DaysOrders || 0} in last 30 days`}
             </p>
           </div>
 
           {/* Today Revenue */}
-          <div className="flex-1 flex flex-col items-center gap-1 bg-green-50 p-2 rounded-lg border border-green-200">
-            <TrendingUp className="w-5 h-5 text-green-600 mb-1" />
-            <p className="text-[10px] text-muted-foreground font-medium uppercase text-center">Today Revenue</p>
-            <p className="text-sm font-bold text-foreground">{hideValues ? '••' : formatCurrency(metrics?.todayRevenue || 0)}</p>
-            <p className="text-[10px] text-green-600 text-center">
-              {hideValues ? '••' : `+${formatCurrency(metrics?.todayPendingRevenue || 0)} pending`}
-            </p>
+          <div className="flex flex-col items-start gap-2 p-4 bg-green-50 rounded-lg border border-green-200/50">
+            <TrendingUp className="w-6 h-6 text-green-600" />
+            <p className="text-xs font-medium text-muted-foreground">Today Revenue</p>
+            <p className="text-2xl font-bold text-foreground">{hideValues ? '••' : formatCurrency(metrics?.todayRevenue || 0)}</p>
+            <p className="text-xs text-green-600">Ready to withdraw</p>
           </div>
 
           {/* Available Balance */}
-          <div className="flex-1 flex flex-col items-center gap-1 bg-blue-50 p-2 rounded-lg border border-blue-200">
-            <DollarSign className="w-5 h-5 text-blue-600 mb-1" />
-            <p className="text-[10px] text-muted-foreground font-medium uppercase text-center">Available</p>
-            <p className="text-sm font-bold text-foreground">{hideValues ? '••' : formatCurrency(metrics?.availableBalance || 0)}</p>
-            <p className="text-[10px] text-muted-foreground text-center">Ready for withdrawal</p>
+          <div className="flex flex-col items-start gap-2 p-4 bg-teal-50 rounded-lg border border-teal-200/50">
+            <DollarSign className="w-6 h-6 text-teal-600" />
+            <p className="text-xs font-medium text-muted-foreground">Available Balance</p>
+            <p className="text-2xl font-bold text-foreground">{hideValues ? '••' : formatCurrency(metrics?.availableBalance || 0)}</p>
+            <p className="text-xs text-muted-foreground">Ready to withdraw</p>
           </div>
 
           {/* Pending Balance */}
-          <div className="flex-1 flex flex-col items-center gap-1 bg-yellow-50 p-2 rounded-lg border border-yellow-200">
-            <AlertCircle className="w-5 h-5 text-yellow-600 mb-1" />
-            <p className="text-[10px] text-muted-foreground font-medium uppercase text-center">Pending</p>
-            <p className="text-sm font-bold text-foreground">{hideValues ? '••' : formatCurrency(metrics?.pendingWithdrawals || 0)}</p>
-            <p className="text-[10px] text-muted-foreground text-center">Awaiting settlement</p>
+          <div className="flex flex-col items-start gap-2 p-4 bg-amber-50 rounded-lg border border-amber-200/50">
+            <AlertCircle className="w-6 h-6 text-amber-600" />
+            <p className="text-xs font-medium text-muted-foreground">Pending Balance</p>
+            <p className="text-2xl font-bold text-foreground">{hideValues ? '••' : formatCurrency(metrics?.pendingBalance || 0)}</p>
+            <p className="text-xs text-muted-foreground">Awaiting settlement</p>
+          </div>
+        </div>
+
+        {/* Bottom Row - Total Revenue & Completed Orders */}
+        <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border">
+          <div className="py-2">
+            <p className="text-xs text-muted-foreground mb-1">Total Revenue:</p>
+            <p className="text-xl font-bold text-foreground">{hideValues ? '••' : formatCurrency(metrics?.totalRevenue || 0)}</p>
+          </div>
+          <div className="py-2">
+            <p className="text-xs text-muted-foreground mb-1">Completed Orders:</p>
+            <p className="text-xl font-bold text-foreground">{hideValues ? '••' : metrics?.completedOrders || 0}</p>
           </div>
         </div>
       </div>
@@ -199,27 +217,45 @@ export default function DashboardPage() {
         )}
       </div>
 
+      {/* Comparative Metrics */}
+      <ComparativeMetrics />
+
+      {/* Customer Metrics */}
+      <CustomerMetrics />
+
+      {/* Top Selling Items */}
+      <TopSellingItems timeRange={timeRange} />
+
+      {/* Peak Hours */}
+      <PeakHours timeRange={timeRange} />
+
+      {/* Recent Orders Feed */}
+      <RecentOrders />
+
       {/* Quick Actions */}
-      <div className="bg-white border border-border rounded-lg p-2">
-        <h2 className="text-xs font-semibold mb-2">Actions</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5">
+      <div className="bg-white border border-border rounded-lg p-4">
+        <h2 className="text-sm font-semibold mb-3 flex items-center gap-2">
+          <BarChart3 className="w-4 h-4" />
+          Quick Actions
+        </h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
           <Link href="/dashboard/menu">
-            <Button variant="outline" className="w-full h-7 text-xs">
+            <Button variant="outline" className="w-full h-9 text-xs">
               Menu
             </Button>
           </Link>
           <Link href="/dashboard/orders">
-            <Button variant="outline" className="w-full h-7 text-xs">
+            <Button variant="outline" className="w-full h-9 text-xs">
               Orders
             </Button>
           </Link>
           <Link href="/dashboard/share">
-            <Button variant="outline" className="w-full h-7 text-xs">
+            <Button variant="outline" className="w-full h-9 text-xs">
               Share
             </Button>
           </Link>
           <Link href="/dashboard/finance">
-            <Button variant="outline" className="w-full h-7 text-xs">
+            <Button variant="outline" className="w-full h-9 text-xs">
               Finance
             </Button>
           </Link>
