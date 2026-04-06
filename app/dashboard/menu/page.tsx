@@ -132,6 +132,38 @@ export default function MenuPage() {
 
   return (
     <div className="space-y-4">
+      {/* Top Quick Actions Bar */}
+      <div className="flex flex-wrap gap-2 mb-4">
+        <Button
+          onClick={() => router.push('/dashboard/addons')}
+          className="h-7 text-xs bg-blue-600 text-white hover:bg-blue-700"
+        >
+          <Plus className="w-3 h-3 mr-1" />
+          Add-ons
+        </Button>
+        <Button
+          onClick={() => router.push('/dashboard/drinks')}
+          className="h-7 text-xs bg-blue-600 text-white hover:bg-blue-700"
+        >
+          <Plus className="w-3 h-3 mr-1" />
+          Drinks
+        </Button>
+        <Button
+          onClick={() => router.push('/dashboard/menu/categories')}
+          className="h-7 text-xs bg-blue-600 text-white hover:bg-blue-700"
+        >
+          <Plus className="w-3 h-3 mr-1" />
+          Categories
+        </Button>
+        <Button
+          onClick={() => router.push('/dashboard/menu/popular-dishes')}
+          className="h-7 text-xs bg-blue-600 text-white hover:bg-blue-700"
+        >
+          <Plus className="w-3 h-3 mr-1" />
+          Popular Dishes
+        </Button>
+      </div>
+
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold mb-1">Menu Items</h1>
