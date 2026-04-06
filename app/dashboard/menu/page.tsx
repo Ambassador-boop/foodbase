@@ -136,28 +136,28 @@ export default function MenuPage() {
       <div className="flex flex-wrap gap-2 mb-4">
         <Button
           onClick={() => router.push('/dashboard/addons')}
-          className="h-7 text-xs bg-blue-600 text-white hover:bg-blue-700"
+          className="h-7 text-xs bg-primary text-white hover:bg-primary-dark"
         >
           <Plus className="w-3 h-3 mr-1" />
           Add-ons
         </Button>
         <Button
           onClick={() => router.push('/dashboard/drinks')}
-          className="h-7 text-xs bg-blue-600 text-white hover:bg-blue-700"
+          className="h-7 text-xs bg-primary text-white hover:bg-primary-dark"
         >
           <Plus className="w-3 h-3 mr-1" />
           Drinks
         </Button>
         <Button
           onClick={() => router.push('/dashboard/menu/categories')}
-          className="h-7 text-xs bg-blue-600 text-white hover:bg-blue-700"
+          className="h-7 text-xs bg-primary text-white hover:bg-primary-dark"
         >
           <Plus className="w-3 h-3 mr-1" />
           Categories
         </Button>
         <Button
           onClick={() => router.push('/dashboard/menu/popular-dishes')}
-          className="h-7 text-xs bg-blue-600 text-white hover:bg-blue-700"
+          className="h-7 text-xs bg-primary text-white hover:bg-primary-dark"
         >
           <Plus className="w-3 h-3 mr-1" />
           Popular Dishes

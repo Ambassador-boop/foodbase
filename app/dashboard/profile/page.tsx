@@ -210,7 +210,7 @@ export default function ProfilePage() {
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-gray-900">Associated Businesses</h2>
           <Link href="/dashboard/profile/businesses">
-            <Button className="h-8 text-xs bg-blue-600 text-white hover:bg-blue-700">
+            <Button className="h-8 text-xs bg-primary text-white hover:bg-primary-dark">
               Manage Businesses
             </Button>
           </Link>
@@ -236,7 +236,7 @@ export default function ProfilePage() {
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Share Business</h2>
         <p className="text-gray-600 text-sm mb-4">Share your business with team members or partners</p>
         <Link href="/dashboard/share">
-          <Button className="bg-blue-600 text-white hover:bg-blue-700">
+          <Button className="bg-primary text-white hover:bg-primary-dark">
             Share Business
           </Button>
         </Link>

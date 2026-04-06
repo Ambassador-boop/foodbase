@@ -139,7 +139,7 @@ export default function BusinessesPage() {
                   <Button
                     onClick={() => handleSwitchBusiness(business.id)}
                     disabled={selectedBusinessId === business.id}
-                    className="h-8 text-xs bg-blue-600 text-white hover:bg-blue-700"
+                    className="h-8 text-xs bg-primary text-white hover:bg-primary-dark"
                   >
                     {selectedBusinessId === business.id ? 'Switching...' : 'Switch'}
                     <ChevronRight className="w-3 h-3 ml-1" />

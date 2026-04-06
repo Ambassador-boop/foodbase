@@ -112,7 +112,7 @@ export default function EditBusinessPage() {
     <div className="p-8 max-w-4xl">
       <button
         onClick={() => router.back()}
-        className="flex items-center gap-2 text-blue-600 hover:text-blue-700 mb-8"
+        className="flex items-center gap-2 text-primary hover:text-primary mb-8"
       >
         <ArrowLeft className="w-4 h-4" />
         Back
@@ -264,7 +264,7 @@ export default function EditBusinessPage() {
           <Button
             type="submit"
             disabled={saving}
-            className="bg-blue-600 text-white hover:bg-blue-700"
+            className="bg-primary text-white hover:bg-primary-dark"
           >
             {saving ? 'Saving...' : 'Save Changes'}
           </Button>
