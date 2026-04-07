@@ -7,6 +7,7 @@ import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ArrowLeft, AlertCircle, Plus, Minus, X } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 interface AddonOption {
   id: string;
@@ -45,6 +46,7 @@ export default function AddonPage() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { toast } = useToast();
   const slug = params.slug as string;
   const itemId = searchParams.get('itemId');
 
@@ -249,6 +251,12 @@ export default function AddonPage() {
       });
       sessionStorage.setItem(`cart_${slug}`, JSON.stringify(cartItems));
     }
+
+    // Show toast notification
+    toast({
+      title: 'Added to cart',
+      description: `${selectedItem.name} has been added to your cart`,
+    });
 
     // Redirect back to restaurant page
     router.push(`/${slug}`);

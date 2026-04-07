@@ -19,7 +19,7 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { name, description, price, categoryId, imageUrl, is_available } = body;
+    const { name, description, price, categoryId, imageUrl, is_available, discountType, discountValue, discountedPrice } = body;
 
     // Get business
     const business = await getOne(
@@ -75,6 +75,18 @@ export async function PATCH(
     if (is_available !== undefined) {
       updates.push(`is_available = $${paramCount++}`);
       values.push(is_available);
+    }
+    if (discountType !== undefined) {
+      updates.push(`discount_type = $${paramCount++}`);
+      values.push(discountType || null);
+    }
+    if (discountValue !== undefined) {
+      updates.push(`discount_value = $${paramCount++}`);
+      values.push(discountValue || null);
+    }
+    if (discountedPrice !== undefined) {
+      updates.push(`discounted_price = $${paramCount++}`);
+      values.push(discountedPrice || null);
     }
 
     values.push(id);

@@ -21,6 +21,9 @@ interface MenuItem {
   price: number;
   category_id?: string;
   image_url?: string;
+  discount_type?: string | null;
+  discount_value?: number | null;
+  discounted_price?: number | null;
 }
 
 interface MenuItemFormProps {
@@ -43,8 +46,23 @@ export default function MenuItemForm({ menuItem, isEditing = false }: MenuItemFo
     categoryId: menuItem?.category_id || '',
     imageFile: null as File | null,
     imageUrl: menuItem?.image_url || '',
+    discountType: menuItem?.discount_type || 'none',
+    discountValue: menuItem?.discount_value?.toString() || '',
   });
   const [previewUrl, setPreviewUrl] = useState<string | null>(menuItem?.image_url || null);
+
+  // Calculate discounted price for preview
+  const calculateDiscountedPrice = () => {
+    const price = parseFloat(formData.price) || 0;
+    if (formData.discountType === 'percentage') {
+      const discountValue = parseFloat(formData.discountValue) || 0;
+      return price - (price * discountValue) / 100;
+    } else if (formData.discountType === 'fixed_amount') {
+      const discountValue = parseFloat(formData.discountValue) || 0;
+      return Math.max(0, price - discountValue);
+    }
+    return price;
+  };
 
   useEffect(() => {
     fetchCategories();
@@ -174,6 +192,10 @@ export default function MenuItemForm({ menuItem, isEditing = false }: MenuItemFo
         : '/api/business/menu-items';
       const method = isEditing ? 'PATCH' : 'POST';
 
+      const discountType = formData.discountType === 'none' ? null : formData.discountType;
+      const discountValue = discountType ? parseFloat(formData.discountValue) || null : null;
+      const discountedPrice = discountType ? calculateDiscountedPrice() : null;
+
       const response = await fetch(endpoint, {
         method,
         headers: { 'Content-Type': 'application/json' },
@@ -183,6 +205,9 @@ export default function MenuItemForm({ menuItem, isEditing = false }: MenuItemFo
           price: parseFloat(formData.price),
           categoryId: formData.categoryId || null,
           imageUrl: imageUrl || null,
+          discountType,
+          discountValue,
+          discountedPrice,
         }),
       });
 
@@ -329,6 +354,57 @@ export default function MenuItemForm({ menuItem, isEditing = false }: MenuItemFo
               ))}
             </select>
           </div>
+        </div>
+
+        {/* Discount Section */}
+        <div className="border-t pt-4 mt-4">
+          <Label htmlFor="discountType" className="text-xs font-semibold block mb-3">
+            Discount
+          </Label>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <select
+                id="discountType"
+                value={formData.discountType}
+                onChange={(e) => setFormData({ ...formData, discountType: e.target.value, discountValue: '' })}
+                className="h-8 w-full text-xs border border-input rounded px-2"
+              >
+                <option value="none">No Discount</option>
+                <option value="percentage">Percentage Off (%)</option>
+                <option value="fixed_amount">Fixed Amount (₦)</option>
+              </select>
+            </div>
+            {formData.discountType !== 'none' && (
+              <div>
+                <Input
+                  type="number"
+                  step={formData.discountType === 'percentage' ? '1' : '0.01'}
+                  placeholder={formData.discountType === 'percentage' ? 'e.g., 10' : 'e.g., 500'}
+                  value={formData.discountValue}
+                  onChange={(e) => setFormData({ ...formData, discountValue: e.target.value })}
+                  className="h-8 text-xs"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Discount Preview */}
+          {formData.discountType !== 'none' && formData.price && (
+            <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded text-xs">
+              <div className="flex justify-between items-center">
+                <span>Original Price:</span>
+                <span className="font-semibold line-through text-gray-600">
+                  ₦{parseFloat(formData.price).toFixed(2)}
+                </span>
+              </div>
+              <div className="flex justify-between items-center mt-2">
+                <span>Final Price:</span>
+                <span className="font-bold text-green-600">
+                  ₦{calculateDiscountedPrice().toFixed(2)}
+                </span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Buttons */}

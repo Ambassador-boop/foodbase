@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Plus, X, AlertCircle, Upload, Edit2, Eye, EyeOff, Search, Trash2 } from 'lucide-react';
 import Image from 'next/image';
+import { DiscountBadge } from '@/components/discount-badge';
 
 interface MenuItem {
   id: string;
@@ -19,6 +20,9 @@ interface MenuItem {
   image_url?: string;
   is_available: boolean;
   order_count: number;
+  discount_type?: string | null;
+  discount_value?: number | null;
+  discounted_price?: number | null;
 }
 
 interface Category {
@@ -231,8 +235,31 @@ export default function MenuPage() {
                 <div className="space-y-2 mt-auto">
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground">Price:</span>
-                    <span className="font-bold text-primary">{formatCurrency(item.price)}</span>
+                    <div>
+                      {item.discount_type ? (
+                        <div className="flex flex-col items-end gap-0.5">
+                          <span className="text-xs line-through text-gray-500">
+                            {formatCurrency(item.price)}
+                          </span>
+                          <span className="font-bold text-green-600">
+                            {formatCurrency(item.discounted_price || item.price)}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="font-bold text-primary">{formatCurrency(item.price)}</span>
+                      )}
+                    </div>
                   </div>
+                  {item.discount_type && (
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">Discount:</span>
+                      <span className="inline-block bg-red-100 text-red-700 px-2 py-0.5 rounded font-semibold text-xs">
+                        {item.discount_type === 'percentage' 
+                          ? `${item.discount_value}% Off` 
+                          : `-₦${item.discount_value?.toFixed(2)}`}
+                      </span>
+                    </div>
+                  )}
                   {item.category_name && (
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-muted-foreground">Category:</span>

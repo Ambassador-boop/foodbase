@@ -1,12 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { ShoppingCart, ArrowLeft, AlertCircle, Wine } from 'lucide-react';
 import { AddonSelectionModal } from '@/components/addon-selection-modal';
+import { DiscountBadge, DiscountPriceDisplay } from '@/components/discount-badge';
+import { useToast } from '@/hooks/use-toast';
 
 interface MenuItem {
   id: string;
@@ -15,6 +17,13 @@ interface MenuItem {
   price: number;
   image_url?: string;
   addons?: any[];
+  order_count?: number;
+  is_popular?: boolean;
+  category_id?: string;
+  category_name?: string;
+  discount_type?: string | null;
+  discount_value?: number | null;
+  discounted_price?: number | null;
 }
 
 interface Drink {
@@ -32,20 +41,29 @@ interface Restaurant {
   description?: string;
 }
 
+interface Category {
+  id: string;
+  name: string;
+  display_order: number;
+}
+
 export default function RestaurantPage() {
   const params = useParams();
   const slug = params.slug as string;
+  const { toast } = useToast();
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [drinks, setDrinks] = useState<Drink[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [cartItems, setCartItems] = useState<any[]>([]);
   const [showDrinks, setShowDrinks] = useState(false);
   const [selectedItemForAddons, setSelectedItemForAddons] = useState<MenuItem | null>(null);
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const categoryRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
   useEffect(() => {
-    // Get cart from sessionStorage
     const storedCart = sessionStorage.getItem(`cart_${slug}`);
     if (storedCart) {
       try {
@@ -58,31 +76,48 @@ export default function RestaurantPage() {
     fetchRestaurantData();
   }, [slug]);
 
-  // Save cart to storage whenever it changes
   useEffect(() => {
     sessionStorage.setItem(`cart_${slug}`, JSON.stringify(cartItems));
   }, [cartItems, slug]);
+
+  // Set up Intersection Observer for category sections
+  useEffect(() => {
+    if (!menuItems.length || showDrinks) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            setActiveCategory(entry.target.id);
+          }
+        });
+      },
+      { threshold: 0.3 }
+    );
+
+    Object.values(categoryRefs.current).forEach((ref) => {
+      if (ref) observer.observe(ref);
+    });
+
+    return () => observer.disconnect();
+  }, [menuItems, showDrinks]);
 
   const fetchRestaurantData = async () => {
     try {
       console.log('[v0] Client: Fetching menu for slug:', slug);
       const response = await fetch(`/api/restaurants/${slug}/menu`);
-      console.log('[v0] Client: API response status:', response.status);
       const data = await response.json();
-      console.log('[v0] Client: API response data:', data);
 
       if (!response.ok) {
-        console.log('[v0] Client: API returned error:', data.error);
         throw new Error(data.error || 'Failed to fetch menu');
       }
 
-      console.log('[v0] Client: Setting restaurant data:', data.business?.name);
       setRestaurant(data.business);
       setMenuItems(data.menuItems || []);
       setDrinks(data.drinks || []);
-      console.log('[v0] Client: Menu items set:', data.menuItems?.length || 0);
+      setCategories(data.categories || []);
     } catch (err) {
-      console.error('[v0] Client: Error fetching menu:', err);
+      console.error('[v0] Error fetching menu:', err);
       setError('Restaurant not found or error loading menu');
     } finally {
       setLoading(false);
@@ -93,6 +128,10 @@ export default function RestaurantPage() {
     const drink = drinks.find((d) => d.id === drinkId);
     if (drink) {
       addDrinkToCart(drink);
+      toast({
+        title: 'Added to cart',
+        description: `${drink.name} has been added to your cart`,
+      });
     }
   };
 
@@ -104,7 +143,6 @@ export default function RestaurantPage() {
       );
 
       if (existingCartItem) {
-        // Item already in cart, increase quantity
         const newItems = cartItems.map((ci) =>
           ci === existingCartItem ? { ...ci, quantity: ci.quantity + 1 } : ci
         );
@@ -116,13 +154,17 @@ export default function RestaurantPage() {
             id: itemId,
             type: 'menu',
             name: item.name,
-            price: item.price,
+            price: item.discounted_price || item.price,
             image_url: item.image_url,
             quantity: 1,
             addons: [],
           },
         ]);
       }
+      toast({
+        title: 'Added to cart',
+        description: `${item.name} has been added to your cart`,
+      });
     }
   };
 
@@ -132,7 +174,6 @@ export default function RestaurantPage() {
     );
 
     if (existingCartItem) {
-      // Drink already in cart, increase quantity
       const newItems = cartItems.map((ci) =>
         ci === existingCartItem ? { ...ci, quantity: ci.quantity + 1 } : ci
       );
@@ -186,14 +227,11 @@ export default function RestaurantPage() {
         }
       });
 
-      // Create a unique key for this item + addons combination
       const addonsKey = addonsArray.map((a) => a.id).sort().join('-');
       const cartKey = `${itemId}_${addonsKey}`;
-
       const existingCartItem = cartItems.find((ci) => ci.cartKey === cartKey);
 
       if (existingCartItem) {
-        // Same item with same addons exists, increase quantity
         const newItems = cartItems.map((ci) =>
           ci === existingCartItem ? { ...ci, quantity: ci.quantity + 1 } : ci
         );
@@ -206,7 +244,7 @@ export default function RestaurantPage() {
             cartKey,
             type: 'menu',
             name: item.name,
-            price: item.price,
+            price: item.discounted_price || item.price,
             image_url: item.image_url,
             quantity: 1,
             addons: addonsArray,
@@ -215,6 +253,25 @@ export default function RestaurantPage() {
       }
     }
   };
+
+  // Get most ordered items for "Popular" tag
+  const getMostOrderedItems = () => {
+    if (menuItems.length === 0) return new Set();
+    const avgOrders = menuItems.reduce((sum, item) => sum + (item.order_count || 0), 0) / menuItems.length;
+    return new Set(
+      menuItems
+        .filter((item) => (item.order_count || 0) > avgOrders)
+        .map((item) => item.id)
+    );
+  };
+
+  const mostOrderedItems = getMostOrderedItems();
+
+  // Group menu items by category
+  const groupedItems = categories.map((cat) => ({
+    category: cat,
+    items: menuItems.filter((item) => item.category_id === cat.id),
+  })).filter((group) => group.items.length > 0);
 
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(amount);
@@ -242,7 +299,7 @@ export default function RestaurantPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background pb-20 md:pb-0">
       {/* Header */}
       <header className="bg-white border-b border-border sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
@@ -261,6 +318,11 @@ export default function RestaurantPage() {
                 <Wine className="w-3 h-3 inline mr-1" />
                 Drinks
               </button>
+            )}
+            {!showDrinks && activeCategory && (
+              <span className="text-xs px-2 py-1 rounded bg-blue-50 text-blue-700 font-medium">
+                {categories.find((c) => c.id === activeCategory)?.name || 'Menu'}
+              </span>
             )}
           </div>
           <Link href={`/${slug}/cart`} className="relative p-2 text-primary hover:text-primary-dark">
@@ -328,17 +390,108 @@ export default function RestaurantPage() {
                 </div>
               )
             ) : (
-              // Menu Items Display
+              // Menu Items Display with Category Grouping
               menuItems.length === 0 ? (
                 <div className="bg-white rounded-lg p-8 text-center">
                   <p className="text-sm text-muted-foreground">No menu items available</p>
+                </div>
+              ) : groupedItems.length > 0 ? (
+                <div className="space-y-6">
+                  {groupedItems.map((group) => (
+                    <div
+                      key={group.category.id}
+                      ref={(ref) => {
+                        if (ref) categoryRefs.current[group.category.id] = ref;
+                      }}
+                      id={group.category.id}
+                      className="space-y-3"
+                    >
+                      {/* Category Header */}
+                      <div className="sticky top-16 z-30 bg-gradient-to-r from-blue-50 to-blue-100 py-3 px-4 rounded-lg border-l-4 border-blue-500">
+                        <h3 className="font-bold text-sm text-foreground">{group.category.name}</h3>
+                      </div>
+
+                      {/* Items Grid */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        {group.items.map((item) => (
+                          <div
+                            key={item.id}
+                            className="bg-white border border-border rounded-lg overflow-hidden flex flex-col hover:shadow-sm transition-shadow relative"
+                          >
+                            {/* Image Container */}
+                            {item.image_url && (
+                              <div className="relative w-full aspect-square rounded-t flex-shrink-0">
+                                <Image
+                                  src={item.image_url}
+                                  alt={item.name}
+                                  fill
+                                  className="object-cover"
+                                />
+                                {/* Popular Tag */}
+                                {mostOrderedItems.has(item.id) && (
+                                  <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded text-xs font-bold">
+                                    Popular
+                                  </div>
+                                )}
+                                {/* Discount Badge */}
+                                {item.discount_type && item.discount_value && (
+                                  <div className="absolute top-2 left-2 bg-red-500 text-white px-2 py-1 rounded text-xs font-bold">
+                                    {item.discount_type === 'percentage'
+                                      ? `${item.discount_value}% Off`
+                                      : `-₦${item.discount_value.toFixed(2)}`}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            <div className="p-2 flex-1 flex flex-col">
+                              <h3 className="font-medium text-xs line-clamp-2">{item.name}</h3>
+                              {item.description && (
+                                <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
+                                  {item.description}
+                                </p>
+                              )}
+                              <div className="mt-auto mb-2">
+                                {item.discount_type ? (
+                                  <div className="flex flex-col gap-0.5">
+                                    <span className="text-xs line-through text-gray-500">
+                                      {formatCurrency(item.price)}
+                                    </span>
+                                    <span className="text-xs font-bold text-green-600">
+                                      {formatCurrency(item.discounted_price || item.price)}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <p className="text-xs font-semibold text-primary">
+                                    {formatCurrency(item.price)}
+                                  </p>
+                                )}
+                              </div>
+                              <Button
+                                onClick={() => {
+                                  if (item.addons && item.addons.length > 0) {
+                                    window.location.href = `/${slug}/add-on?itemId=${item.id}`;
+                                  } else {
+                                    addToCart(item.id);
+                                  }
+                                }}
+                                size="sm"
+                                className="h-7 text-xs bg-primary text-white hover:bg-primary-dark w-full"
+                              >
+                                Add
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ) : (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   {menuItems.map((item) => (
                     <div
                       key={item.id}
-                      className="bg-white border border-border rounded-lg overflow-hidden flex flex-col hover:shadow-sm transition-shadow"
+                      className="bg-white border border-border rounded-lg overflow-hidden flex flex-col hover:shadow-sm transition-shadow relative"
                     >
                       {item.image_url && (
                         <div className="relative w-full aspect-square rounded-t flex-shrink-0">
@@ -348,6 +501,18 @@ export default function RestaurantPage() {
                             fill
                             className="object-cover"
                           />
+                          {mostOrderedItems.has(item.id) && (
+                            <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded text-xs font-bold">
+                              Popular
+                            </div>
+                          )}
+                          {item.discount_type && item.discount_value && (
+                            <div className="absolute top-2 left-2 bg-red-500 text-white px-2 py-1 rounded text-xs font-bold">
+                              {item.discount_type === 'percentage'
+                                ? `${item.discount_value}% Off`
+                                : `-₦${item.discount_value.toFixed(2)}`}
+                            </div>
+                          )}
                         </div>
                       )}
                       <div className="p-2 flex-1 flex flex-col">
@@ -357,16 +522,27 @@ export default function RestaurantPage() {
                             {item.description}
                           </p>
                         )}
-                        <p className="text-xs font-semibold text-primary mt-auto mb-2">
-                          {formatCurrency(item.price)}
-                        </p>
+                        <div className="mt-auto mb-2">
+                          {item.discount_type ? (
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-xs line-through text-gray-500">
+                                {formatCurrency(item.price)}
+                              </span>
+                              <span className="text-xs font-bold text-green-600">
+                                {formatCurrency(item.discounted_price || item.price)}
+                              </span>
+                            </div>
+                          ) : (
+                            <p className="text-xs font-semibold text-primary">
+                              {formatCurrency(item.price)}
+                            </p>
+                          )}
+                        </div>
                         <Button
                           onClick={() => {
                             if (item.addons && item.addons.length > 0) {
-                              // Navigate to add-on page
                               window.location.href = `/${slug}/add-on?itemId=${item.id}`;
                             } else {
-                              // Add directly to cart
                               addToCart(item.id);
                             }
                           }}
@@ -383,7 +559,6 @@ export default function RestaurantPage() {
             )}
           </div>
 
-          {/* Add-ons Selection Modal */}
           {selectedItemForAddons && (
             <AddonSelectionModal
               item={selectedItemForAddons}
@@ -397,6 +572,19 @@ export default function RestaurantPage() {
           )}
         </div>
       </div>
+
+      {/* Floating Cart Button (Mobile Only) */}
+      {cartItems.length > 0 && (
+        <Link
+          href={`/${slug}/cart`}
+          className="fixed bottom-4 left-4 right-4 md:hidden z-50"
+        >
+          <Button className="w-full h-12 bg-primary text-white hover:bg-primary-dark text-sm font-semibold flex items-center justify-center gap-2">
+            <ShoppingCart className="w-5 h-5" />
+            View Cart ({cartItems.length})
+          </Button>
+        </Link>
+      )}
     </div>
   );
 }

@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { name, description, price, categoryId, imageUrl } = await request.json();
+    const { name, description, price, categoryId, imageUrl, discountType, discountValue, discountedPrice } = await request.json();
 
     if (!name || price === undefined) {
       return NextResponse.json(
@@ -89,9 +89,9 @@ export async function POST(request: NextRequest) {
     const menuItemId = generateId('mnu');
 
     await query(
-      `INSERT INTO menu_items (id, business_id, category_id, name, description, price, image_url, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-      [menuItemId, business.id, categoryId || null, name, description, price, imageUrl || null]
+      `INSERT INTO menu_items (id, business_id, category_id, name, description, price, image_url, discount_type, discount_value, discounted_price, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+      [menuItemId, business.id, categoryId || null, name, description, price, imageUrl || null, discountType || null, discountValue || null, discountedPrice || null]
     );
 
     const newMenuItem = await getOne(
