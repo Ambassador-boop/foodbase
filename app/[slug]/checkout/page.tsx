@@ -133,13 +133,20 @@ export default function CheckoutPage() {
           address: deliveryType === 'delivery' ? formData.address : 'At Restaurant',
           deliveryType,
           notes: formData.notes,
-          items: cartItems.map(item => ({
-            menu_item_id: item.id, // menu item ID
-            quantity: item.quantity,
-            // item_price is total for this order line: (base price + addons) * quantity
-            item_price: item.price,
-            configuration: item.addons || null, // store addons as configuration
-          })),
+          items: cartItems.map(item => {
+            // Calculate total price per item including addons
+            const basePrice = Number(item.price) || 0;
+            const addonsPrice = item.addons?.reduce((sum: number, addon: any) => sum + (Number(addon.price) || 0), 0) || 0;
+            const totalPerItem = basePrice + addonsPrice;
+            
+            return {
+              menu_item_id: item.id, // menu item ID
+              quantity: item.quantity,
+              // item_price is the unit price: (base price + addons) per item
+              item_price: totalPerItem,
+              configuration: item.addons || null, // store addons as configuration
+            };
+          }),
           subtotal,
           deliveryFee,
           serviceFee,

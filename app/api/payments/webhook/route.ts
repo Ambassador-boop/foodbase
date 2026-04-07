@@ -44,15 +44,16 @@ export async function POST(req: NextRequest) {
         // Record transaction
         const transactionId = `txn_${Date.now()}`;
         await db.query(
-          `INSERT INTO transactions (id, business_id, type, amount, description, reference, created_at)
-           VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+          `INSERT INTO transactions (id, business_id, order_id, transaction_type, amount, payment_reference, status, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
           [
             transactionId,
             order.business_id,
-            'income',
+            order.id,
+            'payment',
             order.total_amount,
-            'Order payment received',
             reference,
+            'completed',
           ]
         );
 

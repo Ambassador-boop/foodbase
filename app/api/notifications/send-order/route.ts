@@ -68,17 +68,17 @@ export async function POST(request: NextRequest) {
     try {
       await db.query(
         `INSERT INTO notifications 
-        (id, order_id, business_id, notification_type, title, message, onesignal_id, status, created_at)
+        (id, order_id, business_id, notification_title, notification_body, onesignal_notification_id, payment_status, customer_name, created_at)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
         [
           notificationId,
           orderId,
           businessId,
-          'order_created',
-          'New Order',
-          `New order from ${customerName}`,
+          'New Order Received',
+          `New order from ${customerName} - Payment Status: ${paymentStatus || 'pending'}`,
           onesignalData.id,
-          'sent',
+          paymentStatus || 'pending',
+          customerName,
         ]
       );
 
