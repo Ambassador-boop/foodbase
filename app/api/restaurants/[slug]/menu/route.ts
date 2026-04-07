@@ -34,9 +34,9 @@ export async function GET(
 
     // Get menu items with their add-ons - simplified query without nested JSON aggregation
     const menuItems = await getAll(
-      `SELECT m.id, m.name, m.description, m.price, m.image_url, m.is_available, 
+      `SELECT m.id, m.name, m.description, m.price, m.original_price, m.image_url, m.is_available, 
               m.display_order, m.category_id, m.is_popular, m.order_count,
-              m.discount_type, m.discount_value, m.discounted_price,
+              m.discount_type, m.discount_value,
               c.name as category_name
        FROM menu_items m
        LEFT JOIN categories c ON m.category_id = c.id

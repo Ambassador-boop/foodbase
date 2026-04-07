@@ -19,11 +19,11 @@ interface MenuItem {
   name: string;
   description?: string;
   price: number;
+  original_price?: number | null;
   category_id?: string;
   image_url?: string;
   discount_type?: string | null;
   discount_value?: number | null;
-  discounted_price?: number | null;
 }
 
 interface MenuItemFormProps {
@@ -42,26 +42,26 @@ export default function MenuItemForm({ menuItem, isEditing = false }: MenuItemFo
   const [formData, setFormData] = useState({
     name: menuItem?.name || '',
     description: menuItem?.description || '',
-    price: menuItem?.price.toString() || '',
+    originalPrice: menuItem?.original_price?.toString() || menuItem?.price.toString() || '',
+    discountType: menuItem?.discount_type || 'none',
+    discountValue: menuItem?.discount_value?.toString() || '',
     categoryId: menuItem?.category_id || '',
     imageFile: null as File | null,
     imageUrl: menuItem?.image_url || '',
-    discountType: menuItem?.discount_type || 'none',
-    discountValue: menuItem?.discount_value?.toString() || '',
   });
   const [previewUrl, setPreviewUrl] = useState<string | null>(menuItem?.image_url || null);
 
-  // Calculate discounted price for preview
-  const calculateDiscountedPrice = () => {
-    const price = parseFloat(formData.price) || 0;
+  // Calculate final price based on discount (what gets stored in price column)
+  const calculateFinalPrice = () => {
+    const originalPrice = parseFloat(formData.originalPrice) || 0;
     if (formData.discountType === 'percentage') {
       const discountValue = parseFloat(formData.discountValue) || 0;
-      return price - (price * discountValue) / 100;
+      return originalPrice - (originalPrice * discountValue) / 100;
     } else if (formData.discountType === 'fixed_amount') {
       const discountValue = parseFloat(formData.discountValue) || 0;
-      return Math.max(0, price - discountValue);
+      return Math.max(0, originalPrice - discountValue);
     }
-    return price;
+    return originalPrice;
   };
 
   useEffect(() => {
@@ -194,7 +194,8 @@ export default function MenuItemForm({ menuItem, isEditing = false }: MenuItemFo
 
       const discountType = formData.discountType === 'none' ? null : formData.discountType;
       const discountValue = discountType ? parseFloat(formData.discountValue) || null : null;
-      const discountedPrice = discountType ? calculateDiscountedPrice() : null;
+      const originalPrice = parseFloat(formData.originalPrice) || 0;
+      const finalPrice = calculateFinalPrice();
 
       const response = await fetch(endpoint, {
         method,
@@ -202,12 +203,12 @@ export default function MenuItemForm({ menuItem, isEditing = false }: MenuItemFo
         body: JSON.stringify({
           name: formData.name,
           description: formData.description,
-          price: parseFloat(formData.price),
+          price: finalPrice,
+          originalPrice: originalPrice,
           categoryId: formData.categoryId || null,
           imageUrl: imageUrl || null,
           discountType,
           discountValue,
-          discountedPrice,
         }),
       });
 
@@ -323,16 +324,16 @@ export default function MenuItemForm({ menuItem, isEditing = false }: MenuItemFo
         {/* Price & Category */}
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <Label htmlFor="price" className="text-xs font-semibold">
-              Price (NGN) *
+            <Label htmlFor="originalPrice" className="text-xs font-semibold">
+              Original Price (NGN) *
             </Label>
             <Input
-              id="price"
+              id="originalPrice"
               type="number"
               step="0.01"
               placeholder="2500"
-              value={formData.price}
-              onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+              value={formData.originalPrice}
+              onChange={(e) => setFormData({ ...formData, originalPrice: e.target.value })}
               className="mt-1 h-8 text-xs"
             />
           </div>
@@ -389,18 +390,18 @@ export default function MenuItemForm({ menuItem, isEditing = false }: MenuItemFo
           </div>
 
           {/* Discount Preview */}
-          {formData.discountType !== 'none' && formData.price && (
+          {formData.discountType !== 'none' && formData.originalPrice && (
             <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded text-xs">
               <div className="flex justify-between items-center">
                 <span>Original Price:</span>
                 <span className="font-semibold line-through text-gray-600">
-                  ₦{parseFloat(formData.price).toFixed(2)}
+                  ₦{parseFloat(formData.originalPrice).toFixed(2)}
                 </span>
               </div>
               <div className="flex justify-between items-center mt-2">
-                <span>Final Price:</span>
+                <span>Final Price (stored in database):</span>
                 <span className="font-bold text-green-600">
-                  ₦{calculateDiscountedPrice().toFixed(2)}
+                  ₦{calculateFinalPrice().toFixed(2)}
                 </span>
               </div>
             </div>

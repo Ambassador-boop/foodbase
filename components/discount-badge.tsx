@@ -33,7 +33,9 @@ export function DiscountBadge({
   }
 
   const badgeContent =
-    discountType === 'percentage' ? `${discountValue}% Off` : `-₦${discountValue.toFixed(2)}`;
+    discountType === 'percentage' 
+      ? `${discountValue}% Off` 
+      : `-₦${discountValue ? Number(discountValue).toFixed(2) : '0.00'}`;
 
   const positionClasses = {
     'top-right': 'absolute top-2 right-2',

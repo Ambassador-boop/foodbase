@@ -15,6 +15,7 @@ interface MenuItem {
   name: string;
   description?: string;
   price: number;
+  original_price?: number | null;
   image_url?: string;
   addons?: any[];
   order_count?: number;
@@ -23,7 +24,6 @@ interface MenuItem {
   category_name?: string;
   discount_type?: string | null;
   discount_value?: number | null;
-  discounted_price?: number | null;
 }
 
 interface Drink {
@@ -417,13 +417,13 @@ export default function RestaurantPage() {
                                 </p>
                               )}
                               <div className="mt-auto mb-2">
-                                {item.discount_type ? (
+                                {item.discount_type && item.original_price ? (
                                   <div className="flex flex-col gap-0.5">
                                     <span className="text-xs line-through text-gray-500">
-                                      {formatCurrency(item.price)}
+                                      {formatCurrency(item.original_price)}
                                     </span>
                                     <span className="text-xs font-bold text-green-600">
-                                      {formatCurrency(item.discounted_price || item.price)}
+                                      {formatCurrency(item.price)}
                                     </span>
                                   </div>
                                 ) : (
@@ -489,13 +489,13 @@ export default function RestaurantPage() {
                           </p>
                         )}
                         <div className="mt-auto mb-2">
-                          {item.discount_type ? (
+                          {item.discount_type && item.original_price ? (
                             <div className="flex flex-col gap-0.5">
                               <span className="text-xs line-through text-gray-500">
-                                {formatCurrency(item.price)}
+                                {formatCurrency(item.original_price)}
                               </span>
                               <span className="text-xs font-bold text-green-600">
-                                {formatCurrency(item.discounted_price || item.price)}
+                                {formatCurrency(item.price)}
                               </span>
                             </div>
                           ) : (

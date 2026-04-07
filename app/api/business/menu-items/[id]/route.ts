@@ -19,7 +19,7 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { name, description, price, categoryId, imageUrl, is_available, discountType, discountValue, discountedPrice } = body;
+    const { name, description, price, originalPrice, categoryId, imageUrl, is_available, discountType, discountValue } = body;
 
     // Get business
     const business = await getOne(
@@ -76,6 +76,10 @@ export async function PATCH(
       updates.push(`is_available = $${paramCount++}`);
       values.push(is_available);
     }
+    if (originalPrice !== undefined) {
+      updates.push(`original_price = $${paramCount++}`);
+      values.push(originalPrice || null);
+    }
     if (discountType !== undefined) {
       updates.push(`discount_type = $${paramCount++}`);
       values.push(discountType || null);
@@ -83,10 +87,6 @@ export async function PATCH(
     if (discountValue !== undefined) {
       updates.push(`discount_value = $${paramCount++}`);
       values.push(discountValue || null);
-    }
-    if (discountedPrice !== undefined) {
-      updates.push(`discounted_price = $${paramCount++}`);
-      values.push(discountedPrice || null);
     }
 
     values.push(id);

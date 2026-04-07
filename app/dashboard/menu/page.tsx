@@ -236,13 +236,13 @@ export default function MenuPage() {
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground">Price:</span>
                     <div>
-                      {item.discount_type ? (
+                      {item.discount_type && item.original_price ? (
                         <div className="flex flex-col items-end gap-0.5">
                           <span className="text-xs line-through text-gray-500">
-                            {formatCurrency(item.price)}
+                            {formatCurrency(item.original_price)}
                           </span>
                           <span className="font-bold text-green-600">
-                            {formatCurrency(item.discounted_price || item.price)}
+                            {formatCurrency(item.price)}
                           </span>
                         </div>
                       ) : (
@@ -256,7 +256,7 @@ export default function MenuPage() {
                       <span className="inline-block bg-red-100 text-red-700 px-2 py-0.5 rounded font-semibold text-xs">
                         {item.discount_type === 'percentage' 
                           ? `${item.discount_value}% Off` 
-                          : `-₦${item.discount_value?.toFixed(2)}`}
+                          : `-₦${Number(item.discount_value).toFixed(2)}`}
                       </span>
                     </div>
                   )}
