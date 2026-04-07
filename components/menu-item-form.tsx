@@ -164,8 +164,8 @@ export default function MenuItemForm({ menuItem, isEditing = false }: MenuItemFo
     e.preventDefault();
     setError('');
 
-    if (!formData.name || !formData.price) {
-      setError('Name and price are required');
+    if (!formData.name || !formData.originalPrice) {
+      setError('Name and original price are required');
       return;
     }
 

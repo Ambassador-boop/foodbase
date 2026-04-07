@@ -65,9 +65,9 @@ export async function POST(request: NextRequest) {
 
     const { name, description, price, originalPrice, categoryId, imageUrl, discountType, discountValue } = await request.json();
 
-    if (!name || price === undefined) {
+    if (!name || originalPrice === undefined) {
       return NextResponse.json(
-        { error: 'Name and price required' },
+        { error: 'Name and original price required' },
         { status: 400 }
       );
     }

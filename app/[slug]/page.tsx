@@ -404,7 +404,7 @@ export default function RestaurantPage() {
                                   <div className="absolute top-2 left-2 bg-red-500 text-white px-2 py-1 rounded text-xs font-bold">
                                     {item.discount_type === 'percentage'
                                       ? `${item.discount_value}% Off`
-                                      : `-₦${item.discount_value.toFixed(2)}`}
+                                      : `-₦${Number(item.discount_value).toFixed(2)}`}
                                   </div>
                                 )}
                               </div>
@@ -476,7 +476,7 @@ export default function RestaurantPage() {
                             <div className="absolute top-2 left-2 bg-red-500 text-white px-2 py-1 rounded text-xs font-bold">
                               {item.discount_type === 'percentage'
                                 ? `${item.discount_value}% Off`
-                                : `-₦${item.discount_value.toFixed(2)}`}
+                                : `-₦${Number(item.discount_value).toFixed(2)}`}
                             </div>
                           )}
                         </div>
