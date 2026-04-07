@@ -60,8 +60,6 @@ export default function RestaurantPage() {
   const [cartItems, setCartItems] = useState<any[]>([]);
   const [showDrinks, setShowDrinks] = useState(false);
   const [selectedItemForAddons, setSelectedItemForAddons] = useState<MenuItem | null>(null);
-  const [activeCategory, setActiveCategory] = useState<string | null>(null);
-  const categoryRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
   useEffect(() => {
     const storedCart = sessionStorage.getItem(`cart_${slug}`);
@@ -80,27 +78,7 @@ export default function RestaurantPage() {
     sessionStorage.setItem(`cart_${slug}`, JSON.stringify(cartItems));
   }, [cartItems, slug]);
 
-  // Set up Intersection Observer for category sections
-  useEffect(() => {
-    if (!menuItems.length || showDrinks) return;
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            setActiveCategory(entry.target.id);
-          }
-        });
-      },
-      { threshold: 0.3 }
-    );
-
-    Object.values(categoryRefs.current).forEach((ref) => {
-      if (ref) observer.observe(ref);
-    });
-
-    return () => observer.disconnect();
-  }, [menuItems, showDrinks]);
 
   const fetchRestaurantData = async () => {
     try {
@@ -319,11 +297,6 @@ export default function RestaurantPage() {
                 Drinks
               </button>
             )}
-            {!showDrinks && activeCategory && (
-              <span className="text-xs px-2 py-1 rounded bg-blue-50 text-blue-700 font-medium">
-                {categories.find((c) => c.id === activeCategory)?.name || 'Menu'}
-              </span>
-            )}
           </div>
           <Link href={`/${slug}/cart`} className="relative p-2 text-primary hover:text-primary-dark">
             <ShoppingCart className="w-5 h-5" />
@@ -398,17 +371,10 @@ export default function RestaurantPage() {
               ) : groupedItems.length > 0 ? (
                 <div className="space-y-6">
                   {groupedItems.map((group) => (
-                    <div
-                      key={group.category.id}
-                      ref={(ref) => {
-                        if (ref) categoryRefs.current[group.category.id] = ref;
-                      }}
-                      id={group.category.id}
-                      className="space-y-3"
-                    >
+                    <div key={group.category.id} className="space-y-3">
                       {/* Category Header */}
-                      <div className="sticky top-16 z-30 bg-gradient-to-r from-blue-50 to-blue-100 py-3 px-4 rounded-lg border-l-4 border-blue-500">
-                        <h3 className="font-bold text-sm text-foreground">{group.category.name}</h3>
+                      <div className="sticky top-16 z-30 bg-primary py-2 px-4 rounded-lg">
+                        <h3 className="font-semibold text-xs text-primary-foreground">{group.category.name}</h3>
                       </div>
 
                       {/* Items Grid */}
@@ -573,16 +539,19 @@ export default function RestaurantPage() {
         </div>
       </div>
 
-      {/* Floating Cart Button (Mobile Only) */}
+      {/* Floating Cart Icon (Bottom Right) */}
       {cartItems.length > 0 && (
         <Link
           href={`/${slug}/cart`}
-          className="fixed bottom-4 left-4 right-4 md:hidden z-50"
+          className="fixed bottom-4 right-4 z-50 bg-primary text-primary-foreground p-2 rounded-full shadow-lg hover:shadow-xl transition-shadow"
+          title="View cart"
         >
-          <Button className="w-full h-12 bg-primary text-white hover:bg-primary-dark text-sm font-semibold flex items-center justify-center gap-2">
-            <ShoppingCart className="w-5 h-5" />
-            View Cart ({cartItems.length})
-          </Button>
+          <div className="relative">
+            <ShoppingCart className="w-4 h-4" />
+            <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+              {cartItems.length}
+            </span>
+          </div>
         </Link>
       )}
     </div>
