@@ -1,24 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { Pool } from '@neondatabase/serverless'
-
-const pool = new Pool({ connectionString: process.env.DATABASE_URL })
+import { sql } from '@vercel/postgres'
+import { verifyToken } from '@/lib/auth'
 
 export async function GET(request: NextRequest) {
   try {
-    const userId = request.headers.get('x-user-id')
+    const token = request.headers.get('authorization')?.replace('Bearer ', '')
 
-    if (!userId) {
+    if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const result = await pool.query(
-      'SELECT id, name, email, phone FROM businesses WHERE owner_id = $1 ORDER BY created_at DESC',
-      [userId]
+    const user = await verifyToken(token)
+
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { rows } = await sql.query(
+      'SELECT id, name, email, phone, slug FROM businesses WHERE owner_id = $1 ORDER BY created_at DESC',
+      [user.id]
     )
 
-    return NextResponse.json({ businesses: result.rows })
+    return NextResponse.json({ businesses: rows })
   } catch (error) {
-    console.error('Businesses fetch error:', error)
+    console.error('[v0] Businesses fetch error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Menu, X, LogOut, BarChart3, Utensils, Plus, Droplet, FolderOpen, Zap, ShoppingCart, DollarSign, Share2, ChevronDown } from 'lucide-react';
+import { Menu, X, LogOut, BarChart3, Utensils, Plus, Droplet, FolderOpen, Zap, ShoppingCart, DollarSign, Share2, ChevronDown, User } from 'lucide-react';
 import NotificationsIcon from '@/components/dashboard/notifications-icon';
 
 const navigationItems = [
@@ -18,6 +18,7 @@ const navigationItems = [
   { label: 'Orders', href: '/dashboard/orders', icon: ShoppingCart },
   { label: 'Finance', href: '/dashboard/finance', icon: DollarSign },
   { label: 'Share Business', href: '/dashboard/share', icon: Share2 },
+  { label: 'Profile', href: '/dashboard/profile', icon: User },
 ];
 
 interface Business {

@@ -38,13 +38,30 @@ export default function ProfilePage() {
 
   const fetchProfileData = async () => {
     try {
+      // Get auth token from localStorage
+      const token = localStorage.getItem('authToken')
+      if (!token) {
+        throw new Error('No auth token found')
+      }
+
+      const headers = {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      }
+
       const [userRes, businessRes] = await Promise.all([
-        fetch('/api/user/profile'),
-        fetch('/api/user/businesses'),
+        fetch('/api/user/profile', { headers }),
+        fetch('/api/user/businesses', { headers }),
       ])
 
-      if (!userRes.ok) throw new Error('Failed to fetch user profile')
-      if (!businessRes.ok) throw new Error('Failed to fetch businesses')
+      if (!userRes.ok) {
+        console.error('[v0] User profile response:', userRes.status, await userRes.text())
+        throw new Error('Failed to fetch user profile')
+      }
+      if (!businessRes.ok) {
+        console.error('[v0] Businesses response:', businessRes.status, await businessRes.text())
+        throw new Error('Failed to fetch businesses')
+      }
 
       const userData = await userRes.json()
       const businessData = await businessRes.json()
@@ -52,7 +69,7 @@ export default function ProfilePage() {
       setUser(userData.user)
       setBusinesses(businessData.businesses || [])
     } catch (err) {
-      console.error('Error:', err)
+      console.error('[v0] Error:', err)
       setError('Failed to load profile data')
     } finally {
       setLoading(false)

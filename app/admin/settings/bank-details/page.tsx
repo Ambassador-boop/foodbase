@@ -196,9 +196,9 @@ export default function AdminBankDetailsPage() {
 
       {/* Existing Details Info */}
       {existingDetails && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <p className="text-xs font-semibold text-blue-900 mb-2">Current Bank Account</p>
-          <div className="space-y-1 text-xs text-blue-800">
+        <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
+          <p className="text-xs font-semibold text-primary mb-2">Current Bank Account</p>
+          <div className="space-y-1 text-xs text-muted-foreground">
             <div className="flex justify-between">
               <span>Bank:</span>
               <span className="font-medium">{selectedBank?.name || existingDetails.bank_code}</span>

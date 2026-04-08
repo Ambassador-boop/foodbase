@@ -168,11 +168,11 @@ export default function RevenuePage() {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-xs font-semibold text-muted-foreground">Withdrawn</p>
-              <p className="text-lg font-bold mt-2 text-blue-600">
+              <p className="text-lg font-bold mt-2 text-primary">
                 {formatCurrency(summary?.withdrawn_amount || 0)}
               </p>
             </div>
-            <Building2 className="w-5 h-5 text-blue-600 opacity-50" />
+            <Building2 className="w-5 h-5 text-primary opacity-50" />
           </div>
         </div>
       </div>

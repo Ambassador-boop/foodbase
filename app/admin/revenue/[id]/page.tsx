@@ -259,9 +259,9 @@ export default function TransactionDetailsPage() {
             </div>
 
             {/* Fee Type Info */}
-            <div className="bg-blue-50 border border-blue-200 rounded p-3">
-              <p className="text-xs font-semibold text-blue-900 mb-1">Fee Type</p>
-              <p className="text-xs text-blue-800">{tx.service_fee_type === 'tiered' ? 'Tiered Service Fee' : 'Legacy Percentage (7.5%)'}</p>
+            <div className="bg-primary/5 border border-primary/20 rounded p-3">
+              <p className="text-xs font-semibold text-primary mb-1">Fee Type</p>
+              <p className="text-xs text-muted-foreground">{tx.service_fee_type === 'tiered' ? 'Tiered Service Fee' : 'Legacy Percentage (7.5%)'}</p>
             </div>
           </div>
         </div>

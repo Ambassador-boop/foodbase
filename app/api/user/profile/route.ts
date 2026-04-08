@@ -1,56 +1,66 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { Pool } from '@neondatabase/serverless'
-
-const pool = new Pool({ connectionString: process.env.DATABASE_URL })
+import { sql } from '@vercel/postgres'
+import { verifyToken } from '@/lib/auth'
 
 export async function GET(request: NextRequest) {
   try {
-    // Get user ID from session/auth (implement based on your auth system)
-    const userId = request.headers.get('x-user-id')
-
-    if (!userId) {
+    const token = request.headers.get('authorization')?.replace('Bearer ', '')
+    
+    if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const result = await pool.query(
+    const user = await verifyToken(token)
+    
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { rows } = await sql.query(
       'SELECT id, email, first_name, last_name, phone, profile_picture_url FROM users WHERE id = $1',
-      [userId]
+      [user.id]
     )
 
-    if (result.rows.length === 0) {
+    if (rows.length === 0) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    return NextResponse.json({ user: result.rows[0] })
+    return NextResponse.json({ user: rows[0] })
   } catch (error) {
-    console.error('Profile fetch error:', error)
+    console.error('[v0] Profile fetch error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
 export async function PATCH(request: NextRequest) {
   try {
-    const userId = request.headers.get('x-user-id')
+    const token = request.headers.get('authorization')?.replace('Bearer ', '')
+    
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
 
-    if (!userId) {
+    const user = await verifyToken(token)
+    
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const body = await request.json()
     const { first_name, last_name, phone } = body
 
-    const result = await pool.query(
-      'UPDATE users SET first_name = $1, last_name = $2, phone = $3 WHERE id = $4 RETURNING *',
-      [first_name, last_name, phone, userId]
+    const { rows } = await sql.query(
+      'UPDATE users SET first_name = $1, last_name = $2, phone = $3, updated_at = NOW() WHERE id = $4 RETURNING id, email, first_name, last_name, phone, profile_picture_url',
+      [first_name, last_name, phone, user.id]
     )
 
-    if (result.rows.length === 0) {
+    if (rows.length === 0) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    return NextResponse.json({ user: result.rows[0] })
+    return NextResponse.json({ user: rows[0] })
   } catch (error) {
-    console.error('Profile update error:', error)
+    console.error('[v0] Profile update error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

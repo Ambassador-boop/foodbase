@@ -185,12 +185,12 @@ export default function AdminWithdrawalPage() {
 
             <div className="bg-white border border-border rounded-lg p-4">
               <p className="text-xs font-semibold text-muted-foreground">Withdrawn</p>
-              <p className="text-lg font-bold mt-2 text-blue-600">{formatCurrency(revenue.withdrawn_amount)}</p>
+              <p className="text-lg font-bold mt-2 text-primary">{formatCurrency(revenue.withdrawn_amount)}</p>
             </div>
 
             <div className="bg-white border border-border rounded-lg p-4">
               <p className="text-xs font-semibold text-muted-foreground">Available to Withdraw</p>
-              <p className="text-lg font-bold mt-2 text-green-600">{formatCurrency(revenue.available_balance)}</p>
+              <p className="text-lg font-bold mt-2 text-accent">{formatCurrency(revenue.available_balance)}</p>
             </div>
           </div>
 

@@ -19,11 +19,27 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const token = req.headers.get('authorization')?.replace('Bearer ', '');
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!token) {
+      console.error('[v0] No token provided to service-fee POST');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
-    const user = await verifyToken(token);
-    if (!user || user.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    let user;
+    try {
+      user = await verifyToken(token);
+    } catch (tokenErr) {
+      console.error('[v0] Token verification failed in service-fee:', tokenErr);
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    }
+
+    if (!user) {
+      console.error('[v0] No user found from token in service-fee');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (user.role !== 'admin') {
+      console.error('[v0] User role is not admin in service-fee:', user.role);
+      return NextResponse.json({ error: 'Forbidden - admin role required' }, { status: 403 });
     }
 
     const { tiers } = await req.json();
