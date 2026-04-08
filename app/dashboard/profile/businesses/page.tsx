@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { AlertCircle, Edit2, ChevronRight } from 'lucide-react'
+import { AlertCircle, Edit2, ChevronRight, Palette } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
 interface Business {
@@ -134,6 +134,12 @@ export default function BusinessesPage() {
                     <Button variant="outline" className="h-8 text-xs">
                       <Edit2 className="w-3 h-3 mr-1" />
                       Edit
+                    </Button>
+                  </Link>
+                  <Link href={`/dashboard/menu/customize?businessId=${business.id}`}>
+                    <Button variant="outline" className="h-8 text-xs">
+                      <Palette className="w-3 h-3 mr-1" />
+                      Customize Menu
                     </Button>
                   </Link>
                   <Button

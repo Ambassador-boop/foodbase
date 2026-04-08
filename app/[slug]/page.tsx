@@ -9,6 +9,7 @@ import { ShoppingCart, ArrowLeft, AlertCircle, Wine } from 'lucide-react';
 import { AddonSelectionModal } from '@/components/addon-selection-modal';
 import { DiscountBadge, DiscountPriceDisplay } from '@/components/discount-badge';
 import { useToast } from '@/hooks/use-toast';
+import { fetchColorConfig, type ColorConfig, DEFAULT_COLORS } from '@/lib/color-config';
 
 interface MenuItem {
   id: string;
@@ -60,6 +61,7 @@ export default function RestaurantPage() {
   const [cartItems, setCartItems] = useState<any[]>([]);
   const [showDrinks, setShowDrinks] = useState(false);
   const [selectedItemForAddons, setSelectedItemForAddons] = useState<MenuItem | null>(null);
+  const [colors, setColors] = useState<ColorConfig>(DEFAULT_COLORS);
 
   useEffect(() => {
     const storedCart = sessionStorage.getItem(`cart_${slug}`);
@@ -94,6 +96,12 @@ export default function RestaurantPage() {
       setMenuItems(data.menuItems || []);
       setDrinks(data.drinks || []);
       setCategories(data.categories || []);
+
+      // Fetch color configuration for this business
+      if (data.business && data.business.id) {
+        const colorConfig = await fetchColorConfig(data.business.id, 'menu');
+        setColors(colorConfig);
+      }
     } catch (err) {
       console.error('[v0] Error fetching menu:', err);
       setError('Restaurant not found or error loading menu');
@@ -277,20 +285,21 @@ export default function RestaurantPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-20 md:pb-0">
+    <div className="min-h-screen pb-20 md:pb-0" style={{ backgroundColor: colors.backgroundColor }}>
       {/* Header */}
-      <header className="bg-white border-b border-border sticky top-0 z-40">
+      <header style={{ backgroundColor: colors.headerColor }} className="border-b-2 sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <h1 className="text-lg font-bold">{restaurant.name}</h1>
+            <h1 className="text-lg font-bold" style={{ color: colors.headerTextColor }}>{restaurant.name}</h1>
             {drinks.length > 0 && (
               <button
                 onClick={() => setShowDrinks(!showDrinks)}
-                className={`text-xs px-2 py-1 rounded border transition-colors ${
-                  showDrinks
-                    ? 'bg-primary text-white border-primary'
-                    : 'bg-white text-foreground border-border hover:bg-muted'
-                }`}
+                style={{
+                  backgroundColor: showDrinks ? colors.buttonColor : colors.headerColor,
+                  color: showDrinks ? colors.buttonTextColor : colors.headerTextColor,
+                  borderColor: colors.accentColor,
+                }}
+                className="text-xs px-2 py-1 rounded border transition-colors hover:opacity-80"
                 title="Toggle drinks view"
               >
                 <Wine className="w-3 h-3 inline mr-1" />
@@ -298,10 +307,13 @@ export default function RestaurantPage() {
               </button>
             )}
           </div>
-          <Link href={`/${slug}/cart`} className="relative p-2 text-primary hover:text-primary-dark">
+          <Link href={`/${slug}/cart`} className="relative p-2" style={{ color: colors.buttonColor }}>
             <ShoppingCart className="w-5 h-5" />
             {cartItems.length > 0 && (
-              <span className="absolute top-0 right-0 bg-primary text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+              <span 
+                style={{ backgroundColor: colors.buttonColor, color: colors.buttonTextColor }}
+                className="absolute top-0 right-0 text-xs rounded-full w-5 h-5 flex items-center justify-center"
+              >
                 {cartItems.length}
               </span>
             )}
@@ -313,22 +325,23 @@ export default function RestaurantPage() {
         <div className="grid grid-cols-1 gap-6 p-4">
           {/* Menu or Drinks */}
           <div className="space-y-3">
-            <div className="bg-white rounded-lg p-4">
-              <h2 className="text-lg font-bold mb-2">{showDrinks ? 'Drinks' : 'Our Menu'}</h2>
+            <div style={{ backgroundColor: colors.headerColor }} className="rounded-lg p-4">
+              <h2 className="text-lg font-bold mb-2" style={{ color: colors.headerTextColor }}>{showDrinks ? 'Drinks' : 'Our Menu'}</h2>
             </div>
 
             {showDrinks ? (
               // Drinks Display
               drinks.length === 0 ? (
-                <div className="bg-white rounded-lg p-8 text-center">
-                  <p className="text-sm text-muted-foreground">No drinks available</p>
+                <div style={{ backgroundColor: colors.headerColor }} className="rounded-lg p-8 text-center">
+                  <p className="text-sm" style={{ color: colors.textColor }}>No drinks available</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   {drinks.map((drink) => (
                     <div
                       key={drink.id}
-                      className="bg-white border border-border rounded-lg overflow-hidden flex flex-col hover:shadow-sm transition-shadow"
+                      style={{ backgroundColor: colors.headerColor, borderColor: colors.accentColor }}
+                      className="border-2 rounded-lg overflow-hidden flex flex-col hover:shadow-sm transition-shadow"
                     >
                       {drink.image_url && (
                         <div className="relative w-full aspect-square rounded-t flex-shrink-0">
@@ -341,19 +354,20 @@ export default function RestaurantPage() {
                         </div>
                       )}
                       <div className="p-2 flex-1 flex flex-col">
-                        <h3 className="font-medium text-xs line-clamp-2">{drink.name}</h3>
+                        <h3 className="font-medium text-xs line-clamp-2" style={{ color: colors.textColor }}>{drink.name}</h3>
                         {drink.description && (
-                          <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
+                          <p className="text-xs line-clamp-1 mt-0.5" style={{ color: colors.textColor, opacity: 0.75 }}>
                             {drink.description}
                           </p>
                         )}
-                        <p className="text-xs font-semibold text-primary mt-auto mb-2">
+                        <p className="text-xs font-semibold mt-auto mb-2" style={{ color: colors.accentColor }}>
                           {formatCurrency(drink.price)}
                         </p>
                         <Button
                           onClick={() => handleDrinkAdd(drink.id)}
                           size="sm"
-                          className="h-7 text-xs bg-primary text-white hover:bg-primary-dark w-full"
+                          style={{ backgroundColor: colors.buttonColor, color: colors.buttonTextColor }}
+                          className="h-7 text-xs w-full hover:opacity-90"
                         >
                           Add
                         </Button>
@@ -365,16 +379,16 @@ export default function RestaurantPage() {
             ) : (
               // Menu Items Display with Category Grouping
               menuItems.length === 0 ? (
-                <div className="bg-white rounded-lg p-8 text-center">
-                  <p className="text-sm text-muted-foreground">No menu items available</p>
+                <div style={{ backgroundColor: colors.headerColor }} className="rounded-lg p-8 text-center">
+                  <p className="text-sm" style={{ color: colors.textColor }}>No menu items available</p>
                 </div>
               ) : groupedItems.length > 0 ? (
                 <div className="space-y-6">
                   {groupedItems.map((group) => (
                     <div key={group.category.id} className="space-y-3">
                       {/* Category Header */}
-                      <div className="sticky top-16 z-30 bg-primary py-2 px-4 rounded-lg">
-                        <h3 className="font-semibold text-xs text-primary-foreground">{group.category.name}</h3>
+                      <div style={{ backgroundColor: colors.buttonColor }} className="sticky top-16 z-30 py-2 px-4 rounded-lg">
+                        <h3 className="font-semibold text-xs" style={{ color: colors.buttonTextColor }}>{group.category.name}</h3>
                       </div>
 
                       {/* Items Grid */}
@@ -382,7 +396,8 @@ export default function RestaurantPage() {
                         {group.items.map((item) => (
                           <div
                             key={item.id}
-                            className="bg-white border border-border rounded-lg overflow-hidden flex flex-col hover:shadow-sm transition-shadow relative"
+                            style={{ backgroundColor: colors.headerColor, borderColor: colors.accentColor }}
+                            className="border-2 rounded-lg overflow-hidden flex flex-col hover:shadow-sm transition-shadow relative"
                           >
                             {/* Image Container */}
                             {item.image_url && (
@@ -410,24 +425,24 @@ export default function RestaurantPage() {
                               </div>
                             )}
                             <div className="p-2 flex-1 flex flex-col">
-                              <h3 className="font-medium text-xs line-clamp-2">{item.name}</h3>
+                              <h3 className="font-medium text-xs line-clamp-2" style={{ color: colors.textColor }}>{item.name}</h3>
                               {item.description && (
-                                <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
+                                <p className="text-xs line-clamp-1 mt-0.5" style={{ color: colors.textColor, opacity: 0.75 }}>
                                   {item.description}
                                 </p>
                               )}
                               <div className="mt-auto mb-2">
                                 {item.discount_type && item.original_price ? (
                                   <div className="flex flex-col gap-0.5">
-                                    <span className="text-xs line-through text-gray-500">
+                                    <span className="text-xs line-through" style={{ color: colors.textColor, opacity: 0.6 }}>
                                       {formatCurrency(item.original_price)}
                                     </span>
-                                    <span className="text-xs font-bold text-green-600">
+                                    <span className="text-xs font-bold" style={{ color: colors.accentColor }}>
                                       {formatCurrency(item.price)}
                                     </span>
                                   </div>
                                 ) : (
-                                  <p className="text-xs font-semibold text-primary">
+                                  <p className="text-xs font-semibold" style={{ color: colors.accentColor }}>
                                     {formatCurrency(item.price)}
                                   </p>
                                 )}
@@ -441,7 +456,8 @@ export default function RestaurantPage() {
                                   }
                                 }}
                                 size="sm"
-                                className="h-7 text-xs bg-primary text-white hover:bg-primary-dark w-full"
+                                style={{ backgroundColor: colors.buttonColor, color: colors.buttonTextColor }}
+                                className="h-7 text-xs w-full hover:opacity-90"
                               >
                                 Add
                               </Button>

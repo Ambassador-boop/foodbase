@@ -38,20 +38,15 @@ export default function ProfilePage() {
 
   const fetchProfileData = async () => {
     try {
-      // Get auth token from localStorage
-      const token = localStorage.getItem('authToken')
-      if (!token) {
-        throw new Error('No auth token found')
-      }
-
-      const headers = {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      }
-
       const [userRes, businessRes] = await Promise.all([
-        fetch('/api/user/profile', { headers }),
-        fetch('/api/user/businesses', { headers }),
+        fetch('/api/user/profile', {
+          method: 'GET',
+          credentials: 'include',
+        }),
+        fetch('/api/user/businesses', {
+          method: 'GET',
+          credentials: 'include',
+        }),
       ])
 
       if (!userRes.ok) {

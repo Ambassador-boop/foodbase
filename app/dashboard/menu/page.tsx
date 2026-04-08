@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, X, AlertCircle, Upload, Edit2, Eye, EyeOff, Search, Trash2 } from 'lucide-react';
+import { Plus, X, AlertCircle, Upload, Edit2, Eye, EyeOff, Search, Trash2, Palette } from 'lucide-react';
 import Image from 'next/image';
 import { DiscountBadge } from '@/components/discount-badge';
 
@@ -165,6 +165,13 @@ export default function MenuPage() {
         >
           <Plus className="w-3 h-3 mr-1" />
           Popular Dishes
+        </Button>
+        <Button
+          onClick={() => router.push('/dashboard/menu/customize')}
+          className="h-7 text-xs bg-accent text-white hover:bg-accent/90"
+        >
+          <Palette className="w-3 h-3 mr-1" />
+          Customize Menu
         </Button>
       </div>
 
