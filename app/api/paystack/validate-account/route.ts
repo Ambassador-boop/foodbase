@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     }
 
     const response = await fetch(
-      `https://api.paystack.co/bank/validate?account_number=${accountNumber}&bank_code=${bankCode}`,
+      `https://api.paystack.co/bank/resolve?account_number=${accountNumber}&bank_code=${bankCode}`,
       {
         method: 'GET',
         headers: {
@@ -31,12 +31,39 @@ export async function POST(request: NextRequest) {
       }
     );
 
-    const data = await response.json();
+    // Get response text first to handle empty or non-JSON responses
+    const responseText = await response.text();
+    
+    if (!responseText) {
+      console.error('[v0] Paystack returned empty response');
+      return NextResponse.json(
+        { error: 'Paystack returned an empty response' },
+        { status: 400 }
+      );
+    }
+
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('[v0] Failed to parse Paystack response:', responseText);
+      return NextResponse.json(
+        { error: 'Invalid response from Paystack' },
+        { status: 400 }
+      );
+    }
 
     if (!response.ok) {
       console.error('[v0] Paystack validation error:', data);
       return NextResponse.json(
         { error: data.message || 'Account validation failed' },
+        { status: 400 }
+      );
+    }
+
+    if (!data.status) {
+      return NextResponse.json(
+        { error: data.message || 'Account not found' },
         { status: 400 }
       );
     }

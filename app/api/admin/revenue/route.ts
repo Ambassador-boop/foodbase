@@ -5,17 +5,44 @@ import { verifyToken } from '@/lib/auth';
 export async function GET(req: NextRequest) {
   try {
     const token = req.headers.get('authorization')?.replace('Bearer ', '');
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!token) {
+      console.error('[v0] No token provided to /api/admin/revenue');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
-    const user = await verifyToken(token);
-    if (!user || user.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    let user;
+    try {
+      user = await verifyToken(token);
+    } catch (tokenErr) {
+      console.error('[v0] Token verification failed:', tokenErr);
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    }
+
+    if (!user) {
+      console.error('[v0] User not found in token');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (user.role !== 'admin') {
+      console.error('[v0] User role is not admin:', user.role);
+      return NextResponse.json({ error: 'Forbidden - admin role required' }, { status: 403 });
+    }
+
+    // Ensure admin_revenue record exists
+    try {
+      const countResult = await sql`SELECT COUNT(*) as count FROM admin_revenue`;
+      if (countResult.rows[0].count === '0' || countResult.rows[0].count === 0) {
+        await sql`INSERT INTO admin_revenue (total_revenue, withdrawn_amount, available_balance) VALUES (0, 0, 0)`;
+      }
+    } catch (err) {
+      console.error('[v0] Error ensuring admin_revenue record exists:', err);
     }
 
     // Get admin revenue summary
     const revenueResult = await sql`
       SELECT total_revenue, withdrawn_amount, available_balance, updated_at
       FROM admin_revenue
+      ORDER BY updated_at DESC
       LIMIT 1
     `;
 
@@ -23,6 +50,7 @@ export async function GET(req: NextRequest) {
       total_revenue: 0,
       withdrawn_amount: 0,
       available_balance: 0,
+      updated_at: new Date().toISOString(),
     };
 
     // Get daily revenue breakdown
