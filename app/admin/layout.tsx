@@ -5,11 +5,12 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Menu, X, LogOut, BarChart3, Building2, DollarSign, Users, Settings } from 'lucide-react';
+import { Menu, X, LogOut, BarChart3, Building2, DollarSign, Users, Settings, TrendingUp } from 'lucide-react';
 
 const navigationItems = [
   { label: 'Dashboard', href: '/admin', icon: BarChart3 },
   { label: 'Businesses', href: '/admin/businesses', icon: Building2 },
+  { label: 'Revenue', href: '/admin/revenue', icon: TrendingUp },
   { label: 'Withdrawals', href: '/admin/withdrawals', icon: DollarSign },
   { label: 'Users', href: '/admin/users', icon: Users },
   { label: 'Settings', href: '/admin/settings', icon: Settings },
