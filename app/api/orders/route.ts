@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { generateAlphanumericId } from '@/lib/utils';
+import { saveOrderServiceFee } from '@/lib/service-fee';
+import { sql } from '@vercel/postgres';
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,6 +17,7 @@ export async function POST(request: NextRequest) {
       items,
       subtotal,
       serviceFee,
+      serviceFeeType,
       deliveryFee,
       total,
     } = body;
@@ -82,8 +85,8 @@ export async function POST(request: NextRequest) {
     try {
       orderResult = await db.query(
         `INSERT INTO orders 
-     (id, business_id, customer_name, customer_email, customer_phone, address, notes, total_amount, payment_status, status, created_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, NOW())
+     (id, business_id, customer_name, customer_email, customer_phone, address, notes, total_amount, service_fee_amount, payment_status, status, created_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11, NOW())
      RETURNING id, total_amount`,
         [
           orderId,
@@ -94,6 +97,7 @@ export async function POST(request: NextRequest) {
           address,
           notes || null,
           total,
+          serviceFee || 0,
           'pending',
           'pending',
         ]
@@ -150,6 +154,24 @@ export async function POST(request: NextRequest) {
       } catch (err) {
         console.error('[v0] Order items insert FAILED:', err);
         // Don't fail the entire order creation, just log the error
+      }
+    }
+
+    // Save service fee data
+    if (serviceFee && serviceFee > 0) {
+      try {
+        await saveOrderServiceFee(orderId, serviceFee, serviceFeeType || 'tiered');
+        
+        // Update admin revenue
+        await sql`
+          UPDATE admin_revenue
+          SET total_revenue = total_revenue + ${serviceFee},
+              available_balance = available_balance + ${serviceFee}
+          WHERE id = (SELECT id FROM admin_revenue LIMIT 1)
+        `;
+      } catch (err) {
+        console.error('[v0] Failed to save service fee:', err);
+        // Don't fail order creation if service fee save fails
       }
     }
 

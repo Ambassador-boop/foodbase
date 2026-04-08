@@ -86,6 +86,32 @@ export default function SettingsPage() {
         </Button>
       </div>
 
+      {/* Service Fee Configuration */}
+      <div className="bg-white border border-border rounded-lg p-4">
+        <h2 className="font-semibold text-sm mb-3">Service Fee Management</h2>
+        <p className="text-xs text-muted-foreground mb-4">
+          Configure tiered service fees for orders based on order totals
+        </p>
+        <a href="/admin/settings/service-fee">
+          <Button className="w-full h-8 text-xs bg-primary text-white hover:bg-primary-dark">
+            Configure Service Fees
+          </Button>
+        </a>
+      </div>
+
+      {/* Bank Details */}
+      <div className="bg-white border border-border rounded-lg p-4">
+        <h2 className="font-semibold text-sm mb-3">Bank Account Management</h2>
+        <p className="text-xs text-muted-foreground mb-4">
+          Set up your bank account for revenue withdrawals
+        </p>
+        <a href="/admin/settings/bank-details">
+          <Button className="w-full h-8 text-xs bg-primary text-white hover:bg-primary-dark">
+            Manage Bank Account
+          </Button>
+        </a>
+      </div>
+
       <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 space-y-2">
         <h2 className="text-sm font-semibold">System Information</h2>
         <div className="text-xs text-muted-foreground space-y-1">

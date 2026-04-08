@@ -9,12 +9,19 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { AlertCircle, ArrowLeft, Loader, MapPin, Home } from 'lucide-react';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { calculateServiceFee } from '@/lib/service-fee';
 
 interface Restaurant {
   id: string;
   name: string;
   email: string;
   phone?: string;
+}
+
+interface ServiceFeeConfig {
+  id: string;
+  tier_value: number;
+  service_fee: number;
 }
 
 export default function CheckoutPage() {
@@ -31,6 +38,7 @@ export default function CheckoutPage() {
     address: '',
     notes: '',
   });
+  const [serviceFeeConfig, setServiceFeeConfig] = useState<ServiceFeeConfig[]>([]);
 
   const [loadingPage, setLoadingPage] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -48,23 +56,27 @@ export default function CheckoutPage() {
       }
     }
 
-    // Fetch restaurant data
-    const fetchRestaurant = async () => {
+    // Fetch restaurant data and service fee config
+    const fetchData = async () => {
       try {
         console.log('[v0] Checkout: Fetching restaurant for slug:', slug);
-        console.log('[v0] Checkout: Cart items loaded:', cartItems, 'Total items:', cartItems.length);
         const response = await fetch(`/api/restaurants/${slug}/menu`);
         const data = await response.json();
         console.log('[v0] Checkout: Restaurant data received:', data.business);
         setRestaurant(data.business);
+
+        // Fetch service fee config
+        const configResponse = await fetch('/api/admin/service-fee');
+        const configData = await configResponse.json();
+        setServiceFeeConfig(configData);
       } catch (err) {
-        console.error('[v0] Checkout: Error fetching restaurant:', err);
+        console.error('[v0] Checkout: Error fetching data:', err);
       } finally {
         setLoadingPage(false);
       }
     };
 
-    fetchRestaurant();
+    fetchData();
   }, [slug]);
 
   // Calculate totals
@@ -75,7 +87,7 @@ export default function CheckoutPage() {
   }, 0);
 
   const deliveryFee = deliveryType === 'delivery' ? 1000 : 0;
-  const serviceFee = Math.round(subtotal * 0.075 * 100) / 100; // 7.5% service fee with proper rounding
+  const serviceFee = calculateServiceFee(subtotal, serviceFeeConfig);
   const cartTotal = Math.round((subtotal + deliveryFee + serviceFee) * 100) / 100;
 
   console.log('[v0] Checkout calculations:', {
@@ -150,6 +162,7 @@ export default function CheckoutPage() {
           subtotal,
           deliveryFee,
           serviceFee,
+          serviceFeeType: 'tiered',
           total: cartTotal,
         }),
       });

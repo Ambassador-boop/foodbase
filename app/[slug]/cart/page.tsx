@@ -6,6 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Trash2, Plus, Minus, AlertCircle } from 'lucide-react';
+import { calculateServiceFee } from '@/lib/service-fee';
 
 interface CartItem {
   id: string;
@@ -40,6 +41,12 @@ interface Restaurant {
   slug: string;
 }
 
+interface ServiceFeeConfig {
+  id: string;
+  tier_value: number;
+  service_fee: number;
+}
+
 export default function CartPage() {
   const params = useParams();
   const router = useRouter();
@@ -50,6 +57,7 @@ export default function CartPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [serviceFeeConfig, setServiceFeeConfig] = useState<ServiceFeeConfig[]>([]);
 
   useEffect(() => {
     // Get cart from sessionStorage
@@ -82,6 +90,11 @@ export default function CartPage() {
       setRestaurant(data.business);
       setMenuItems(data.menuItems || []);
       setDrinks(data.drinks || []);
+
+      // Fetch service fee config
+      const configResponse = await fetch('/api/admin/service-fee');
+      const configData = await configResponse.json();
+      setServiceFeeConfig(configData);
     } catch (err) {
       console.error('Error fetching menu:', err);
       setError('Restaurant not found or error loading cart');
@@ -137,7 +150,7 @@ export default function CartPage() {
     return total + itemTotal;
   }, 0);
 
-  const serviceFee = Math.round(subtotal * 0.075 * 100) / 100; // 7.5% service fee
+  const serviceFee = calculateServiceFee(subtotal, serviceFeeConfig);
   const cartTotal = Math.round((subtotal + serviceFee) * 100) / 100;
 
   const formatCurrency = (amount: number) => {

@@ -261,7 +261,7 @@ export default function ReceiptPage({ params }: { params: { slug: string } }) {
             <span>{formatCurrency(orderData.calculations.subtotal)}</span>
           </div>
           <div className="flex justify-between pb-2 border-b border-border">
-            <span className="text-muted-foreground">Service Fee (7.5%):</span>
+            <span className="text-muted-foreground">Service Fee:</span>
             <span>+{formatCurrency(orderData.calculations.serviceFee)}</span>
           </div>
           <div className="flex justify-between font-semibold text-sm">
