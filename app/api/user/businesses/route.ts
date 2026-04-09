@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sql } from '@vercel/postgres'
-import { verifyToken } from '@/lib/auth'
+import { verifyJWT } from '@/lib/auth'
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,15 +16,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const user = await verifyToken(token)
+    const payload = await verifyJWT(token)
 
-    if (!user) {
+    if (!payload) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { rows } = await sql.query(
       'SELECT id, name, email, phone, slug FROM businesses WHERE owner_id = $1 ORDER BY created_at DESC',
-      [user.id]
+      [payload.userId]
     )
 
     return NextResponse.json({ businesses: rows })
