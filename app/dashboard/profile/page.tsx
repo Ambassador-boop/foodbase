@@ -50,12 +50,10 @@ export default function ProfilePage() {
       ])
 
       if (!userRes.ok) {
-        console.error('[v0] User profile response:', userRes.status, await userRes.text())
-        throw new Error('Failed to fetch user profile')
+        throw new Error(`Failed to fetch user profile: ${userRes.status}`)
       }
       if (!businessRes.ok) {
-        console.error('[v0] Businesses response:', businessRes.status, await businessRes.text())
-        throw new Error('Failed to fetch businesses')
+        throw new Error(`Failed to fetch businesses: ${businessRes.status}`)
       }
 
       const userData = await userRes.json()
@@ -64,7 +62,7 @@ export default function ProfilePage() {
       setUser(userData.user)
       setBusinesses(businessData.businesses || [])
     } catch (err) {
-      console.error('[v0] Error:', err)
+      console.error('Error loading profile:', err)
       setError('Failed to load profile data')
     } finally {
       setLoading(false)

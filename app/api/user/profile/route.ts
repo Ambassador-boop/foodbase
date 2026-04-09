@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sql } from '@vercel/postgres'
-import { verifyToken } from '@/lib/auth'
+import { verifyToken, getAuthCookie } from '@/lib/auth'
 
 export async function GET(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '')
+    // Try to get token from Authorization header first, then from cookie
+    let token = request.headers.get('authorization')?.replace('Bearer ', '')
+    
+    if (!token) {
+      token = await getAuthCookie()
+    }
     
     if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -34,7 +39,12 @@ export async function GET(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '')
+    // Try to get token from Authorization header first, then from cookie
+    let token = request.headers.get('authorization')?.replace('Bearer ', '')
+    
+    if (!token) {
+      token = await getAuthCookie()
+    }
     
     if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

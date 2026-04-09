@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { AlertCircle, Save, Eye } from 'lucide-react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface ColorConfig {
   backgroundColor?: string;
@@ -51,7 +50,7 @@ const colorFields = [
 export default function CustomizeMenuPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const businessId = searchParams.get('businessId') || '';
+  const [businessId, setBusinessId] = useState<string>('');
 
   const [selectedPageType, setSelectedPageType] = useState('menu');
   const [colors, setColors] = useState<ColorConfig>(defaultColors);
@@ -59,6 +58,38 @@ export default function CustomizeMenuPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  // Get businessId from URL or localStorage (set by dashboard layout)
+  useEffect(() => {
+    const urlBusinessId = searchParams.get('businessId');
+    if (urlBusinessId) {
+      setBusinessId(urlBusinessId);
+    } else {
+      const savedBusinessId = localStorage.getItem('currentBusinessId');
+      if (savedBusinessId) {
+        setBusinessId(savedBusinessId);
+      } else {
+        // Fetch from API if not in storage
+        fetchCurrentBusiness();
+      }
+    }
+  }, [searchParams]);
+
+  const fetchCurrentBusiness = async () => {
+    try {
+      const response = await fetch('/api/user/businesses', { credentials: 'include' });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.businesses && data.businesses.length > 0) {
+          setBusinessId(data.businesses[0].id);
+          localStorage.setItem('currentBusinessId', data.businesses[0].id);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching current business:', err);
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (businessId) {

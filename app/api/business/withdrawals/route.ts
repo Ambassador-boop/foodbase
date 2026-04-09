@@ -1,11 +1,14 @@
 import { sql } from '@vercel/postgres';
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyToken } from '@/lib/auth';
+import { verifyToken, getAuthCookie } from '@/lib/auth';
 import { nanoid } from 'nanoid';
 
 export async function GET(req: NextRequest) {
   try {
-    const token = req.headers.get('authorization')?.replace('Bearer ', '');
+    let token = req.headers.get('authorization')?.replace('Bearer ', '');
+    if (!token) {
+      token = await getAuthCookie();
+    }
     if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const user = await verifyToken(token);
@@ -29,7 +32,10 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const token = req.headers.get('authorization')?.replace('Bearer ', '');
+    let token = req.headers.get('authorization')?.replace('Bearer ', '');
+    if (!token) {
+      token = await getAuthCookie();
+    }
     if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const user = await verifyToken(token);

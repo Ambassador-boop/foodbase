@@ -78,4 +78,25 @@ export async function getCurrentUser() {
 export function generateOTP(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
+
+// Get token from either Authorization header or cookie
+export async function getTokenFromRequest(request: any): Promise<string | null> {
+  // Try Authorization header first
+  const authHeader = request.headers?.get?.('authorization');
+  if (authHeader) {
+    const token = authHeader.replace('Bearer ', '');
+    if (token) return token;
+  }
+
+  // Fall back to cookie
+  try {
+    const cookieToken = await getAuthCookie();
+    if (cookieToken) return cookieToken;
+  } catch (error) {
+    // getAuthCookie throws in some contexts, ignore
+  }
+
+  return null;
+}
+
 export const verifyToken = verifyJWT;
