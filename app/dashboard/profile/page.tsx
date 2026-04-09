@@ -241,6 +241,21 @@ export default function ProfilePage() {
         )}
       </div>
 
+      {/* Bank Details Section */}
+      <div className="bg-white rounded-lg shadow p-6 mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-gray-900">Bank Details</h2>
+          <Link href="/dashboard/profile/bank-details">
+            <Button className="h-8 text-xs bg-primary text-white hover:bg-primary-dark">
+              Manage Bank Details
+            </Button>
+          </Link>
+        </div>
+        <p className="text-gray-600 text-sm">
+          Add or update your bank account information for withdrawals.
+        </p>
+      </div>
+
       {/* Share Business Section */}
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Share Business</h2>

@@ -1,12 +1,12 @@
 import { sql } from '@vercel/postgres';
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyToken, getAuthCookie } from '@/lib/auth';
+import { verifyToken } from '@/lib/auth';
 
 export async function GET(req: NextRequest) {
   try {
     let token = req.headers.get('authorization')?.replace('Bearer ', '');
     if (!token) {
-      token = await getAuthCookie();
+      token = req.cookies.get('auth_token')?.value;
     }
     if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
     }
 
     const { rows } = await sql.query(
-      'SELECT bank_account_number, bank_name, account_holder_name FROM businesses WHERE owner_id = $1',
+      'SELECT bank_account_number, bank_code, bank_account_holder FROM businesses WHERE owner_id = $1',
       [user.id]
     );
 
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
   try {
     let token = req.headers.get('authorization')?.replace('Bearer ', '');
     if (!token) {
-      token = await getAuthCookie();
+      token = req.cookies.get('auth_token')?.value;
     }
     if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -41,18 +41,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const { bank_name, bank_account_number, account_holder_name } = await req.json();
+    const { bank_code, bank_account_number, bank_account_holder } = await req.json();
 
-    if (!bank_name || !bank_account_number || !account_holder_name) {
+    if (!bank_code || !bank_account_number || !bank_account_holder) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
     const { rows } = await sql.query(
       `UPDATE businesses 
-       SET bank_name = $1, bank_account_number = $2, account_holder_name = $3
+       SET bank_code = $1, bank_account_number = $2, bank_account_holder = $3
        WHERE owner_id = $4
        RETURNING id`,
-      [bank_name, bank_account_number, account_holder_name, user.id]
+      [bank_code, bank_account_number, bank_account_holder, user.id]
     );
 
     if (!rows.length) return NextResponse.json({ error: 'Business not found' }, { status: 404 });

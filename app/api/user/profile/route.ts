@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sql } from '@vercel/postgres'
-import { verifyToken, getAuthCookie } from '@/lib/auth'
+import { verifyToken } from '@/lib/auth'
 
 export async function GET(request: NextRequest) {
   try {
@@ -8,7 +8,8 @@ export async function GET(request: NextRequest) {
     let token = request.headers.get('authorization')?.replace('Bearer ', '')
     
     if (!token) {
-      token = await getAuthCookie()
+      // Get from cookie header
+      token = request.cookies.get('auth_token')?.value
     }
     
     if (!token) {
@@ -43,7 +44,8 @@ export async function PATCH(request: NextRequest) {
     let token = request.headers.get('authorization')?.replace('Bearer ', '')
     
     if (!token) {
-      token = await getAuthCookie()
+      // Get from cookie header
+      token = request.cookies.get('auth_token')?.value
     }
     
     if (!token) {
