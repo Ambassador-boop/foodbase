@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sql } from '@vercel/postgres'
-import { verifyToken } from '@/lib/auth'
+import { verifyJWT } from '@/lib/auth'
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,15 +16,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const user = await verifyToken(token)
+    const payload = await verifyJWT(token)
     
-    if (!user) {
+    if (!payload) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { rows } = await sql.query(
       'SELECT id, email, first_name, last_name, phone, profile_picture_url FROM users WHERE id = $1',
-      [user.id]
+      [payload.userId]
     )
 
     if (rows.length === 0) {
@@ -52,9 +52,9 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const user = await verifyToken(token)
+    const payload = await verifyJWT(token)
     
-    if (!user) {
+    if (!payload) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -63,7 +63,7 @@ export async function PATCH(request: NextRequest) {
 
     const { rows } = await sql.query(
       'UPDATE users SET first_name = $1, last_name = $2, phone = $3, updated_at = NOW() WHERE id = $4 RETURNING id, email, first_name, last_name, phone, profile_picture_url',
-      [first_name, last_name, phone, user.id]
+      [first_name, last_name, phone, payload.userId]
     )
 
     if (rows.length === 0) {
