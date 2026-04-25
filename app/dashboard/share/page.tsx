@@ -12,6 +12,7 @@ const QRCode = dynamic(() => import('qrcode.react'), { ssr: false });
 interface Business {
   slug: string;
   name: string;
+  logo_url?: string;
 }
 
 export default function ShareBusinessPage() {
@@ -19,6 +20,8 @@ export default function ShareBusinessPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+  const [downloadingPDF, setDownloadingPDF] = useState(false);
+  const [downloadingPNG, setDownloadingPNG] = useState(false);
 
   useEffect(() => {
     fetchBusiness();
@@ -54,28 +57,48 @@ export default function ShareBusinessPage() {
     }
   };
 
-  const handleDownloadQR = () => {
-    const element = document.getElementById('qr-code');
-    if (element) {
-      const canvas = element.querySelector('canvas');
-      if (canvas) {
-        const link = document.createElement('a');
-        link.href = canvas.toDataURL('image/png');
-        link.download = `${business?.slug}-qr-code.png`;
-        link.click();
+  const handleDownloadQR = async () => {
+    try {
+      setDownloadingPNG(true);
+      const element = document.getElementById('qr-code');
+      if (element) {
+        const canvas = element.querySelector('canvas') as HTMLCanvasElement;
+        if (canvas) {
+          const link = document.createElement('a');
+          link.href = canvas.toDataURL('image/png');
+          link.download = `${business?.slug}-qr-code.png`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        }
       }
+    } catch (error) {
+      console.error('[v0] Error downloading PNG:', error);
+      setError('Failed to download PNG');
+    } finally {
+      setDownloadingPNG(false);
     }
   };
 
   const handleDownloadPDF = async () => {
-    if (!pdfRef.current) return;
+    if (!pdfRef.current) {
+      console.error('[v0] PDF ref not found');
+      return;
+    }
 
     try {
+      setDownloadingPDF(true);
+      console.log('[v0] Starting PDF download process');
+
       const canvas = await html2canvas(pdfRef.current, {
         scale: 2,
         useCORS: true,
         backgroundColor: '#ffffff',
+        logging: true,
+        allowTaint: true,
       });
+
+      console.log('[v0] Canvas created successfully');
 
       const pdf = new jsPDF({
         orientation: 'portrait',
@@ -86,10 +109,20 @@ export default function ShareBusinessPage() {
       const imgWidth = 210; // A4 width in mm
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
+      console.log('[v0] PDF dimensions - Width:', imgWidth, 'Height:', imgHeight);
+
       pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, imgWidth, imgHeight);
-      pdf.save(`${business?.slug}-qr-code.pdf`);
+      
+      const filename = `${business?.slug}-qr-code.pdf`;
+      console.log('[v0] Saving PDF as:', filename);
+      
+      pdf.save(filename);
+      console.log('[v0] PDF saved successfully');
     } catch (error) {
-      console.error('Error generating PDF:', error);
+      console.error('[v0] Error generating PDF:', error);
+      setError('Failed to download PDF. Please try again.');
+    } finally {
+      setDownloadingPDF(false);
     }
   };
 
@@ -134,51 +167,90 @@ export default function ShareBusinessPage() {
             <div className="bg-card border border-border rounded-xl shadow-sm p-6 md:p-8 hover:shadow-md transition-shadow duration-300">
               <div className="flex flex-col items-center space-y-4">
                 {/* Preview for PDF */}
-                <div ref={pdfRef} className="w-full bg-white p-8 flex flex-col items-center space-y-4 rounded-lg">
-                  {/* FoodBase Logo and Branding */}
-                  <div className="text-center mb-4">
-                    <p className="text-xs font-medium text-muted-foreground mb-2">Powered by</p>
-                    <div className="flex items-center justify-center gap-1">
-                      <span className="text-sm font-bold text-primary">FoodBase</span>
+                <div ref={pdfRef} className="w-full bg-white p-12 flex flex-col items-center space-y-6 rounded-lg">
+                  {/* Header Section */}
+                  <div className="text-center w-full border-b border-gray-200 pb-6">
+                    {/* Restaurant Logo */}
+                    {business.logo_url ? (
+                      <img
+                        src={business.logo_url}
+                        alt={business.name}
+                        className="h-16 w-auto mx-auto mb-4 object-contain"
+                      />
+                    ) : (
+                      <div className="h-16 w-16 mx-auto mb-4 bg-gray-100 rounded-lg flex items-center justify-center">
+                        <span className="text-xs font-bold text-gray-400">Logo</span>
+                      </div>
+                    )}
+                    {/* Restaurant Name */}
+                    <h1 className="text-2xl font-bold text-gray-900">{business.name}</h1>
+                    <p className="text-sm text-gray-600 mt-2">Order Online</p>
+                  </div>
+
+                  {/* QR Code Section */}
+                  <div className="flex flex-col items-center space-y-3">
+                    <div id="qr-code" className="bg-white p-4 border-4 border-gray-900 rounded-lg">
+                      <QRCode
+                        value={restaurantUrl}
+                        size={240}
+                        level="H"
+                        includeMargin={true}
+                        renderAs="canvas"
+                      />
                     </div>
+                    <p className="text-sm font-semibold text-gray-900">Scan to Order</p>
                   </div>
 
-                  {/* QR Code */}
-                  <div id="qr-code" className="bg-white p-4 border-4 border-primary rounded-lg">
-                    <QRCode
-                      value={restaurantUrl}
-                      size={240}
-                      level="H"
-                      includeMargin={true}
-                      renderAs="canvas"
-                    />
+                  {/* Instructions Section */}
+                  <div className="w-full text-center border-t border-gray-200 pt-6">
+                    <h2 className="text-sm font-bold text-gray-900 mb-3">How to Order</h2>
+                    <ol className="text-xs text-gray-700 space-y-2 text-left inline-block">
+                      <li className="flex items-start gap-2">
+                        <span className="font-bold text-gray-900 flex-shrink-0">1.</span>
+                        <span>Scan the QR code with your smartphone</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="font-bold text-gray-900 flex-shrink-0">2.</span>
+                        <span>Browse our menu and select items</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="font-bold text-gray-900 flex-shrink-0">3.</span>
+                        <span>Add your delivery address and notes</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="font-bold text-gray-900 flex-shrink-0">4.</span>
+                        <span>Complete payment and track your order</span>
+                      </li>
+                    </ol>
                   </div>
 
-                  {/* Restaurant Info */}
-                  <div className="text-center space-y-2">
-                    <p className="text-lg font-bold text-foreground">{business.name}</p>
-                    <p className="text-sm text-primary font-semibold">Scan to order from this restaurant</p>
+                  {/* Footer Section */}
+                  <div className="w-full text-center border-t border-gray-200 pt-4">
+                    <p className="text-xs text-gray-500">Powered by FoodBase</p>
+                    <p className="text-xs text-gray-400 mt-1">{restaurantUrl}</p>
                   </div>
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-2 w-full">
                   <button
                     onClick={handleDownloadQR}
-                    className="flex-1 inline-flex items-center justify-center px-4 py-2 bg-muted text-foreground rounded-lg font-medium text-sm hover:bg-muted/80 transition-colors duration-200 gap-2"
+                    disabled={downloadingPNG}
+                    className="flex-1 inline-flex items-center justify-center px-4 py-2 bg-muted text-foreground rounded-lg font-medium text-sm hover:bg-muted/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 gap-2"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                     </svg>
-                    Download PNG
+                    {downloadingPNG ? 'Downloading...' : 'Download PNG'}
                   </button>
                   <button
                     onClick={handleDownloadPDF}
-                    className="flex-1 inline-flex items-center justify-center px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium text-sm hover:opacity-90 transition-opacity duration-200 gap-2"
+                    disabled={downloadingPDF}
+                    className="flex-1 inline-flex items-center justify-center px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium text-sm hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity duration-200 gap-2"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                     </svg>
-                    Download PDF
+                    {downloadingPDF ? 'Generating PDF...' : 'Download PDF (A4)'}
                   </button>
                 </div>
               </div>
@@ -206,14 +278,23 @@ export default function ShareBusinessPage() {
               </div>
             </div>
 
+            {/* Error Message Display */}
+            {error && (
+              <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm flex items-start gap-3">
+                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                <span>{error}</span>
+              </div>
+            )}
+
             {/* Instructions */}
             <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 md:p-6 space-y-3">
               <h2 className="text-sm font-semibold text-foreground">How to Share</h2>
               <ul className="text-xs text-muted-foreground space-y-2 list-disc list-inside">
-                <li>Download the QR code and print it or display on your storefront</li>
+                <li>Download the PDF or PNG and print it or display on your storefront</li>
                 <li>Share the link on social media, WhatsApp, or email</li>
                 <li>Customers can scan the QR code or click the link to view your menu</li>
                 <li>They can place orders directly through their browser</li>
+                <li>The PDF is formatted as A4 size for easy printing</li>
               </ul>
             </div>
           </>
