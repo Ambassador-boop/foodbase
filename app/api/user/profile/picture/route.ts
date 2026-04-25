@@ -1,13 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { Pool } from '@neondatabase/serverless'
-
-const pool = new Pool({ connectionString: process.env.DATABASE_URL })
+import { sql } from '@vercel/postgres'
+import { verifyJWT } from '@/lib/auth'
+import { uploadImage } from '@/lib/cloudinary'
 
 export async function POST(request: NextRequest) {
   try {
-    const userId = request.headers.get('x-user-id')
+    // Get token from Authorization header or cookie
+    let token = request.headers.get('authorization')?.replace('Bearer ', '')
+    if (!token) {
+      token = request.cookies.get('auth_token')?.value
+    }
 
-    if (!userId) {
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Verify JWT token
+    const payload = await verifyJWT(token)
+    if (!payload) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -28,15 +38,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'File size exceeds 5MB limit' }, { status: 400 })
     }
 
-    // Convert file to base64 or upload to cloud storage
-    const buffer = await file.arrayBuffer()
-    const base64 = Buffer.from(buffer).toString('base64')
-    const dataUrl = `data:${file.type};base64,${base64}`
+    // Upload to Cloudinary
+    const pictureUrl = await uploadImage(file, 'profiles', `profile_${payload.userId}`)
 
-    // Save to database
-    const result = await pool.query(
+    // Update database with Cloudinary URL
+    const result = await sql.query(
       'UPDATE users SET profile_picture_url = $1 WHERE id = $2 RETURNING profile_picture_url',
-      [dataUrl, userId]
+      [pictureUrl, payload.userId]
     )
 
     if (result.rows.length === 0) {
