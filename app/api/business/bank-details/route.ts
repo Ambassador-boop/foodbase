@@ -1,6 +1,6 @@
 import { sql } from '@vercel/postgres';
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyToken } from '@/lib/auth';
+import { verifyJWT } from '@/lib/auth';
 
 export async function GET(req: NextRequest) {
   try {
@@ -10,14 +10,14 @@ export async function GET(req: NextRequest) {
     }
     if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const user = await verifyToken(token);
-    if (!user || user.role !== 'business_owner') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    const payload = await verifyJWT(token);
+    if (!payload) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { rows } = await sql.query(
       'SELECT bank_account_number, bank_code, bank_account_holder FROM businesses WHERE owner_id = $1',
-      [user.id]
+      [payload.userId]
     );
 
     if (!rows.length) return NextResponse.json({ error: 'Business not found' }, { status: 404 });
@@ -36,9 +36,9 @@ export async function POST(req: NextRequest) {
     }
     if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const user = await verifyToken(token);
-    if (!user || user.role !== 'business_owner') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    const payload = await verifyJWT(token);
+    if (!payload) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { bank_code, bank_account_number, bank_account_holder } = await req.json();
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
        SET bank_code = $1, bank_account_number = $2, bank_account_holder = $3
        WHERE owner_id = $4
        RETURNING id`,
-      [bank_code, bank_account_number, bank_account_holder, user.id]
+      [bank_code, bank_account_number, bank_account_holder, payload.userId]
     );
 
     if (!rows.length) return NextResponse.json({ error: 'Business not found' }, { status: 404 });
