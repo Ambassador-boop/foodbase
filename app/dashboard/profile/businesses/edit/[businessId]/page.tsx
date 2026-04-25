@@ -44,7 +44,9 @@ export default function EditBusinessPage() {
 
   const fetchBusiness = async () => {
     try {
-      const response = await fetch(`/api/business/${businessId}`)
+      const response = await fetch(`/api/business/${businessId}`, {
+        credentials: 'include'
+      })
       if (!response.ok) throw new Error('Failed to fetch business')
 
       const data = await response.json()
@@ -78,6 +80,7 @@ export default function EditBusinessPage() {
 
       const response = await fetch(`/api/business/${businessId}/logo`, {
         method: 'POST',
+        credentials: 'include',
         body: data,
       })
 
@@ -102,6 +105,7 @@ export default function EditBusinessPage() {
       setSaving(true)
       const response = await fetch(`/api/business/${businessId}`, {
         method: 'PATCH',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       })
