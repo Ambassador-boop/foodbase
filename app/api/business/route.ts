@@ -1,29 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { jwtVerify } from 'jose';
-import { sql } from '@/lib/db';
-
-const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'secret');
+import { sql } from '@vercel/postgres';
+import { verifyJWT } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
-    const token = request.cookies.get('auth_token')?.value;
+    let token = request.headers.get('authorization')?.replace('Bearer ', '');
+    if (!token) {
+      token = request.cookies.get('auth_token')?.value;
+    }
 
     if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const verified = await jwtVerify(token, secret);
-    const userId = verified.payload.userId as string;
+    const payload = await verifyJWT(token);
+    if (!payload) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
-    // Get all businesses owned by this user
-    const businesses = await sql.query(
-      'SELECT id, name, slug, email, is_active FROM businesses WHERE owner_id = $1 ORDER BY created_at DESC',
-      [userId]
+    // Get first business owned by this user (primary business)
+    const { rows } = await sql.query(
+      'SELECT id, name, slug, email, is_active FROM businesses WHERE owner_id = $1 ORDER BY created_at ASC LIMIT 1',
+      [payload.userId]
     );
+
+    if (rows.length === 0) {
+      return NextResponse.json({ error: 'No business found' }, { status: 404 });
+    }
 
     return NextResponse.json({
       success: true,
-      businesses: businesses || [],
+      business: rows[0],
     });
   } catch (error) {
     console.error('[v0] Get business error:', error);
