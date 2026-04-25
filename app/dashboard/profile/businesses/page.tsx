@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { Button } from '@/components/ui/button'
-import { AlertCircle, Edit2, ChevronRight, Palette } from 'lucide-react'
+import { AlertCircle } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
 interface Business {
@@ -12,6 +13,7 @@ interface Business {
   email: string
   phone: string
   description?: string
+  logo_url?: string
   is_active: boolean
 }
 
@@ -64,12 +66,14 @@ export default function BusinessesPage() {
 
   if (loading) {
     return (
-      <div className="p-8">
-        <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-gray-200 rounded w-48"></div>
-          <div className="space-y-3">
-            <div className="h-32 bg-gray-200 rounded"></div>
-            <div className="h-32 bg-gray-200 rounded"></div>
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/5 p-4 sm:p-6 md:p-8">
+        <div className="max-w-4xl mx-auto">
+          <div className="animate-pulse space-y-4">
+            <div className="h-8 bg-muted rounded w-48"></div>
+            <div className="space-y-3">
+              <div className="h-24 bg-muted rounded"></div>
+              <div className="h-24 bg-muted rounded"></div>
+            </div>
           </div>
         </div>
       </div>
@@ -77,85 +81,110 @@ export default function BusinessesPage() {
   }
 
   return (
-    <div className="p-8 max-w-4xl">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Businesses</h1>
-          <p className="text-gray-500 text-sm mt-1">View, switch, and manage your businesses</p>
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/5 p-4 sm:p-6 md:p-8">
+      <div className="max-w-4xl mx-auto">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Businesses</h1>
+            <p className="text-muted-foreground text-xs mt-1">View, switch, and manage your businesses</p>
+          </div>
+          <Link href="/dashboard/profile">
+            <button className="inline-flex items-center justify-center px-3 py-1.5 bg-muted text-foreground rounded-lg font-medium text-sm hover:bg-muted/80 transition-colors duration-200">
+              Back
+            </button>
+          </Link>
         </div>
-        <Link href="/dashboard/profile">
-          <Button variant="outline" className="h-8 text-xs">
-            Back to Profile
-          </Button>
-        </Link>
-      </div>
 
-      {error && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded text-red-700 text-sm flex items-start gap-2">
-          <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-          <span>{error}</span>
-        </div>
-      )}
+        {error && (
+          <div className="mb-6 p-4 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm flex items-start gap-3">
+            <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+            <span>{error}</span>
+          </div>
+        )}
 
-      {businesses.length === 0 ? (
-        <div className="bg-white rounded-lg shadow p-12 text-center">
-          <p className="text-gray-500">No businesses found.</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {businesses.map((business) => (
-            <div
-              key={business.id}
-              className="bg-white rounded-lg shadow border border-gray-200 p-6 hover:shadow-md transition-shadow"
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-gray-900">{business.name}</h3>
-                  <p className="text-sm text-gray-600 mt-1">{business.email}</p>
-                  <p className="text-sm text-gray-600">{business.phone}</p>
-                  {business.description && (
-                    <p className="text-sm text-gray-500 mt-2">{business.description}</p>
+        {businesses.length === 0 ? (
+          <div className="bg-card border border-border rounded-xl shadow-sm p-8 text-center">
+            <p className="text-muted-foreground text-sm">No businesses found.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {businesses.map((business) => (
+              <div
+                key={business.id}
+                className="bg-card border border-border rounded-xl shadow-sm p-4 hover:shadow-md transition-shadow duration-300"
+              >
+                <div className="flex flex-col sm:flex-row items-start gap-4">
+                  {/* Logo */}
+                  {business.logo_url && (
+                    <div className="relative w-20 h-20 flex-shrink-0 bg-secondary/20 rounded-lg overflow-hidden border border-border">
+                      <Image
+                        src={business.logo_url}
+                        alt={business.name}
+                        fill
+                        className="object-cover"
+                      />
+                    </div>
                   )}
-                  <div className="mt-3">
-                    <span
-                      className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
-                        business.is_active
-                          ? 'bg-green-50 text-green-700'
-                          : 'bg-gray-50 text-gray-700'
-                      }`}
+
+                  {/* Business Info */}
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-base font-semibold text-card-foreground truncate">{business.name}</h3>
+                    <div className="flex flex-col gap-0.5 mt-1 text-xs text-muted-foreground">
+                      <p className="truncate">{business.email}</p>
+                      <p className="truncate">{business.phone}</p>
+                    </div>
+                    {business.description && (
+                      <p className="text-xs text-muted-foreground mt-2 line-clamp-2">{business.description}</p>
+                    )}
+                    <div className="mt-2">
+                      <span
+                        className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                          business.is_active
+                            ? 'bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-200'
+                            : 'bg-muted text-muted-foreground'
+                        }`}
+                      >
+                        {business.is_active ? 'Active' : 'Inactive'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+                    <Link href={`/dashboard/profile/businesses/edit/${business.id}`} className="flex-1 sm:flex-none">
+                      <button className="w-full inline-flex items-center justify-center px-3 py-1.5 bg-primary text-primary-foreground rounded-lg font-medium text-xs hover:opacity-90 transition-opacity duration-200">
+                        <svg className="w-3 h-3 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                        Edit
+                      </button>
+                    </Link>
+                    <Link href={`/dashboard/menu/customize?businessId=${business.id}`} className="flex-1 sm:flex-none">
+                      <button className="w-full inline-flex items-center justify-center px-3 py-1.5 bg-muted text-foreground rounded-lg font-medium text-xs hover:bg-muted/80 transition-colors duration-200">
+                        <svg className="w-3 h-3 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.5a2 2 0 00-1 3.75A4 4 0 0010 21z" />
+                        </svg>
+                        Menu
+                      </button>
+                    </Link>
+                    <button
+                      onClick={() => handleSwitchBusiness(business.id)}
+                      disabled={selectedBusinessId === business.id}
+                      className="flex-1 sm:flex-none inline-flex items-center justify-center px-3 py-1.5 bg-primary text-primary-foreground rounded-lg font-medium text-xs hover:opacity-90 disabled:opacity-60 transition-opacity duration-200"
                     >
-                      {business.is_active ? 'Active' : 'Inactive'}
-                    </span>
+                      {selectedBusinessId === business.id ? 'Switching...' : 'Switch'}
+                      <svg className="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </button>
                   </div>
                 </div>
-
-                <div className="flex gap-2 ml-4">
-                  <Link href={`/dashboard/profile/businesses/edit/${business.id}`}>
-                    <Button variant="outline" className="h-8 text-xs">
-                      <Edit2 className="w-3 h-3 mr-1" />
-                      Edit
-                    </Button>
-                  </Link>
-                  <Link href={`/dashboard/menu/customize?businessId=${business.id}`}>
-                    <Button variant="outline" className="h-8 text-xs">
-                      <Palette className="w-3 h-3 mr-1" />
-                      Customize Menu
-                    </Button>
-                  </Link>
-                  <Button
-                    onClick={() => handleSwitchBusiness(business.id)}
-                    disabled={selectedBusinessId === business.id}
-                    className="h-8 text-xs bg-primary text-white hover:bg-primary-dark"
-                  >
-                    {selectedBusinessId === business.id ? 'Switching...' : 'Switch'}
-                    <ChevronRight className="w-3 h-3 ml-1" />
-                  </Button>
-                </div>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

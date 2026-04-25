@@ -1,30 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { Pool } from '@neondatabase/serverless'
-
-const pool = new Pool({ connectionString: process.env.DATABASE_URL })
+import { sql } from '@vercel/postgres'
+import { verifyJWT } from '@/lib/auth'
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { businessId: string } }
 ) {
   try {
-    const userId = request.headers.get('x-user-id')
-    const { businessId } = params
+    let token = request.headers.get('authorization')?.replace('Bearer ', '')
+    if (!token) {
+      token = request.cookies.get('auth_token')?.value
+    }
 
-    if (!userId) {
+    if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const result = await pool.query(
+    const payload = await verifyJWT(token)
+    if (!payload) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { businessId } = params
+
+    const { rows } = await sql.query(
       'SELECT * FROM businesses WHERE id = $1 AND owner_id = $2',
-      [businessId, userId]
+      [businessId, payload.userId]
     )
 
-    if (result.rows.length === 0) {
+    if (rows.length === 0) {
       return NextResponse.json({ error: 'Business not found' }, { status: 404 })
     }
 
-    return NextResponse.json({ business: result.rows[0] })
+    return NextResponse.json({ business: rows[0] })
   } catch (error) {
     console.error('Business fetch error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -36,30 +44,39 @@ export async function PATCH(
   { params }: { params: { businessId: string } }
 ) {
   try {
-    const userId = request.headers.get('x-user-id')
-    const { businessId } = params
+    let token = request.headers.get('authorization')?.replace('Bearer ', '')
+    if (!token) {
+      token = request.cookies.get('auth_token')?.value
+    }
 
-    if (!userId) {
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const payload = await verifyJWT(token)
+    if (!payload) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const body = await request.json()
-    const { name, email, phone, description, address, city, state, country, postal_code } = body
+    const { name, email, phone, description, address, city, state, country, postal_code, logo_url } = body
 
-    const result = await pool.query(
+    const { businessId } = params
+
+    const { rows } = await sql.query(
       `UPDATE businesses 
        SET name = $1, email = $2, phone = $3, description = $4, address = $5, 
-           city = $6, state = $7, country = $8, postal_code = $9, updated_at = NOW()
-       WHERE id = $10 AND owner_id = $11 
+           city = $6, state = $7, country = $8, postal_code = $9, logo_url = $10, updated_at = NOW()
+       WHERE id = $11 AND owner_id = $12 
        RETURNING *`,
-      [name, email, phone, description, address, city, state, country, postal_code, businessId, userId]
+      [name, email, phone, description, address, city, state, country, postal_code, logo_url, businessId, payload.userId]
     )
 
-    if (result.rows.length === 0) {
+    if (rows.length === 0) {
       return NextResponse.json({ error: 'Business not found or unauthorized' }, { status: 404 })
     }
 
-    return NextResponse.json({ business: result.rows[0] })
+    return NextResponse.json({ business: rows[0] })
   } catch (error) {
     console.error('Business update error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
