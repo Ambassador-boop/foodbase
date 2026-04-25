@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
 
     // Get first business owned by this user (primary business)
     const { rows } = await sql.query(
-      'SELECT id, name, slug, email, is_active FROM businesses WHERE owner_id = $1 ORDER BY created_at ASC LIMIT 1',
+      'SELECT id, name, slug, email, logo_url, is_active FROM businesses WHERE owner_id = $1 ORDER BY created_at ASC LIMIT 1',
       [payload.userId]
     );
 

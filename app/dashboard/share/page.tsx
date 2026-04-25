@@ -60,21 +60,40 @@ export default function ShareBusinessPage() {
   const handleDownloadQR = async () => {
     try {
       setDownloadingPNG(true);
-      const element = document.getElementById('qr-code');
-      if (element) {
-        const canvas = element.querySelector('canvas') as HTMLCanvasElement;
-        if (canvas) {
-          const link = document.createElement('a');
-          link.href = canvas.toDataURL('image/png');
-          link.download = `${business?.slug}-qr-code.png`;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-        }
+      setError('');
+      console.log('[v0] Starting PNG download process');
+      
+      if (!pdfRef.current) {
+        throw new Error('Content not ready. Please try again.');
       }
+
+      // Wait for QR code canvas to be fully rendered
+      await new Promise(resolve => setTimeout(resolve, 800));
+
+      // Generate PNG from the full PDF content
+      const canvas = await html2canvas(pdfRef.current, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        allowTaint: true,
+        logging: false,
+        foreignObjectRendering: true,
+      });
+
+      console.log('[v0] PNG canvas created:', { width: canvas.width, height: canvas.height });
+
+      const link = document.createElement('a');
+      link.href = canvas.toDataURL('image/png');
+      link.download = `${business?.slug}-qr-code.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      console.log('[v0] PNG downloaded successfully');
     } catch (error) {
       console.error('[v0] Error downloading PNG:', error);
-      setError('Failed to download PNG');
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error occurred';
+      setError(`Could not generate PNG: ${errorMsg}. Try refreshing the page.`);
     } finally {
       setDownloadingPNG(false);
     }
@@ -82,28 +101,34 @@ export default function ShareBusinessPage() {
 
   const handleDownloadPDF = async () => {
     if (!pdfRef.current) {
-      console.error('[v0] PDF ref not found');
+      setError('Content not ready. Please refresh the page.');
       return;
     }
 
     try {
       setDownloadingPDF(true);
+      setError('');
       console.log('[v0] Starting PDF download process');
+
+      // Wait for QR code to be fully rendered
+      await new Promise(resolve => setTimeout(resolve, 800));
 
       const canvas = await html2canvas(pdfRef.current, {
         scale: 2,
         useCORS: true,
         backgroundColor: '#ffffff',
-        logging: true,
         allowTaint: true,
+        logging: false,
+        foreignObjectRendering: true,
       });
 
-      console.log('[v0] Canvas created successfully');
+      console.log('[v0] PDF canvas created:', { width: canvas.width, height: canvas.height });
 
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
         format: 'a4',
+        compress: true,
       });
 
       const imgWidth = 210; // A4 width in mm
@@ -111,7 +136,8 @@ export default function ShareBusinessPage() {
 
       console.log('[v0] PDF dimensions - Width:', imgWidth, 'Height:', imgHeight);
 
-      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, imgWidth, imgHeight);
+      const imgData = canvas.toDataURL('image/png');
+      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
       
       const filename = `${business?.slug}-qr-code.pdf`;
       console.log('[v0] Saving PDF as:', filename);
@@ -120,7 +146,8 @@ export default function ShareBusinessPage() {
       console.log('[v0] PDF saved successfully');
     } catch (error) {
       console.error('[v0] Error generating PDF:', error);
-      setError('Failed to download PDF. Please try again.');
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error occurred';
+      setError(`Could not generate PDF: ${errorMsg}. Try refreshing the page.`);
     } finally {
       setDownloadingPDF(false);
     }
