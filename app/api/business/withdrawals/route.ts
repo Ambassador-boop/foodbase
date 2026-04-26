@@ -16,11 +16,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    // ✅ Use businessId directly (BEST FIX)
     const { rows } = await sql.query(
-      `SELECT * FROM withdrawals WHERE business_id IN 
-       (SELECT id FROM businesses WHERE owner_id = $1)
+      `SELECT * FROM withdrawals 
+       WHERE business_id = $1
        ORDER BY created_at DESC`,
-      [user.id]
+      [user.businessId]
     );
 
     return NextResponse.json(rows);
@@ -49,10 +50,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid amount' }, { status: 400 });
     }
 
-    // Get business
+    // ✅ Get business using businessId (clean + reliable)
     const businessResult = await sql.query(
-      'SELECT id, available_balance FROM businesses WHERE owner_id = $1',
-      [user.id]
+      'SELECT id, available_balance FROM businesses WHERE id = $1',
+      [user.businessId]
     );
 
     if (!businessResult.rows.length) {
@@ -65,7 +66,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Insufficient balance' }, { status: 400 });
     }
 
-    // Create withdrawal request
+    // ✅ Create withdrawal request
     const withdrawalId = `wd_${nanoid(12)}`;
     const { rows } = await sql.query(
       `INSERT INTO withdrawals (id, business_id, amount, status, created_at)
