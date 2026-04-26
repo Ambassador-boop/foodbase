@@ -82,9 +82,12 @@ export async function POST(request: NextRequest) {
         { status: 400 },
       );
     }
-    if (order.payment_status !== 'completed') {
+    // Payments can be marked as either 'paid' (newer flow) or 'completed' (legacy)
+    if (!['paid', 'completed', 'success'].includes(order.payment_status)) {
       return NextResponse.json(
-        { error: 'Can only refund completed payments' },
+        {
+          error: `Can only refund completed payments (current status: ${order.payment_status || 'unknown'})`,
+        },
         { status: 400 },
       );
     }

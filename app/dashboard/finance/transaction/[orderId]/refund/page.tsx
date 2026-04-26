@@ -327,28 +327,28 @@ export default function RefundRequestPage() {
           </div>
         )}
 
-        <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="flex flex-col gap-3 sm:flex-row">
           <Link
             href={`/dashboard/finance/transaction/${orderId}`}
             className="sm:w-32"
           >
-            <Button variant="outline" className="h-11 w-full">
+            <Button variant="outline" className="h-12 w-full text-sm font-medium">
               Cancel
             </Button>
           </Link>
           <button
             type="submit"
             disabled={submitting || !!validation}
-            className="flex h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-rose-600 px-4 text-sm font-medium text-white transition-colors hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex h-12 flex-1 items-center justify-center gap-2 rounded-lg bg-rose-600 px-6 text-base font-semibold text-white shadow-sm transition-all hover:bg-rose-700 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
           >
             {submitting ? (
               <>
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2 className="h-5 w-5 animate-spin" />
                 Processing refund…
               </>
             ) : (
               <>
-                <Undo2 className="h-4 w-4" />
+                <Undo2 className="h-5 w-5" />
                 Confirm refund · {NGN(refundNum)}
               </>
             )}
