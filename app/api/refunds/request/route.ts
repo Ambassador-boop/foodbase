@@ -73,6 +73,21 @@ export async function POST(request: NextRequest) {
       );
     }
     const order = orderList[0];
+    // 🔍 Get actual transaction ID from transactions table using order_id
+    const txRows: any = await db.query(
+      `SELECT id FROM transactions WHERE order_id = $1 LIMIT 1`,
+      [orderId],
+    );
+    const txList = Array.isArray(txRows) ? txRows : txRows?.rows ?? [];
+
+    if (txList.length === 0) {
+      return NextResponse.json(
+        { error: 'No transaction found for this order' },
+        { status: 404 },
+      );
+    }
+
+    const transactionId = txList[0].id;
     const refundAmount = Number(amount);
     const orderTotal = Number(order.total_amount ?? 0);
 
