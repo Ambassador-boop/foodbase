@@ -1,13 +1,20 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
-import { ShoppingCart, ArrowLeft, AlertCircle, Wine } from 'lucide-react';
+import {
+  ShoppingCart,
+  AlertCircle,
+  Wine,
+  X,
+  Plus,
+  ThumbsUp,
+  UtensilsCrossed,
+} from 'lucide-react';
 import { AddonSelectionModal } from '@/components/addon-selection-modal';
-import { DiscountBadge, DiscountPriceDisplay } from '@/components/discount-badge';
 import { useToast } from '@/hooks/use-toast';
 import { fetchColorConfig, type ColorConfig, DEFAULT_COLORS } from '@/lib/color-config';
 
@@ -17,6 +24,7 @@ interface MenuItem {
   description?: string;
   price: number;
   original_price?: number | null;
+  discounted_price?: number | null;
   image_url?: string;
   addons?: any[];
   order_count?: number;
@@ -40,6 +48,8 @@ interface Restaurant {
   name: string;
   slug: string;
   description?: string;
+  logo_url?: string;
+  cover_image_url?: string;
 }
 
 interface Category {
@@ -50,6 +60,7 @@ interface Category {
 
 export default function RestaurantPage() {
   const params = useParams();
+  const router = useRouter();
   const slug = params.slug as string;
   const { toast } = useToast();
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
@@ -80,8 +91,6 @@ export default function RestaurantPage() {
     sessionStorage.setItem(`cart_${slug}`, JSON.stringify(cartItems));
   }, [cartItems, slug]);
 
-
-
   const fetchRestaurantData = async () => {
     try {
       console.log('[v0] Client: Fetching menu for slug:', slug);
@@ -97,7 +106,6 @@ export default function RestaurantPage() {
       setDrinks(data.drinks || []);
       setCategories(data.categories || []);
 
-      // Fetch color configuration for this business
       if (data.business && data.business.id) {
         const colorConfig = await fetchColorConfig(data.business.id, 'menu');
         setColors(colorConfig);
@@ -240,42 +248,50 @@ export default function RestaurantPage() {
     }
   };
 
-  // Get most ordered items for "Popular" tag
-  const getMostOrderedItems = () => {
-    if (menuItems.length === 0) return new Set();
-    const avgOrders = menuItems.reduce((sum, item) => sum + (item.order_count || 0), 0) / menuItems.length;
-    return new Set(
-      menuItems
-        .filter((item) => (item.order_count || 0) > avgOrders)
-        .map((item) => item.id)
-    );
-  };
-
-  const mostOrderedItems = getMostOrderedItems();
-
   // Group menu items by category
-  const groupedItems = categories.map((cat) => ({
-    category: cat,
-    items: menuItems.filter((item) => item.category_id === cat.id),
-  })).filter((group) => group.items.length > 0);
+  const groupedItems = categories
+    .map((cat) => ({
+      category: cat,
+      items: menuItems.filter((item) => item.category_id === cat.id),
+    }))
+    .filter((group) => group.items.length > 0);
+
+  // Determine "Most liked" ranking from order_count (top 3)
+  const mostLikedRanking = (() => {
+    const sorted = [...menuItems]
+      .filter((m) => (m.order_count || 0) > 0)
+      .sort((a, b) => (b.order_count || 0) - (a.order_count || 0))
+      .slice(0, 3);
+    const map = new Map<string, number>();
+    sorted.forEach((item, idx) => map.set(item.id, idx + 1));
+    return map;
+  })();
 
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(amount);
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <p className="text-muted-foreground">Loading menu...</p>
+      <div
+        className="min-h-screen flex items-center justify-center"
+        style={{ backgroundColor: colors.backgroundColor }}
+      >
+        <p style={{ color: colors.textColor, opacity: 0.7 }}>Loading menu...</p>
       </div>
     );
   }
 
   if (error || !restaurant) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <div
+        className="min-h-screen flex items-center justify-center p-4"
+        style={{ backgroundColor: colors.backgroundColor }}
+      >
         <div className="text-center">
           <AlertCircle className="w-12 h-12 mx-auto text-red-500 mb-3" />
-          <p className="text-foreground font-medium mb-3">{error}</p>
+          <p className="font-medium mb-3" style={{ color: colors.textColor }}>
+            {error}
+          </p>
           <Link href="/">
             <Button variant="outline">Back to Home</Button>
           </Link>
@@ -285,291 +301,747 @@ export default function RestaurantPage() {
   }
 
   return (
-    <div className="min-h-screen pb-20 md:pb-0" style={{ backgroundColor: colors.backgroundColor }}>
-      {/* Header */}
-      <header style={{ backgroundColor: colors.headerColor }} className="border-b-2 sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <h1 className="text-lg font-bold" style={{ color: colors.headerTextColor }}>{restaurant.name}</h1>
+    <div
+      className="min-h-screen pb-24"
+      style={{ backgroundColor: colors.backgroundColor }}
+    >
+      {/* Hero / Cover section */}
+      <RestaurantHero
+        restaurant={restaurant}
+        onClose={() => router.push('/')}
+        accentColor={colors.accentColor}
+        textColor={colors.textColor}
+        cardBg={colors.headerColor}
+      />
+
+      {/* Sticky toolbar: cart + drinks toggle */}
+      <div
+        className="sticky top-0 z-40 border-b"
+        style={{
+          backgroundColor: colors.headerColor,
+          borderColor: `${colors.accentColor}33`,
+        }}
+      >
+        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowDrinks(false)}
+              className="text-sm font-semibold px-3 py-1.5 rounded-full transition-colors flex items-center gap-1.5"
+              style={{
+                backgroundColor: !showDrinks ? colors.buttonColor : 'transparent',
+                color: !showDrinks ? colors.buttonTextColor : colors.headerTextColor,
+                border: `1px solid ${colors.accentColor}`,
+              }}
+            >
+              <UtensilsCrossed className="w-3.5 h-3.5" />
+              Menu
+            </button>
             {drinks.length > 0 && (
               <button
-                onClick={() => setShowDrinks(!showDrinks)}
+                onClick={() => setShowDrinks(true)}
+                className="text-sm font-semibold px-3 py-1.5 rounded-full transition-colors flex items-center gap-1.5"
                 style={{
-                  backgroundColor: showDrinks ? colors.buttonColor : colors.headerColor,
+                  backgroundColor: showDrinks ? colors.buttonColor : 'transparent',
                   color: showDrinks ? colors.buttonTextColor : colors.headerTextColor,
-                  borderColor: colors.accentColor,
+                  border: `1px solid ${colors.accentColor}`,
                 }}
-                className="text-xs px-2 py-1 rounded border transition-colors hover:opacity-80"
-                title="Toggle drinks view"
               >
-                <Wine className="w-3 h-3 inline mr-1" />
+                <Wine className="w-3.5 h-3.5" />
                 Drinks
               </button>
             )}
           </div>
-          <Link href={`/${slug}/cart`} className="relative p-2" style={{ color: colors.buttonColor }}>
+          <Link
+            href={`/${slug}/cart`}
+            className="relative p-2 rounded-full transition-colors"
+            style={{ color: colors.buttonColor }}
+            aria-label="View cart"
+          >
             <ShoppingCart className="w-5 h-5" />
             {cartItems.length > 0 && (
-              <span 
-                style={{ backgroundColor: colors.buttonColor, color: colors.buttonTextColor }}
-                className="absolute top-0 right-0 text-xs rounded-full w-5 h-5 flex items-center justify-center"
+              <span
+                style={{
+                  backgroundColor: colors.buttonColor,
+                  color: colors.buttonTextColor,
+                }}
+                className="absolute -top-0.5 -right-0.5 text-[10px] font-bold rounded-full min-w-5 h-5 px-1 flex items-center justify-center"
               >
                 {cartItems.length}
               </span>
             )}
           </Link>
         </div>
-      </header>
-
-      <div className="max-w-6xl mx-auto">
-        <div className="grid grid-cols-1 gap-6 p-4">
-          {/* Menu or Drinks */}
-          <div className="space-y-3">
-            <div style={{ backgroundColor: colors.headerColor }} className="rounded-lg p-4">
-              <h2 className="text-lg font-bold mb-2" style={{ color: colors.headerTextColor }}>{showDrinks ? 'Drinks' : 'Our Menu'}</h2>
-            </div>
-
-            {showDrinks ? (
-              // Drinks Display
-              drinks.length === 0 ? (
-                <div style={{ backgroundColor: colors.headerColor }} className="rounded-lg p-8 text-center">
-                  <p className="text-sm" style={{ color: colors.textColor }}>No drinks available</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {drinks.map((drink) => (
-                    <div
-                      key={drink.id}
-                      style={{ backgroundColor: colors.headerColor, borderColor: colors.accentColor }}
-                      className="border-2 rounded-lg overflow-hidden flex flex-col hover:shadow-sm transition-shadow"
-                    >
-                      {drink.image_url && (
-                        <div className="relative w-full aspect-square rounded-t flex-shrink-0">
-                          <Image
-                            src={drink.image_url}
-                            alt={drink.name}
-                            fill
-                            className="object-cover"
-                          />
-                        </div>
-                      )}
-                      <div className="p-2 flex-1 flex flex-col">
-                        <h3 className="font-medium text-xs line-clamp-2" style={{ color: colors.textColor }}>{drink.name}</h3>
-                        {drink.description && (
-                          <p className="text-xs line-clamp-1 mt-0.5" style={{ color: colors.textColor, opacity: 0.75 }}>
-                            {drink.description}
-                          </p>
-                        )}
-                        <p className="text-xs font-semibold mt-auto mb-2" style={{ color: colors.accentColor }}>
-                          {formatCurrency(drink.price)}
-                        </p>
-                        <Button
-                          onClick={() => handleDrinkAdd(drink.id)}
-                          size="sm"
-                          style={{ backgroundColor: colors.buttonColor, color: colors.buttonTextColor }}
-                          className="h-7 text-xs w-full hover:opacity-90"
-                        >
-                          Add
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )
-            ) : (
-              // Menu Items Display with Category Grouping
-              menuItems.length === 0 ? (
-                <div style={{ backgroundColor: colors.headerColor }} className="rounded-lg p-8 text-center">
-                  <p className="text-sm" style={{ color: colors.textColor }}>No menu items available</p>
-                </div>
-              ) : groupedItems.length > 0 ? (
-                <div className="space-y-6">
-                  {groupedItems.map((group) => (
-                    <div key={group.category.id} className="space-y-3">
-                      {/* Category Header */}
-                      <div style={{ backgroundColor: colors.buttonColor }} className="sticky top-16 z-30 py-2 px-4 rounded-lg">
-                        <h3 className="font-semibold text-xs" style={{ color: colors.buttonTextColor }}>{group.category.name}</h3>
-                      </div>
-
-                      {/* Items Grid */}
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        {group.items.map((item) => (
-                          <div
-                            key={item.id}
-                            style={{ backgroundColor: colors.headerColor, borderColor: colors.accentColor }}
-                            className="border-2 rounded-lg overflow-hidden flex flex-col hover:shadow-sm transition-shadow relative"
-                          >
-                            {/* Image Container */}
-                            {item.image_url && (
-                              <div className="relative w-full aspect-square rounded-t flex-shrink-0">
-                                <Image
-                                  src={item.image_url}
-                                  alt={item.name}
-                                  fill
-                                  className="object-cover"
-                                />
-                                {/* Popular Tag */}
-                                {mostOrderedItems.has(item.id) && (
-                                  <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded text-xs font-bold">
-                                    Popular
-                                  </div>
-                                )}
-                                {/* Discount Badge */}
-                                {item.discount_type && item.discount_value && (
-                                  <div className="absolute top-2 left-2 bg-red-500 text-white px-2 py-1 rounded text-xs font-bold">
-                                    {item.discount_type === 'percentage'
-                                      ? `${item.discount_value}% Off`
-                                      : `-₦${Number(item.discount_value).toFixed(2)}`}
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                            <div className="p-2 flex-1 flex flex-col">
-                              <h3 className="font-medium text-xs line-clamp-2" style={{ color: colors.textColor }}>{item.name}</h3>
-                              {item.description && (
-                                <p className="text-xs line-clamp-1 mt-0.5" style={{ color: colors.textColor, opacity: 0.75 }}>
-                                  {item.description}
-                                </p>
-                              )}
-                              <div className="mt-auto mb-2">
-                                {item.discount_type && item.original_price ? (
-                                  <div className="flex flex-col gap-0.5">
-                                    <span className="text-xs line-through" style={{ color: colors.textColor, opacity: 0.6 }}>
-                                      {formatCurrency(item.original_price)}
-                                    </span>
-                                    <span className="text-xs font-bold" style={{ color: colors.accentColor }}>
-                                      {formatCurrency(item.price)}
-                                    </span>
-                                  </div>
-                                ) : (
-                                  <p className="text-xs font-semibold" style={{ color: colors.accentColor }}>
-                                    {formatCurrency(item.price)}
-                                  </p>
-                                )}
-                              </div>
-                              <Button
-                                onClick={() => {
-                                  if (item.addons && item.addons.length > 0) {
-                                    window.location.href = `/${slug}/add-on?itemId=${item.id}`;
-                                  } else {
-                                    addToCart(item.id);
-                                  }
-                                }}
-                                size="sm"
-                                style={{ backgroundColor: colors.buttonColor, color: colors.buttonTextColor }}
-                                className="h-7 text-xs w-full hover:opacity-90"
-                              >
-                                Add
-                              </Button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {menuItems.map((item) => (
-                    <div
-                      key={item.id}
-                      className="bg-white border border-border rounded-lg overflow-hidden flex flex-col hover:shadow-sm transition-shadow relative"
-                    >
-                      {item.image_url && (
-                        <div className="relative w-full aspect-square rounded-t flex-shrink-0">
-                          <Image
-                            src={item.image_url}
-                            alt={item.name}
-                            fill
-                            className="object-cover"
-                          />
-                          {mostOrderedItems.has(item.id) && (
-                            <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded text-xs font-bold">
-                              Popular
-                            </div>
-                          )}
-                          {item.discount_type && item.discount_value && (
-                            <div className="absolute top-2 left-2 bg-red-500 text-white px-2 py-1 rounded text-xs font-bold">
-                              {item.discount_type === 'percentage'
-                                ? `${item.discount_value}% Off`
-                                : `-₦${Number(item.discount_value).toFixed(2)}`}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                      <div className="p-2 flex-1 flex flex-col">
-                        <h3 className="font-medium text-xs line-clamp-2">{item.name}</h3>
-                        {item.description && (
-                          <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
-                            {item.description}
-                          </p>
-                        )}
-                        <div className="mt-auto mb-2">
-                          {item.discount_type && item.original_price ? (
-                            <div className="flex flex-col gap-0.5">
-                              <span className="text-xs line-through text-gray-500">
-                                {formatCurrency(item.original_price)}
-                              </span>
-                              <span className="text-xs font-bold text-green-600">
-                                {formatCurrency(item.price)}
-                              </span>
-                            </div>
-                          ) : (
-                            <p className="text-xs font-semibold text-primary">
-                              {formatCurrency(item.price)}
-                            </p>
-                          )}
-                        </div>
-                        <Button
-                          onClick={() => {
-                            if (item.addons && item.addons.length > 0) {
-                              window.location.href = `/${slug}/add-on?itemId=${item.id}`;
-                            } else {
-                              addToCart(item.id);
-                            }
-                          }}
-                          size="sm"
-                          className="h-7 text-xs bg-primary text-white hover:bg-primary-dark w-full"
-                        >
-                          Add
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )
-            )}
-          </div>
-
-          {selectedItemForAddons && (
-            <AddonSelectionModal
-              item={selectedItemForAddons}
-              addons={selectedItemForAddons.addons || []}
-              onClose={() => setSelectedItemForAddons(null)}
-              onAddToCart={(config) => {
-                addToCartWithAddons(config.itemId, config.selectedAddons);
-                setSelectedItemForAddons(null);
-              }}
-            />
-          )}
-        </div>
       </div>
 
-      {/* Floating Cart Icon (Bottom Right) */}
+      {/* Content */}
+      <main className="max-w-3xl mx-auto px-4 py-5">
+        {showDrinks ? (
+          <DrinksSection
+            drinks={drinks}
+            colors={colors}
+            onAdd={handleDrinkAdd}
+            formatCurrency={formatCurrency}
+          />
+        ) : (
+          <MenuSection
+            groupedItems={groupedItems}
+            menuItems={menuItems}
+            colors={colors}
+            mostLikedRanking={mostLikedRanking}
+            slug={slug}
+            onAdd={addToCart}
+            formatCurrency={formatCurrency}
+          />
+        )}
+      </main>
+
+      {selectedItemForAddons && (
+        <AddonSelectionModal
+          item={selectedItemForAddons}
+          addons={selectedItemForAddons.addons || []}
+          onClose={() => setSelectedItemForAddons(null)}
+          onAddToCart={(config) => {
+            addToCartWithAddons(config.itemId, config.selectedAddons);
+            setSelectedItemForAddons(null);
+          }}
+        />
+      )}
+
+      {/* Floating cart pill (bottom) */}
       {cartItems.length > 0 && (
         <Link
           href={`/${slug}/cart`}
-          className="fixed bottom-4 right-4 z-50 bg-primary text-primary-foreground p-2 rounded-full shadow-lg hover:shadow-xl transition-shadow"
-          title="View cart"
+          className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-full shadow-lg flex items-center gap-2 font-semibold text-sm transition-transform hover:scale-105"
+          style={{
+            backgroundColor: colors.buttonColor,
+            color: colors.buttonTextColor,
+          }}
         >
-          <div className="relative">
-            <ShoppingCart className="w-4 h-4" />
-            <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-              {cartItems.length}
-            </span>
-          </div>
+          <ShoppingCart className="w-4 h-4" />
+          <span>View cart</span>
+          <span
+            className="rounded-full min-w-6 h-6 px-1.5 text-xs flex items-center justify-center font-bold"
+            style={{
+              backgroundColor: colors.buttonTextColor,
+              color: colors.buttonColor,
+            }}
+          >
+            {cartItems.length}
+          </span>
         </Link>
       )}
     </div>
+  );
+}
+
+/* ---------- Subcomponents ---------- */
+
+function RestaurantHero({
+  restaurant,
+  onClose,
+  accentColor,
+  textColor,
+  cardBg,
+}: {
+  restaurant: Restaurant;
+  onClose: () => void;
+  accentColor: string;
+  textColor: string;
+  cardBg: string;
+}) {
+  return (
+    <div className="relative">
+      {/* Cover image */}
+      <div className="relative w-full h-44 sm:h-56 md:h-64 overflow-hidden">
+        {restaurant.cover_image_url ? (
+          <Image
+            src={restaurant.cover_image_url}
+            alt={`${restaurant.name} cover`}
+            fill
+            priority
+            className="object-cover"
+            sizes="100vw"
+          />
+        ) : (
+          <div
+            className="w-full h-full"
+            style={{
+              background: `linear-gradient(135deg, ${accentColor}cc, ${accentColor}66)`,
+            }}
+          />
+        )}
+        {/* Close button */}
+        <button
+          onClick={onClose}
+          aria-label="Close"
+          className="absolute top-3 left-3 w-10 h-10 rounded-full flex items-center justify-center shadow-md backdrop-blur-sm"
+          style={{ backgroundColor: `${cardBg}e6`, color: textColor }}
+        >
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+
+      {/* Floating info card */}
+      <div className="max-w-3xl mx-auto px-4 -mt-12 sm:-mt-14 relative z-10">
+        <div
+          className="rounded-2xl shadow-md pt-12 sm:pt-14 pb-5 px-5 text-center relative"
+          style={{ backgroundColor: cardBg }}
+        >
+          {/* Logo */}
+          <div
+            className="absolute left-1/2 -translate-x-1/2 -top-10 sm:-top-12 w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden border-4 shadow-sm bg-white flex items-center justify-center"
+            style={{ borderColor: cardBg }}
+          >
+            {restaurant.logo_url ? (
+              <Image
+                src={restaurant.logo_url}
+                alt={`${restaurant.name} logo`}
+                width={96}
+                height={96}
+                className="object-cover w-full h-full"
+              />
+            ) : (
+              <span
+                className="text-2xl font-bold"
+                style={{ color: accentColor }}
+              >
+                {restaurant.name.charAt(0)}
+              </span>
+            )}
+          </div>
+
+          <h1
+            className="text-2xl sm:text-3xl font-bold tracking-tight text-balance"
+            style={{ color: textColor }}
+          >
+            {restaurant.name}
+          </h1>
+
+          {restaurant.description && (
+            <div className="mt-3 inline-block">
+              <span
+                className="text-sm font-medium px-4 py-1.5 rounded-full"
+                style={{
+                  backgroundColor: `${accentColor}1a`,
+                  color: accentColor,
+                }}
+              >
+                {restaurant.description}
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MenuSection({
+  groupedItems,
+  menuItems,
+  colors,
+  mostLikedRanking,
+  slug,
+  onAdd,
+  formatCurrency,
+}: {
+  groupedItems: { category: Category; items: MenuItem[] }[];
+  menuItems: MenuItem[];
+  colors: ColorConfig;
+  mostLikedRanking: Map<string, number>;
+  slug: string;
+  onAdd: (id: string) => void;
+  formatCurrency: (n: number) => string;
+}) {
+  if (menuItems.length === 0) {
+    return (
+      <div
+        className="rounded-2xl p-10 text-center"
+        style={{ backgroundColor: colors.headerColor }}
+      >
+        <UtensilsCrossed
+          className="w-10 h-10 mx-auto mb-3"
+          style={{ color: colors.accentColor, opacity: 0.6 }}
+        />
+        <p className="text-sm" style={{ color: colors.textColor }}>
+          No menu items available
+        </p>
+      </div>
+    );
+  }
+
+  // Featured "Most liked" row (top items by order_count)
+  const featured = [...menuItems]
+    .filter((m) => (m.order_count || 0) > 0)
+    .sort((a, b) => (b.order_count || 0) - (a.order_count || 0))
+    .slice(0, 4);
+
+  return (
+    <div className="space-y-8">
+      {featured.length >= 2 && (
+        <section>
+          <h2
+            className="text-lg font-bold mb-3"
+            style={{ color: colors.textColor }}
+          >
+            Most liked
+          </h2>
+          <div className="grid grid-cols-2 gap-3">
+            {featured.map((item) => (
+              <FeaturedCard
+                key={item.id}
+                item={item}
+                colors={colors}
+                rank={mostLikedRanking.get(item.id)}
+                slug={slug}
+                onAdd={onAdd}
+                formatCurrency={formatCurrency}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {groupedItems.length > 0
+        ? groupedItems.map((group) => (
+            <section key={group.category.id}>
+              <div
+                className="sticky top-[57px] z-30 -mx-4 px-4 py-2 mb-3"
+                style={{ backgroundColor: colors.backgroundColor }}
+              >
+                <h2
+                  className="text-lg font-bold"
+                  style={{ color: colors.textColor }}
+                >
+                  {group.category.name}
+                </h2>
+              </div>
+              <div className="divide-y" style={{ borderColor: `${colors.accentColor}1a` }}>
+                {group.items.map((item) => (
+                  <MenuRow
+                    key={item.id}
+                    item={item}
+                    colors={colors}
+                    rank={mostLikedRanking.get(item.id)}
+                    slug={slug}
+                    onAdd={onAdd}
+                    formatCurrency={formatCurrency}
+                  />
+                ))}
+              </div>
+            </section>
+          ))
+        : (
+          <section>
+            <div className="divide-y" style={{ borderColor: `${colors.accentColor}1a` }}>
+              {menuItems.map((item) => (
+                <MenuRow
+                  key={item.id}
+                  item={item}
+                  colors={colors}
+                  rank={mostLikedRanking.get(item.id)}
+                  slug={slug}
+                  onAdd={onAdd}
+                  formatCurrency={formatCurrency}
+                />
+              ))}
+            </div>
+          </section>
+        )}
+    </div>
+  );
+}
+
+function MenuRow({
+  item,
+  colors,
+  rank,
+  slug,
+  onAdd,
+  formatCurrency,
+}: {
+  item: MenuItem;
+  colors: ColorConfig;
+  rank?: number;
+  slug: string;
+  onAdd: (id: string) => void;
+  formatCurrency: (n: number) => string;
+}) {
+  const hasAddons = item.addons && item.addons.length > 0;
+  const hasDiscount = item.discount_type && item.original_price;
+
+  const handleClick = () => {
+    if (hasAddons) {
+      window.location.href = `/${slug}/add-on?itemId=${item.id}`;
+    } else {
+      onAdd(item.id);
+    }
+  };
+
+  return (
+    <article className="py-4 flex gap-4 items-start">
+      {/* Left: text */}
+      <div className="flex-1 min-w-0">
+        <h3
+          className="text-base sm:text-lg font-bold leading-snug text-pretty"
+          style={{ color: colors.textColor }}
+        >
+          {item.name}
+        </h3>
+        {item.description && (
+          <p
+            className="mt-1 text-sm leading-relaxed line-clamp-2"
+            style={{ color: colors.textColor, opacity: 0.7 }}
+          >
+            {item.description}
+          </p>
+        )}
+
+        {/* Price + popularity */}
+        <div className="mt-2 flex items-center gap-2 flex-wrap">
+          {hasDiscount ? (
+            <>
+              <span
+                className="text-sm line-through"
+                style={{ color: colors.textColor, opacity: 0.5 }}
+              >
+                {formatCurrency(Number(item.original_price))}
+              </span>
+              <span
+                className="text-base font-bold"
+                style={{ color: colors.accentColor }}
+              >
+                {formatCurrency(Number(item.price))}
+              </span>
+            </>
+          ) : (
+            <span
+              className="text-base font-bold"
+              style={{ color: colors.textColor }}
+            >
+              {formatCurrency(Number(item.price))}
+            </span>
+          )}
+
+          {(item.order_count || 0) > 0 && (
+            <span
+              className="flex items-center gap-1 text-xs font-medium"
+              style={{ color: colors.textColor, opacity: 0.7 }}
+            >
+              <span aria-hidden="true">·</span>
+              <ThumbsUp
+                className="w-3.5 h-3.5"
+                style={{ color: colors.accentColor }}
+              />
+              <span>({item.order_count})</span>
+            </span>
+          )}
+        </div>
+
+        {rank && (
+          <div className="mt-2">
+            <span
+              className="inline-block text-xs font-semibold px-2.5 py-1 rounded-full"
+              style={{
+                backgroundColor: `${colors.accentColor}1a`,
+                color: colors.accentColor,
+              }}
+            >
+              {`#${rank} Most liked`}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Right: image with + button */}
+      <div className="relative w-28 h-28 sm:w-32 sm:h-32 flex-shrink-0">
+        {item.image_url ? (
+          <div className="relative w-full h-full rounded-xl overflow-hidden">
+            <Image
+              src={item.image_url}
+              alt={item.name}
+              fill
+              className="object-cover"
+              sizes="128px"
+            />
+            {item.discount_type && item.discount_value ? (
+              <div className="absolute top-1.5 left-1.5 bg-red-500 text-white px-1.5 py-0.5 rounded text-[10px] font-bold">
+                {item.discount_type === 'percentage'
+                  ? `${item.discount_value}% OFF`
+                  : `-${formatCurrency(Number(item.discount_value))}`}
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <div
+            className="w-full h-full rounded-xl flex items-center justify-center"
+            style={{ backgroundColor: `${colors.accentColor}1a` }}
+          >
+            <UtensilsCrossed
+              className="w-8 h-8"
+              style={{ color: colors.accentColor, opacity: 0.6 }}
+            />
+          </div>
+        )}
+        <button
+          onClick={handleClick}
+          aria-label={`Add ${item.name} to cart`}
+          className="absolute -bottom-2 -right-2 w-9 h-9 rounded-full flex items-center justify-center shadow-md transition-transform active:scale-95"
+          style={{
+            backgroundColor: colors.buttonColor,
+            color: colors.buttonTextColor,
+          }}
+        >
+          <Plus className="w-5 h-5" strokeWidth={2.5} />
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function FeaturedCard({
+  item,
+  colors,
+  rank,
+  slug,
+  onAdd,
+  formatCurrency,
+}: {
+  item: MenuItem;
+  colors: ColorConfig;
+  rank?: number;
+  slug: string;
+  onAdd: (id: string) => void;
+  formatCurrency: (n: number) => string;
+}) {
+  const hasAddons = item.addons && item.addons.length > 0;
+  const hasDiscount = item.discount_type && item.original_price;
+
+  const handleClick = () => {
+    if (hasAddons) {
+      window.location.href = `/${slug}/add-on?itemId=${item.id}`;
+    } else {
+      onAdd(item.id);
+    }
+  };
+
+  return (
+    <article className="flex flex-col">
+      <div className="relative w-full aspect-square rounded-xl overflow-hidden">
+        {item.image_url ? (
+          <Image
+            src={item.image_url}
+            alt={item.name}
+            fill
+            className="object-cover"
+            sizes="(max-width: 768px) 50vw, 200px"
+          />
+        ) : (
+          <div
+            className="w-full h-full flex items-center justify-center"
+            style={{ backgroundColor: `${colors.accentColor}1a` }}
+          >
+            <UtensilsCrossed
+              className="w-10 h-10"
+              style={{ color: colors.accentColor, opacity: 0.6 }}
+            />
+          </div>
+        )}
+        {item.discount_type && item.discount_value ? (
+          <div className="absolute top-2 left-2 bg-red-500 text-white px-2 py-1 rounded text-[10px] font-bold">
+            {item.discount_type === 'percentage'
+              ? `${item.discount_value}% OFF`
+              : `-${formatCurrency(Number(item.discount_value))}`}
+          </div>
+        ) : null}
+        <button
+          onClick={handleClick}
+          aria-label={`Add ${item.name} to cart`}
+          className="absolute top-2 right-2 w-9 h-9 rounded-lg flex items-center justify-center shadow-md transition-transform active:scale-95"
+          style={{
+            backgroundColor: colors.buttonColor,
+            color: colors.buttonTextColor,
+          }}
+        >
+          <Plus className="w-5 h-5" strokeWidth={2.5} />
+        </button>
+      </div>
+
+      <div className="pt-3">
+        <h3
+          className="text-base font-bold line-clamp-1 text-pretty"
+          style={{ color: colors.textColor }}
+        >
+          {item.name}
+        </h3>
+        {item.description && (
+          <p
+            className="mt-1 text-sm line-clamp-2 leading-relaxed"
+            style={{ color: colors.textColor, opacity: 0.7 }}
+          >
+            {item.description}
+          </p>
+        )}
+
+        <div className="mt-2 flex items-center gap-2 flex-wrap">
+          {hasDiscount ? (
+            <>
+              <span
+                className="text-xs line-through"
+                style={{ color: colors.textColor, opacity: 0.5 }}
+              >
+                {formatCurrency(Number(item.original_price))}
+              </span>
+              <span
+                className="text-sm font-bold"
+                style={{ color: colors.accentColor }}
+              >
+                {formatCurrency(Number(item.price))}
+              </span>
+            </>
+          ) : (
+            <span
+              className="text-sm font-bold"
+              style={{ color: colors.textColor }}
+            >
+              {formatCurrency(Number(item.price))}
+            </span>
+          )}
+
+          {(item.order_count || 0) > 0 && (
+            <span
+              className="flex items-center gap-1 text-xs font-medium"
+              style={{ color: colors.textColor, opacity: 0.7 }}
+            >
+              <span aria-hidden="true">·</span>
+              <ThumbsUp
+                className="w-3.5 h-3.5"
+                style={{ color: colors.accentColor }}
+              />
+              <span>({item.order_count})</span>
+            </span>
+          )}
+        </div>
+
+        {rank && (
+          <div className="mt-2">
+            <span
+              className="inline-block text-xs font-semibold px-2.5 py-1 rounded-full"
+              style={{
+                backgroundColor: `${colors.accentColor}1a`,
+                color: colors.accentColor,
+              }}
+            >
+              {`#${rank} Most liked`}
+            </span>
+          </div>
+        )}
+      </div>
+    </article>
+  );
+}
+
+function DrinksSection({
+  drinks,
+  colors,
+  onAdd,
+  formatCurrency,
+}: {
+  drinks: Drink[];
+  colors: ColorConfig;
+  onAdd: (id: string) => void;
+  formatCurrency: (n: number) => string;
+}) {
+  if (drinks.length === 0) {
+    return (
+      <div
+        className="rounded-2xl p-10 text-center"
+        style={{ backgroundColor: colors.headerColor }}
+      >
+        <Wine
+          className="w-10 h-10 mx-auto mb-3"
+          style={{ color: colors.accentColor, opacity: 0.6 }}
+        />
+        <p className="text-sm" style={{ color: colors.textColor }}>
+          No drinks available
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <section>
+      <h2
+        className="text-lg font-bold mb-3"
+        style={{ color: colors.textColor }}
+      >
+        Drinks
+      </h2>
+      <div className="divide-y" style={{ borderColor: `${colors.accentColor}1a` }}>
+        {drinks.map((drink) => (
+          <article key={drink.id} className="py-4 flex gap-4 items-start">
+            <div className="flex-1 min-w-0">
+              <h3
+                className="text-base sm:text-lg font-bold leading-snug text-pretty"
+                style={{ color: colors.textColor }}
+              >
+                {drink.name}
+              </h3>
+              {drink.description && (
+                <p
+                  className="mt-1 text-sm leading-relaxed line-clamp-2"
+                  style={{ color: colors.textColor, opacity: 0.7 }}
+                >
+                  {drink.description}
+                </p>
+              )}
+              <div className="mt-2">
+                <span
+                  className="text-base font-bold"
+                  style={{ color: colors.textColor }}
+                >
+                  {formatCurrency(Number(drink.price))}
+                </span>
+              </div>
+            </div>
+
+            <div className="relative w-28 h-28 sm:w-32 sm:h-32 flex-shrink-0">
+              {drink.image_url ? (
+                <div className="relative w-full h-full rounded-xl overflow-hidden">
+                  <Image
+                    src={drink.image_url}
+                    alt={drink.name}
+                    fill
+                    className="object-cover"
+                    sizes="128px"
+                  />
+                </div>
+              ) : (
+                <div
+                  className="w-full h-full rounded-xl flex items-center justify-center"
+                  style={{ backgroundColor: `${colors.accentColor}1a` }}
+                >
+                  <Wine
+                    className="w-8 h-8"
+                    style={{ color: colors.accentColor, opacity: 0.6 }}
+                  />
+                </div>
+              )}
+              <button
+                onClick={() => onAdd(drink.id)}
+                aria-label={`Add ${drink.name} to cart`}
+                className="absolute -bottom-2 -right-2 w-9 h-9 rounded-full flex items-center justify-center shadow-md transition-transform active:scale-95"
+                style={{
+                  backgroundColor: colors.buttonColor,
+                  color: colors.buttonTextColor,
+                }}
+              >
+                <Plus className="w-5 h-5" strokeWidth={2.5} />
+              </button>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }

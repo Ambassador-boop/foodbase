@@ -102,6 +102,7 @@ export async function GET(
         slug: business.slug,
         description: business.description,
         logo_url: business.logo_url,
+        cover_image_url: business.cover_image_url,
         email: business.email,
         phone: business.phone,
       },
