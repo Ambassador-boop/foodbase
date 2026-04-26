@@ -23,7 +23,7 @@ async function syncRefundFromPaystack(paystackRefundId: string, refundId: string
               fully_deducted = COALESCE($4, fully_deducted),
               expected_at = COALESCE($5, expected_at),
               processed_at = CASE
-                WHEN $1 IN ('processed','failed') AND processed_at IS NULL
+                WHEN $1::text IN ('processed','failed') AND processed_at IS NULL
                 THEN NOW() ELSE processed_at END,
               updated_at = NOW()
         WHERE id = $6`,
