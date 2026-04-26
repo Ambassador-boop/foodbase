@@ -142,7 +142,7 @@ export async function POST(request: NextRequest) {
       [
         refundId,
         orderId,
-        order.payment_reference,
+        transactionId,
         order.business_id,
         orderTotal,
         refundAmount,
