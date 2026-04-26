@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { generateAlphanumericId } from '@/lib/utils';
 import { saveOrderServiceFee } from '@/lib/service-fee';
-import { sql } from '@vercel/postgres';
 
 export async function POST(request: NextRequest) {
   try {
@@ -157,32 +156,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Save service fee data
+    // Save service fee record for the order. Admin revenue is NOT credited
+    // here — it is credited only after Paystack confirms payment, in the
+    // /api/payments/verify (and /api/payments/webhook) handler. This prevents
+    // crediting fees for orders that never actually get paid.
     if (serviceFee && serviceFee > 0) {
       try {
         await saveOrderServiceFee(orderId, serviceFee, serviceFeeType || 'tiered');
-        
-        // Ensure admin_revenue record exists, then update it
-        try {
-          // First try to update existing record
-          const updateResult = await sql`
-            UPDATE admin_revenue
-            SET total_revenue = total_revenue + ${serviceFee},
-                available_balance = available_balance + ${serviceFee},
-                updated_at = NOW()
-            RETURNING id
-          `;
-          
-          // If no record was updated, insert one
-          if (updateResult.rows.length === 0) {
-            await sql`
-              INSERT INTO admin_revenue (total_revenue, withdrawn_amount, available_balance)
-              VALUES (${serviceFee}, 0, ${serviceFee})
-            `;
-          }
-        } catch (revenueErr) {
-          console.error('[v0] Failed to update admin revenue:', revenueErr);
-        }
       } catch (err) {
         console.error('[v0] Failed to save service fee:', err);
         // Don't fail order creation if service fee save fails

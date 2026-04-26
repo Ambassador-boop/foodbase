@@ -28,6 +28,7 @@ export async function GET(
         o.status,
         o.payment_status,
         o.total_amount,
+        o.service_fee_amount,
         o.notes,
         o.created_at,
         o.completed_at,
@@ -89,15 +90,15 @@ export async function GET(
       };
     });
 
-    // Calculate totals - item_price is the total price for that order_item (already includes quantity)
+    // Use the stored service fee from the order, not a recomputed 7.5%.
+    // item_price is the per-unit price that already includes the per-unit
+    // sum of addon prices, so subtotal is item_price * quantity per row.
     const subtotal = items.reduce((total, item) => {
-      const addonTotal = item.addons?.reduce((sum: number, addon: any) => sum + (parseFloat(addon.price) || 0), 0) || 0;
-      // item.item_price is already the total for this item * quantity, addon prices are per addon * quantity
-      return total + item.item_price + (addonTotal * item.quantity);
+      return total + item.item_price * item.quantity;
     }, 0);
 
-    const serviceFee = Math.round(subtotal * 0.075 * 100) / 100; // 7.5% service fee
-    const total = subtotal + serviceFee;
+    const total = parseFloat(order.total_amount) || subtotal;
+    const serviceFee = parseFloat(order.service_fee_amount) || Math.max(0, total - subtotal);
 
     return NextResponse.json({
       order: {

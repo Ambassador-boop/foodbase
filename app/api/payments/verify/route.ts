@@ -1,116 +1,218 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyPayment } from '@/lib/paystack';
-import { db } from '@/lib/db';
+import { db, query, getOne } from '@/lib/db';
+import { generateAlphanumericId } from '@/lib/utils';
 
+/**
+ * Verifies a Paystack payment, then atomically settles the order:
+ *  - Marks the order paid / confirmed.
+ *  - Records a transaction with the NET amount routed to the business
+ *    (total minus service fee — the service fee is admin revenue).
+ *  - Credits businesses.available_balance with the net amount.
+ *  - Increments businesses.total_orders by 1.
+ *  - Increments menu_items.order_count by ordered quantity for each item.
+ *  - Credits admin_revenue with the service fee.
+ *
+ * Idempotent: re-verifying an already paid order will not double-count.
+ */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { reference } = body;
 
     if (!reference) {
-      return NextResponse.json(
-        { error: 'Reference is required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Reference is required' }, { status: 400 });
     }
 
-    console.log('[v0] Verifying payment with reference:', reference);
+    console.log('[v0] Verify: Verifying Paystack reference:', reference);
 
-    // Verify with Paystack
     const paystackResponse = await verifyPayment(reference);
 
-    console.log('[v0] Paystack verification response:', paystackResponse);
-
-    if (!paystackResponse.status) {
+    if (!paystackResponse?.status || paystackResponse.data?.status !== 'success') {
+      console.log('[v0] Verify: Paystack reports unsuccessful payment:', paystackResponse?.data?.status);
       return NextResponse.json(
-        { error: 'Payment verification failed' },
+        { error: 'Payment was not successful', status: paystackResponse?.data?.status },
         { status: 400 }
       );
     }
 
     const paymentData = paystackResponse.data;
+    const paystackAmount = (paymentData.amount || 0) / 100; // kobo -> NGN
+    const metadataOrderId = paymentData.metadata?.orderId;
 
-    // Check if payment is successful
-    if (paymentData.status === 'success') {
-      console.log('[v0] Payment successful for reference:', reference);
+    // Locate the order. Try metadata first, then reference == id, then payment_reference.
+    const order = await getOne(
+      `SELECT id, business_id, total_amount, service_fee_amount, payment_status, customer_name
+         FROM orders
+        WHERE id = $1 OR id = $2 OR payment_reference = $1
+        LIMIT 1`,
+      [reference, metadataOrderId || '']
+    );
 
-      let orderId = paymentData.metadata?.orderId;
-      let businessSlug = '';
-      let businessId = '';
+    if (!order) {
+      console.log('[v0] Verify: No order found for reference:', reference);
+      return NextResponse.json({ error: 'Order not found for this reference' }, { status: 404 });
+    }
 
-      // Update order payment status in database
-      if (orderId) {
-        const updateResult = await db.query(
-          'UPDATE orders SET payment_status = $1, payment_reference = $2, paid_at = NOW() WHERE id = $3 RETURNING business_id, customer_name',
-          ['completed', reference, orderId]
-        );
-        console.log('[v0] Order updated with payment status');
+    // Pull the business slug for the redirect, regardless of payment state
+    const business = await getOne(
+      `SELECT slug FROM businesses WHERE id = $1`,
+      [order.business_id]
+    );
+    const businessSlug = business?.slug || '';
 
-        // Fetch business slug and info from the business_id
-        if (updateResult && updateResult.length > 0) {
-          businessId = updateResult[0].business_id;
-          const customerName = updateResult[0].customer_name;
-          const businessResult = await db.query(
-            'SELECT slug FROM public.businesses WHERE id = $1',
-            [businessId]
-          );
-
-          if (businessResult && businessResult.length > 0) {
-            businessSlug = businessResult[0].slug;
-            console.log('[v0] Business slug fetched:', businessSlug);
-          }
-
-          // Send OneSignal notification
-          try {
-            const notificationResponse = await fetch(
-              `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/notifications/send-order`,
-              {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  orderId,
-                  customerName,
-                  businessId,
-                  paymentStatus: 'completed',
-                }),
-              }
-            );
-
-            if (!notificationResponse.ok) {
-              console.error('[v0] Failed to send notification');
-            } else {
-              console.log('[v0] Notification sent for order:', orderId);
-            }
-          } catch (notificationError) {
-            console.error('[v0] Error sending notification:', notificationError);
-            // Don't fail payment verification if notification fails
-          }
-        }
-      }
-
+    // Idempotency: already settled
+    if (order.payment_status === 'paid' || order.payment_status === 'completed') {
+      console.log('[v0] Verify: Order already settled:', order.id);
       return NextResponse.json({
         success: true,
         status: 'success',
-        amount: paymentData.amount / 100,
-        reference: paymentData.reference,
-        orderId,
+        amount: Number(order.total_amount) || paystackAmount,
+        reference,
+        orderId: order.id,
         businessSlug,
-        message: 'Payment verified successfully',
+        message: 'Order already settled',
+        alreadySettled: true,
       });
     }
 
-    console.log('[v0] Payment not successful. Status:', paymentData.status);
+    const totalAmount = Number(order.total_amount) || paystackAmount;
+    const serviceFee = Number(order.service_fee_amount) || 0;
+    const netToBusiness = Math.max(0, totalAmount - serviceFee);
 
-    return NextResponse.json(
-      { error: 'Payment was not successful', status: paymentData.status },
-      { status: 400 }
+    // 1) Mark order paid + confirmed
+    await db.query(
+      `UPDATE orders
+          SET payment_status = $1,
+              status = $2,
+              payment_reference = $3,
+              paid_at = NOW(),
+              updated_at = NOW()
+        WHERE id = $4`,
+      ['paid', 'confirmed', reference, order.id]
     );
+    console.log('[v0] Verify: Order marked paid:', order.id);
+
+    // 2) Insert transaction (net to business)
+    try {
+      await db.query(
+        `INSERT INTO transactions
+           (id, business_id, order_id, transaction_type, amount, payment_method, payment_reference, status, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
+        [
+          `txn_${generateAlphanumericId()}`,
+          order.business_id,
+          order.id,
+          'payment',
+          netToBusiness,
+          'paystack',
+          reference,
+          'completed',
+        ]
+      );
+    } catch (err) {
+      console.error('[v0] Verify: Failed to insert transaction:', err);
+    }
+
+    // 3) Credit business available_balance + bump total_orders
+    try {
+      await db.query(
+        `UPDATE businesses
+            SET available_balance = COALESCE(available_balance, 0) + $1,
+                total_orders = COALESCE(total_orders, 0) + 1,
+                updated_at = NOW()
+          WHERE id = $2`,
+        [netToBusiness, order.business_id]
+      );
+    } catch (err) {
+      console.error('[v0] Verify: Failed to update business balance/total_orders:', err);
+    }
+
+    // 4) Increment menu_items.order_count for each item
+    try {
+      const items = await query(
+        `SELECT menu_item_id, quantity FROM order_items WHERE order_id = $1`,
+        [order.id]
+      );
+      for (const it of items || []) {
+        if (!it.menu_item_id) continue;
+        await db.query(
+          `UPDATE menu_items
+              SET order_count = COALESCE(order_count, 0) + $1,
+                  updated_at = NOW()
+            WHERE id = $2`,
+          [Number(it.quantity) || 1, it.menu_item_id]
+        );
+      }
+    } catch (err) {
+      console.error('[v0] Verify: Failed to update menu_items.order_count:', err);
+    }
+
+    // 5) Credit admin_revenue with the service fee
+    if (serviceFee > 0) {
+      try {
+        const updated = await db.query(
+          `UPDATE admin_revenue
+              SET total_revenue = COALESCE(total_revenue, 0) + $1,
+                  available_balance = COALESCE(available_balance, 0) + $1,
+                  updated_at = NOW()
+            RETURNING id`,
+          [serviceFee]
+        );
+        if (!updated || updated.length === 0) {
+          await db.query(
+            `INSERT INTO admin_revenue (id, total_revenue, withdrawn_amount, available_balance, updated_at)
+             VALUES ($1, $2, 0, $2, NOW())`,
+            [`rev_${generateAlphanumericId()}`, serviceFee]
+          );
+        }
+      } catch (err) {
+        console.error('[v0] Verify: Failed to update admin_revenue:', err);
+      }
+    }
+
+    // 6) Fire-and-forget notification (existing behaviour)
+    try {
+      await fetch(
+        `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/notifications/send-order`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            orderId: order.id,
+            customerName: order.customer_name,
+            businessId: order.business_id,
+            paymentStatus: 'completed',
+          }),
+        }
+      );
+    } catch (notificationError) {
+      console.error('[v0] Verify: Notification dispatch failed:', notificationError);
+    }
+
+    console.log('[v0] Verify: Settlement complete', {
+      orderId: order.id,
+      totalAmount,
+      serviceFee,
+      netToBusiness,
+    });
+
+    return NextResponse.json({
+      success: true,
+      status: 'success',
+      amount: totalAmount,
+      reference,
+      orderId: order.id,
+      businessSlug,
+      message: 'Payment verified successfully',
+    });
   } catch (error) {
-    console.error('[v0] Payment verification error:', error);
+    console.error('[v0] Verify: Error verifying payment:', error);
     return NextResponse.json(
-      { error: 'Failed to verify payment', details: error instanceof Error ? error.message : 'Unknown error' },
+      {
+        error: 'Failed to verify payment',
+        details: error instanceof Error ? error.message : 'Unknown error',
+      },
       { status: 500 }
     );
   }
