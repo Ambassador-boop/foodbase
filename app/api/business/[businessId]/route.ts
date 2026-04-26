@@ -4,7 +4,7 @@ import { verifyJWT } from '@/lib/auth'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { businessId: string } }
+  { params }: { params: Promise<{ businessId: string }> }
 ) {
   try {
     let token = request.headers.get('authorization')?.replace('Bearer ', '')
@@ -21,7 +21,11 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { businessId } = params
+    const { businessId } = await params
+
+    if (!businessId) {
+      return NextResponse.json({ error: 'Business ID is required' }, { status: 400 })
+    }
 
     const { rows } = await sql.query(
       'SELECT * FROM businesses WHERE id = $1 AND owner_id = $2',
@@ -41,7 +45,7 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { businessId: string } }
+  { params }: { params: Promise<{ businessId: string }> }
 ) {
   try {
     let token = request.headers.get('authorization')?.replace('Bearer ', '')
@@ -59,17 +63,57 @@ export async function PATCH(
     }
 
     const body = await request.json()
-    const { name, email, phone, description, address, city, state, country, postal_code, logo_url } = body
+    const {
+      name,
+      email,
+      phone,
+      description,
+      address,
+      city,
+      state,
+      country,
+      postal_code,
+      logo_url,
+      cover_image_url,
+    } = body
 
-    const { businessId } = params
+    const { businessId } = await params
+
+    if (!businessId) {
+      return NextResponse.json({ error: 'Business ID is required' }, { status: 400 })
+    }
 
     const { rows } = await sql.query(
       `UPDATE businesses 
-       SET name = $1, email = $2, phone = $3, description = $4, address = $5, 
-           city = $6, state = $7, country = $8, postal_code = $9, logo_url = $10, updated_at = NOW()
-       WHERE id = $11 AND owner_id = $12 
+       SET name = $1,
+           email = $2,
+           phone = $3,
+           description = $4,
+           address = $5,
+           city = $6,
+           state = $7,
+           country = $8,
+           postal_code = $9,
+           logo_url = $10,
+           cover_image_url = $11,
+           updated_at = NOW()
+       WHERE id = $12 AND owner_id = $13
        RETURNING *`,
-      [name, email, phone, description, address, city, state, country, postal_code, logo_url, businessId, payload.userId]
+      [
+        name,
+        email,
+        phone,
+        description,
+        address,
+        city,
+        state,
+        country,
+        postal_code,
+        logo_url,
+        cover_image_url,
+        businessId,
+        payload.userId,
+      ]
     )
 
     if (rows.length === 0) {

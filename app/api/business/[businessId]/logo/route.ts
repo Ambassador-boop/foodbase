@@ -5,7 +5,7 @@ import { uploadImage } from '@/lib/cloudinary'
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { businessId: string } }
+  { params }: { params: Promise<{ businessId: string }> }
 ) {
   try {
     let token = request.headers.get('authorization')?.replace('Bearer ', '')
@@ -29,17 +29,19 @@ export async function POST(
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })
     }
 
-    // Validate file type
     if (!file.type.startsWith('image/')) {
       return NextResponse.json({ error: 'File must be an image' }, { status: 400 })
     }
 
-    // Validate file size (5MB max)
     if (file.size > 5 * 1024 * 1024) {
       return NextResponse.json({ error: 'File size exceeds 5MB limit' }, { status: 400 })
     }
 
-    const { businessId } = params
+    const { businessId } = await params
+
+    if (!businessId) {
+      return NextResponse.json({ error: 'Business ID is required' }, { status: 400 })
+    }
 
     // Upload to Cloudinary
     const logoUrl = await uploadImage(file, 'business-logos', `logo_${businessId}`)
