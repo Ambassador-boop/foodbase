@@ -109,35 +109,62 @@ export async function GET(
 
     return NextResponse.json({
       id: row.id,
-      order_id: row.order_id,
+
+      reference: row.payment_reference || null,
       transaction_id: row.transaction_id,
-      payment_reference: row.payment_reference,
+      paystack_refund_id: row.paystack_refund_id,
+
       amount: Number(row.refund_amount ?? row.legacy_amount ?? 0),
       original_amount: Number(row.original_amount ?? row.order_total ?? 0),
+      currency: 'NGN',
+
       status: row.status,
       reason: row.reason,
       notes: row.notes,
       customer_note: row.customer_note,
       merchant_note: row.merchant_note,
-      paystack_refund_id: row.paystack_refund_id,
+
       failure_reason: row.failure_reason,
+
       channel: row.channel,
       deducted_amount:
         row.deducted_amount != null ? Number(row.deducted_amount) : null,
       fully_deducted: row.fully_deducted,
+
       expected_at: row.expected_at,
       requested_at: row.requested_at,
       processed_at: row.processed_at,
+
       created_at: row.created_at,
       updated_at: row.updated_at,
+
       customer_name: row.customer_name,
       customer_email: row.customer_email,
+
+      // 👇 ADD THIS (fix for your frontend crash)
+      order: {
+        id: row.order_id,
+        customer_name: row.customer_name,
+        customer_email: row.customer_email,
+        customer_phone: null,
+        total_amount: Number(row.order_total ?? 0),
+        payment_reference: row.payment_reference,
+        created_at: row.created_at,
+      },
+
+      business: {
+        id: row.business_id,
+        name: '',
+        slug: null,
+        logo_url: null,
+      },
     });
-  } catch (err) {
-    console.error('[v0] GET /refunds/[id] error:', err);
-    return NextResponse.json(
-      { error: 'Failed to fetch refund' },
-      { status: 500 },
-    );
-  }
+  })
+} catch (err) {
+  console.error('[v0] GET /refunds/[id] error:', err);
+  return NextResponse.json(
+    { error: 'Failed to fetch refund' },
+    { status: 500 },
+  );
+}
 }
