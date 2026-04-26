@@ -231,7 +231,7 @@ export default function SecurityPage() {
             <div>
               <div className="flex items-center gap-2 mb-3">
                 <Image
-                  src="/foodbase-logo.png"
+                  src="/foodbase-logo-black.png"
                   alt="FoodBase"
                   width={28}
                   height={28}
