@@ -1,160 +1,212 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { verifyJWT } from '@/lib/auth';
-import { generateAlphanumericId } from '@/lib/utils';
+import { nanoid } from 'nanoid';
 
 const PAYSTACK_API_KEY = process.env.PAYSTACK_SECRET_KEY;
+const PAYSTACK_BASE = 'https://api.paystack.co';
 
-async function makePaystackRefund(transactionId: string, amount: number) {
-  if (!PAYSTACK_API_KEY) {
-    throw new Error('Paystack API key not configured');
-  }
-
-  const refundParams = JSON.stringify({
-    transaction: transactionId,
-    amount: Math.round(amount * 100), // Convert to kobo
-  });
-
-  const response = await fetch('https://api.paystack.co/refund', {
+async function paystackRefund(transactionRef: string, amountKobo: number, opts: {
+  customer_note?: string;
+  merchant_note?: string;
+}) {
+  const res = await fetch(`${PAYSTACK_BASE}/refund`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${PAYSTACK_API_KEY}`,
       'Content-Type': 'application/json',
     },
-    body: refundParams,
+    body: JSON.stringify({
+      transaction: transactionRef,
+      amount: amountKobo,
+      currency: 'NGN',
+      customer_note: opts.customer_note,
+      merchant_note: opts.merchant_note,
+    }),
   });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    console.error('[v0] Paystack refund error:', data);
-    throw new Error(data.message || 'Paystack refund failed');
+  const json = await res.json();
+  if (!res.ok || !json.status) {
+    throw new Error(json.message || 'Refund failed');
   }
-
-  return data;
+  return json.data;
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const authCookie = request.cookies.get('auth_token')?.value;
-
-    if (!authCookie) {
-      return NextResponse.json({ error: 'No auth token found' }, { status: 401 });
+    const token =
+      request.headers.get('authorization')?.replace('Bearer ', '') ||
+      request.cookies.get('auth_token')?.value;
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    const user = await verifyJWT(authCookie);
-
-    if (!user) {
-      return NextResponse.json({ error: 'Invalid auth token' }, { status: 401 });
+    const payload = await verifyJWT(token);
+    if (!payload) {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
+    const userId = (payload as any).userId || (payload as any).id;
 
-    const userId = (user as any).userId || (user as any).id;
     const body = await request.json();
     const { orderId, amount, reason, notes } = body;
 
     if (!orderId || !amount || !reason) {
       return NextResponse.json(
         { error: 'Missing required fields' },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    // Verify order belongs to the user's business
-    const orderResult = await db.query(
-      `SELECT o.id, o.total_amount, o.payment_status, o.payment_reference, b.id as business_id
+    /* -------- Order ownership + payment check ------------------- */
+    const orderRows: any = await db.query(
+      `SELECT
+         o.id, o.total_amount, o.payment_status, o.payment_reference,
+         o.customer_name, b.id AS business_id
        FROM orders o
        JOIN businesses b ON o.business_id = b.id
        WHERE o.id = $1 AND b.owner_id = $2`,
-      [orderId, userId]
+      [orderId, userId],
     );
-
-    if (!orderResult || orderResult.length === 0) {
+    const orderList = Array.isArray(orderRows) ? orderRows : orderRows?.rows ?? [];
+    if (orderList.length === 0) {
       return NextResponse.json(
         { error: 'Order not found or not authorized' },
-        { status: 404 }
+        { status: 404 },
       );
     }
+    const order = orderList[0];
+    const refundAmount = Number(amount);
+    const orderTotal = Number(order.total_amount ?? 0);
 
-    const order = orderResult[0];
-
-    // Validate refund amount
-    if (amount <= 0 || amount > order.total_amount) {
+    if (refundAmount <= 0 || refundAmount > orderTotal) {
       return NextResponse.json(
-        { error: 'Invalid refund amount. Cannot exceed original transaction amount.' },
-        { status: 400 }
+        { error: 'Refund amount cannot exceed the original transaction amount.' },
+        { status: 400 },
       );
     }
-
-    // Check if order has been paid
     if (order.payment_status !== 'completed') {
       return NextResponse.json(
         { error: 'Can only refund completed payments' },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    // Create refund record in database
-    const refundId = generateAlphanumericId();
+    /* -------- Already-refunded check ---------------------------- */
+    const existingRows: any = await db.query(
+      `SELECT COALESCE(SUM(refund_amount), 0) AS already_refunded
+         FROM refunds
+        WHERE order_id = $1 AND status NOT IN ('failed','rejected')`,
+      [orderId],
+    );
+    const existingList = Array.isArray(existingRows)
+      ? existingRows
+      : existingRows?.rows ?? [];
+    const alreadyRefunded = Number(existingList[0]?.already_refunded ?? 0);
+    if (alreadyRefunded + refundAmount > orderTotal) {
+      return NextResponse.json(
+        {
+          error: `Only ₦${(orderTotal - alreadyRefunded).toLocaleString()} can still be refunded on this order.`,
+        },
+        { status: 400 },
+      );
+    }
+
+    const refundId = `rf_${nanoid(14)}`;
+    const merchantNote = `Refund for order ${orderId} — reason: ${reason}`;
+    const customerNote = `Refund issued for your order. ${notes || ''}`.trim();
+
+    /* -------- Insert refund row --------------------------------- */
+    await db.query(
+      `INSERT INTO refunds
+        (id, order_id, transaction_id, business_id,
+         original_amount, refund_amount, amount,
+         reason, notes, customer_note, merchant_note,
+         status, requested_at, created_at, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'pending',NOW(),NOW(),NOW())`,
+      [
+        refundId,
+        orderId,
+        order.payment_reference,
+        order.business_id,
+        orderTotal,
+        refundAmount,
+        Math.round(refundAmount * 100), // legacy integer column in kobo
+        reason,
+        notes || null,
+        customerNote,
+        merchantNote,
+      ],
+    );
+
+    /* -------- Initiate Paystack refund -------------------------- */
+    if (!PAYSTACK_API_KEY || !order.payment_reference) {
+      // Without Paystack we can only persist the request
+      return NextResponse.json({
+        success: true,
+        refundId,
+        status: 'pending',
+        message: 'Refund request created.',
+      });
+    }
 
     try {
-      // First, create the refund record (this will track the refund)
-      await db.query(
-        `INSERT INTO refunds 
-        (id, order_id, transaction_id, amount, status, reason, notes, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
-        [refundId, orderId, order.payment_reference, amount, 'pending', reason, notes || null]
+      const data = await paystackRefund(
+        order.payment_reference,
+        Math.round(refundAmount * 100),
+        { customer_note: customerNote, merchant_note: merchantNote },
       );
 
-      console.log('[v0] Refund record created:', refundId);
-
-      // Attempt Paystack refund
-      let paystackResponse = null;
-      try {
-        paystackResponse = await makePaystackRefund(order.payment_reference, amount);
-
-        console.log('[v0] Paystack refund successful:', paystackResponse);
-
-        // Update refund status to completed
-        await db.query(
-          `UPDATE refunds SET status = $1, paystack_refund_id = $2, updated_at = NOW() WHERE id = $3`,
-          ['completed', paystackResponse.data?.id || paystackResponse.data?.reference, refundId]
-        );
-      } catch (paystackError) {
-        console.error('[v0] Paystack refund error:', paystackError);
-
-        // Update refund status to failed but keep record
-        const errorMessage = paystackError instanceof Error ? paystackError.message : 'Unknown error';
-        await db.query(
-          `UPDATE refunds SET status = $1, failure_reason = $2, updated_at = NOW() WHERE id = $3`,
-          ['failed', errorMessage, refundId]
-        );
-
-        // Still return success so user knows the request was recorded
-        return NextResponse.json({
-          success: true,
+      await db.query(
+        `UPDATE refunds
+            SET paystack_refund_id = $1,
+                status = $2,
+                channel = $3,
+                deducted_amount = $4,
+                fully_deducted = $5,
+                expected_at = $6,
+                updated_at = NOW()
+          WHERE id = $7`,
+        [
+          String(data.id ?? ''),
+          data.status || 'pending', // pending | processing | needs-attention | failed | processed
+          data.channel || null,
+          data.deducted_amount != null ? Number(data.deducted_amount) / 100 : null,
+          !!data.fully_deducted,
+          data.expected_at || null,
           refundId,
-          message: 'Refund request created but Paystack processing failed. Please retry.',
-          status: 'pending_retry',
-        });
-      }
+        ],
+      );
 
       return NextResponse.json({
         success: true,
         refundId,
-        message: 'Refund processed successfully',
+        status: data.status || 'pending',
+        message: 'Refund queued for processing.',
       });
-    } catch (dbError) {
-      console.error('[v0] Database error creating refund:', dbError);
+    } catch (err: any) {
+      console.error('[v0] Paystack refund error:', err);
+      const errMsg = err?.message?.slice(0, 500) || 'Refund failed';
+      await db.query(
+        `UPDATE refunds
+            SET status = 'failed',
+                failure_reason = $1,
+                updated_at = NOW()
+          WHERE id = $2`,
+        [errMsg, refundId],
+      );
       return NextResponse.json(
-        { error: 'Failed to create refund record' },
-        { status: 500 }
+        {
+          success: false,
+          refundId,
+          status: 'failed',
+          error: errMsg,
+        },
+        { status: 502 },
       );
     }
-  } catch (error) {
-    console.error('[v0] Refund request error:', error);
+  } catch (err) {
+    console.error('[v0] /refunds/request error:', err);
     return NextResponse.json(
       { error: 'Failed to process refund' },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

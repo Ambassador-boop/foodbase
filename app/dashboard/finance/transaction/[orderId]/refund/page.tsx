@@ -1,133 +1,157 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { AlertCircle, ArrowLeft, Loader } from 'lucide-react';
-import { format, parseISO } from 'date-fns';
+import {
+  AlertCircle,
+  ArrowLeft,
+  CheckCircle2,
+  Info,
+  Loader2,
+  ShieldCheck,
+  Undo2,
+  User,
+  Wallet,
+} from 'lucide-react';
 
-interface OrderDetails {
-  id: string;
-  customer_name: string;
-  total_amount: number;
-  payment_status: string;
+interface OrderResp {
+  order: {
+    id: string;
+    customer_name: string;
+    customer_email: string;
+    payment_status: string;
+    payment_reference: string | null;
+    total_amount: number;
+  };
+  refunds: Array<{ id: string; amount: number; status: string }>;
 }
 
-export default function RefundPage() {
+const NGN = (n: number) =>
+  new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(
+    Number.isFinite(n) ? n : 0,
+  );
+
+const REASONS = [
+  { value: 'customer_request', label: 'Customer request' },
+  { value: 'wrong_order', label: 'Wrong order delivered' },
+  { value: 'damaged_item', label: 'Item damaged or spoiled' },
+  { value: 'duplicate_charge', label: 'Duplicate charge' },
+  { value: 'out_of_stock', label: 'Item out of stock' },
+  { value: 'payment_error', label: 'Payment error' },
+  { value: 'other', label: 'Other' },
+];
+
+export default function RefundRequestPage() {
   const params = useParams();
   const router = useRouter();
   const orderId = params.orderId as string;
 
-  const [order, setOrder] = useState<OrderDetails | null>(null);
+  const [data, setData] = useState<OrderResp | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
 
-  const [refundData, setRefundData] = useState({
-    amount: '',
-    reason: '',
-    notes: '',
-  });
+  const [amount, setAmount] = useState('');
+  const [reason, setReason] = useState('');
+  const [notes, setNotes] = useState('');
+  const [type, setType] = useState<'full' | 'partial'>('full');
 
   useEffect(() => {
-    const fetchOrderDetails = async () => {
+    if (!orderId) return;
+    (async () => {
       try {
-        const response = await fetch(`/api/orders/${orderId}`);
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch order details');
+        const res = await fetch(`/api/business/transactions/${orderId}`, {
+          credentials: 'include',
+        });
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({}));
+          throw new Error(j.error || 'Failed to load order');
         }
-
-        const data = await response.json();
-        setOrder(data);
-        setRefundData((prev) => ({
-          ...prev,
-          amount: data.total_amount.toString(),
-        }));
-      } catch (err) {
-        console.error('[v0] Error fetching order:', err);
-        setError('Failed to load order details');
+        const j: OrderResp = await res.json();
+        setData(j);
+        setAmount(String(j.order.total_amount));
+      } catch (err: any) {
+        setError(err?.message || 'Failed to load order');
       } finally {
         setLoading(false);
       }
-    };
-
-    if (orderId) {
-      fetchOrderDetails();
-    }
+    })();
   }, [orderId]);
 
-  const handleRefundSubmit = async (e: React.FormEvent) => {
+  const order = data?.order;
+  const totalRefunded = useMemo(
+    () =>
+      (data?.refunds || [])
+        .filter((r) =>
+          ['pending', 'processing', 'processed'].includes(
+            String(r.status).toLowerCase(),
+          ),
+        )
+        .reduce((s, r) => s + Number(r.amount || 0), 0),
+    [data],
+  );
+  const refundable = order ? Math.max(0, order.total_amount - totalRefunded) : 0;
+
+  const refundNum = parseFloat(amount) || 0;
+
+  useEffect(() => {
+    if (type === 'full' && order) setAmount(String(refundable));
+  }, [type, order, refundable]);
+
+  const validation = (() => {
+    if (!order) return null;
+    if (!refundNum) return 'Enter a refund amount';
+    if (refundNum <= 0) return 'Amount must be greater than zero';
+    if (refundNum > refundable)
+      return `Maximum refundable is ${NGN(refundable)}`;
+    if (!reason) return 'Select a reason';
+    return null;
+  })();
+
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!refundData.amount || parseFloat(refundData.amount) <= 0) {
-      setError('Please enter a valid refund amount');
+    if (validation) {
+      setError(validation);
       return;
     }
-
-    if (!refundData.reason) {
-      setError('Please select a reason for refund');
-      return;
-    }
-
-    const refundAmount = parseFloat(refundData.amount);
-
-    if (order && refundAmount > order.total_amount) {
-      setError('Refund amount cannot exceed original transaction amount');
-      return;
-    }
-
     setSubmitting(true);
     setError('');
-
     try {
-      const response = await fetch('/api/refunds/request', {
+      const res = await fetch('/api/refunds/request', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           orderId,
-          amount: refundAmount,
-          reason: refundData.reason,
-          notes: refundData.notes,
+          amount: refundNum,
+          reason,
+          notes: notes || undefined,
         }),
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to request refund');
+      const j = await res.json();
+      if (!res.ok && !j.refundId) {
+        throw new Error(j.error || 'Refund failed');
       }
-
-      // Redirect to refund details page
-      router.push(`/dashboard/finance/refunds/${data.refundId}`);
-    } catch (err) {
-      console.error('[v0] Refund request error:', err);
-      setError(err instanceof Error ? err.message : 'Failed to request refund');
-    } finally {
+      router.push(`/dashboard/finance/refunds/${j.refundId}`);
+    } catch (err: any) {
+      setError(err?.message || 'Refund failed');
       setSubmitting(false);
     }
   };
 
-  const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(amount);
-
   if (loading) {
     return (
       <div className="space-y-4">
-        <div className="flex items-center gap-2">
-          <Link href={`/dashboard/finance/transaction/${orderId}`}>
-            <Button variant="outline" size="sm" className="h-8">
-              <ArrowLeft className="w-4 h-4 mr-1" />
-              Back
-            </Button>
-          </Link>
-          <h1 className="text-2xl font-bold">Request Refund</h1>
-        </div>
-        <div className="flex items-center justify-center h-96">
-          <p className="text-muted-foreground text-sm">Loading order details...</p>
+        <Header orderId={orderId} />
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className="h-32 animate-pulse rounded-2xl bg-muted/60"
+            />
+          ))}
         </div>
       </div>
     );
@@ -136,150 +160,245 @@ export default function RefundPage() {
   if (!order) {
     return (
       <div className="space-y-4">
-        <div className="flex items-center gap-2">
-          <Link href="/dashboard/finance">
-            <Button variant="outline" size="sm" className="h-8">
-              <ArrowLeft className="w-4 h-4 mr-1" />
-              Back
-            </Button>
-          </Link>
-          <h1 className="text-2xl font-bold">Request Refund</h1>
+        <Header orderId={orderId} />
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-center">
+          <AlertCircle className="mx-auto h-8 w-8 text-rose-500" />
+          <p className="mt-2 text-sm text-rose-700">
+            {error || 'Order not found'}
+          </p>
         </div>
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <AlertCircle className="w-8 h-8 mx-auto text-red-500 mb-2" />
-          <p className="text-sm text-red-700 text-center">Order not found</p>
+      </div>
+    );
+  }
+
+  if (refundable <= 0) {
+    return (
+      <div className="space-y-4">
+        <Header orderId={orderId} />
+        <div className="mx-auto max-w-md rounded-2xl border border-border bg-card p-6 text-center shadow-sm">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+            <CheckCircle2 className="h-6 w-6" />
+          </div>
+          <h2 className="mt-3 text-lg font-semibold">Already refunded</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            This transaction has been fully refunded. No further refund is
+            possible.
+          </p>
+          <Link
+            href={`/dashboard/finance/transaction/${orderId}`}
+            className="mt-4 inline-flex w-full items-center justify-center rounded-lg border border-border bg-card px-4 py-2.5 text-sm font-medium hover:bg-muted/40"
+          >
+            Back to transaction
+          </Link>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <Link href={`/dashboard/finance/transaction/${orderId}`}>
-          <Button variant="outline" size="sm" className="h-8">
-            <ArrowLeft className="w-4 h-4 mr-1" />
-            Back
-          </Button>
-        </Link>
-        <div>
-          <h1 className="text-2xl font-bold">Request Refund</h1>
-          <p className="text-xs text-muted-foreground">Order #{orderId.slice(0, 8)}</p>
-        </div>
-      </div>
+    <div className="mx-auto max-w-3xl space-y-5 pb-10">
+      <Header orderId={orderId} />
 
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <div className="flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-            <p className="text-sm text-red-700">{error}</p>
-          </div>
+        <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          {error}
         </div>
       )}
 
-      <form onSubmit={handleRefundSubmit} className="space-y-4">
-        {/* Order Summary */}
-        <div className="bg-white border border-border rounded-lg p-4">
-          <h2 className="text-sm font-semibold mb-3">Order Summary</h2>
-
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">Customer</p>
-              <p className="text-sm font-medium">{order.customer_name}</p>
-            </div>
-
-            <div className="flex items-center justify-between pt-2 border-t border-border">
-              <p className="text-sm font-semibold">Original Amount</p>
-              <p className="text-lg font-bold text-green-600">{formatCurrency(order.total_amount)}</p>
-            </div>
+      {/* Hero */}
+      <div className="relative overflow-hidden rounded-2xl border border-rose-200 bg-gradient-to-br from-rose-50 via-rose-50 to-amber-50 p-5">
+        <div className="flex items-start gap-3">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-rose-100 text-rose-700">
+            <Undo2 className="h-6 w-6" />
           </div>
-        </div>
-
-        {/* Refund Form */}
-        <div className="bg-white border border-border rounded-lg p-4 space-y-4">
-          <h2 className="text-sm font-semibold">Refund Details</h2>
-
-          {/* Refund Amount */}
-          <div>
-            <label className="text-xs font-semibold block mb-2">Refund Amount *</label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">₦</span>
-              <input
-                type="number"
-                step="0.01"
-                max={order.total_amount}
-                value={refundData.amount}
-                onChange={(e) => setRefundData({ ...refundData, amount: e.target.value })}
-                className="w-full pl-8 pr-3 py-2 border border-input rounded text-sm"
-                placeholder="0.00"
-              />
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Max: {formatCurrency(order.total_amount)}
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Refund customer
+            </p>
+            <p className="mt-1 text-lg font-bold">{order.customer_name}</p>
+            <p className="text-xs text-muted-foreground">
+              Original payment: {NGN(order.total_amount)}
+              {totalRefunded > 0 && (
+                <>
+                  {' · '}Already refunded: {NGN(totalRefunded)}
+                </>
+              )}
             </p>
           </div>
+        </div>
+      </div>
 
-          {/* Reason */}
-          <div>
-            <label className="text-xs font-semibold block mb-2">Reason for Refund *</label>
-            <select
-              value={refundData.reason}
-              onChange={(e) => setRefundData({ ...refundData, reason: e.target.value })}
-              className="w-full px-3 py-2 border border-input rounded text-sm"
-            >
-              <option value="">Select a reason</option>
-              <option value="customer_request">Customer Request</option>
-              <option value="wrong_order">Wrong Order Delivered</option>
-              <option value="damaged_item">Item Damaged</option>
-              <option value="duplicate_charge">Duplicate Charge</option>
-              <option value="payment_error">Payment Error</option>
-              <option value="other">Other</option>
-            </select>
-          </div>
-
-          {/* Notes */}
-          <div>
-            <label className="text-xs font-semibold block mb-2">Additional Notes</label>
-            <textarea
-              value={refundData.notes}
-              onChange={(e) => setRefundData({ ...refundData, notes: e.target.value })}
-              placeholder="Add any additional details about this refund..."
-              rows={3}
-              className="w-full px-3 py-2 border border-input rounded text-sm resize-none"
+      <form onSubmit={submit} className="space-y-5">
+        {/* Refund type */}
+        <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+          <h2 className="text-sm font-semibold">Refund type</h2>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <TypeOption
+              active={type === 'full'}
+              onClick={() => setType('full')}
+              title="Full refund"
+              hint={NGN(refundable)}
+            />
+            <TypeOption
+              active={type === 'partial'}
+              onClick={() => setType('partial')}
+              title="Partial refund"
+              hint="Custom amount"
             />
           </div>
-        </div>
+        </section>
 
-        {/* Important Note */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-          <p className="text-xs text-blue-800">
-            <strong>Note:</strong> Refund amount cannot exceed the original transaction amount. The refund will be processed through Paystack and may take 2-5 business days to reflect in the customer's account.
+        {/* Amount */}
+        <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+          <h2 className="text-sm font-semibold">Refund amount</h2>
+          <div className="mt-3 relative">
+            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-semibold text-muted-foreground">
+              ₦
+            </span>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              max={refundable}
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              disabled={type === 'full'}
+              className="block w-full rounded-xl border border-border bg-background px-10 py-4 text-2xl font-bold tabular-nums focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:cursor-not-allowed disabled:bg-muted/40"
+            />
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Max refundable: {NGN(refundable)}
+          </p>
+        </section>
+
+        {/* Reason */}
+        <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+          <h2 className="text-sm font-semibold">Reason</h2>
+          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {REASONS.map((r) => (
+              <button
+                key={r.value}
+                type="button"
+                onClick={() => setReason(r.value)}
+                className={`rounded-xl border px-3 py-2.5 text-left text-sm transition-colors ${
+                  reason === r.value
+                    ? 'border-primary bg-primary/5 text-primary'
+                    : 'border-border bg-card hover:bg-muted/40'
+                }`}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-4">
+            <label
+              htmlFor="notes"
+              className="mb-1.5 block text-xs font-medium"
+            >
+              Additional notes (optional)
+            </label>
+            <textarea
+              id="notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={3}
+              maxLength={500}
+              placeholder="Add any context for this refund. The customer will see this note."
+              className="block w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
+            />
+          </div>
+        </section>
+
+        {/* Trust note */}
+        <div className="flex items-start gap-2 rounded-xl border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
+          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+          <p>
+            Refunds are processed by Paystack. Customers usually receive funds
+            within a few business days, but it can take up to 10 business days.
           </p>
         </div>
 
-        {/* Actions */}
-        <div className="flex gap-2">
-          <Link href={`/dashboard/finance/transaction/${orderId}`} className="flex-1">
-            <Button variant="outline" className="w-full h-9">
+        {validation && !error && (
+          <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+            <Info className="mt-0.5 h-4 w-4 shrink-0" />
+            {validation}
+          </div>
+        )}
+
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Link
+            href={`/dashboard/finance/transaction/${orderId}`}
+            className="sm:w-32"
+          >
+            <Button variant="outline" className="h-11 w-full">
               Cancel
             </Button>
           </Link>
           <button
             type="submit"
-            disabled={submitting}
-            className="flex-1 h-9 bg-primary text-white rounded hover:bg-primary-dark disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-sm font-medium"
+            disabled={submitting || !!validation}
+            className="flex h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-rose-600 px-4 text-sm font-medium text-white transition-colors hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {submitting ? (
               <>
-                <Loader className="w-4 h-4 mr-2 animate-spin" />
-                Processing...
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Processing refund…
               </>
             ) : (
-              'Request Refund'
+              <>
+                <Undo2 className="h-4 w-4" />
+                Confirm refund · {NGN(refundNum)}
+              </>
             )}
           </button>
         </div>
       </form>
     </div>
+  );
+}
+
+function Header({ orderId }: { orderId: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <Link href={`/dashboard/finance/transaction/${orderId}`}>
+        <Button variant="outline" size="sm" className="h-8">
+          <ArrowLeft className="mr-1 h-4 w-4" />
+          Back
+        </Button>
+      </Link>
+      <h1 className="text-2xl font-bold tracking-tight">Request refund</h1>
+    </div>
+  );
+}
+
+function TypeOption({
+  active,
+  onClick,
+  title,
+  hint,
+}: {
+  active: boolean;
+  onClick: () => void;
+  title: string;
+  hint: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex flex-col items-start gap-1 rounded-xl border px-4 py-3 text-left transition-colors ${
+        active
+          ? 'border-primary bg-primary/5'
+          : 'border-border hover:bg-muted/40'
+      }`}
+    >
+      <span className="flex items-center gap-2 text-sm font-medium">
+        {active && <CheckCircle2 className="h-4 w-4 text-primary" />}
+        {title}
+      </span>
+      <span className="text-xs text-muted-foreground">{hint}</span>
+    </button>
   );
 }

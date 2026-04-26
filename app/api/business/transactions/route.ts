@@ -15,6 +15,9 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    // The JWT payload exposes `userId`, not `id`.
+    const userId = (user as any).userId || (user as any).id;
+
     const { searchParams } = new URL(req.url);
     const type = searchParams.get('type'); // matches transaction_type column
     const startDate = searchParams.get('startDate');
@@ -40,7 +43,7 @@ export async function GET(req: NextRequest) {
       LEFT JOIN orders o ON t.order_id = o.id
       WHERE b.owner_id = $1
     `;
-    const params: any[] = [user.id];
+    const params: any[] = [userId];
 
     if (type) {
       query += ` AND t.transaction_type = $${params.length + 1}`;
