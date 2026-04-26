@@ -1,0 +1,4 @@
+allowBuilds:
+  bufferutil: true
+  core-js: true
+  sharp: true
