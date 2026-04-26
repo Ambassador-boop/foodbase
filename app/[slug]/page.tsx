@@ -670,7 +670,9 @@ function MenuRow({
   const hasAddons = item.addons && item.addons.length > 0;
   const hasDiscount = item.discount_type && item.original_price;
 
-  const handleClick = () => {
+  const handleAdd = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
     if (hasAddons) {
       window.location.href = `/${slug}/add-on?itemId=${item.id}`;
     } else {
@@ -679,7 +681,11 @@ function MenuRow({
   };
 
   return (
-    <article className="py-4 flex gap-4 items-start">
+    <Link
+      href={`/${slug}/${item.id}`}
+      className="py-4 flex gap-4 items-start cursor-pointer"
+      aria-label={`View details for ${item.name}`}
+    >
       {/* Left: text */}
       <div className="flex-1 min-w-0">
         <h3
@@ -784,7 +790,7 @@ function MenuRow({
           </div>
         )}
         <button
-          onClick={handleClick}
+          onClick={handleAdd}
           aria-label={`Add ${item.name} to cart`}
           className="absolute -bottom-2 -right-2 w-9 h-9 rounded-full flex items-center justify-center shadow-md transition-transform active:scale-95"
           style={{
@@ -795,7 +801,7 @@ function MenuRow({
           <Plus className="w-5 h-5" strokeWidth={2.5} />
         </button>
       </div>
-    </article>
+    </Link>
   );
 }
 
@@ -817,7 +823,9 @@ function FeaturedCard({
   const hasAddons = item.addons && item.addons.length > 0;
   const hasDiscount = item.discount_type && item.original_price;
 
-  const handleClick = () => {
+  const handleAdd = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
     if (hasAddons) {
       window.location.href = `/${slug}/add-on?itemId=${item.id}`;
     } else {
@@ -826,7 +834,7 @@ function FeaturedCard({
   };
 
   return (
-    <article className="flex flex-col">
+    <Link href={`/${slug}/${item.id}`} className="flex flex-col cursor-pointer">
       <div className="relative w-full aspect-square rounded-xl overflow-hidden">
         {item.image_url ? (
           <Image
@@ -855,7 +863,7 @@ function FeaturedCard({
           </div>
         ) : null}
         <button
-          onClick={handleClick}
+          onClick={handleAdd}
           aria-label={`Add ${item.name} to cart`}
           className="absolute top-2 right-2 w-9 h-9 rounded-lg flex items-center justify-center shadow-md transition-transform active:scale-95"
           style={{
@@ -937,7 +945,7 @@ function FeaturedCard({
           </div>
         )}
       </div>
-    </article>
+    </Link>
   );
 }
 
