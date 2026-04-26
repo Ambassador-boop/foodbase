@@ -233,7 +233,7 @@ export default function ItemDetailPage() {
       return;
     }
     if (hasAddons) {
-      router.push(`/${slug}/add-on?itemId=${itemId}`);
+      router.push(`/${slug}/add-on?itemId=${itemId}&qty=${quantity}`);
     } else {
       addMenuItemDirectlyToCart();
     }
@@ -491,6 +491,7 @@ export default function ItemDetailPage() {
                 itemId={itemId}
                 addons={addons}
                 colors={colors}
+                quantity={quantity}
               />
             )}
 
@@ -669,11 +670,13 @@ function AddonImagesRow({
   itemId,
   addons,
   colors,
+  quantity,
 }: {
   slug: string;
   itemId: string;
   addons: Addon[];
   colors: ColorConfig;
+  quantity: number;
 }) {
   // Take a representative image from each addon (first option image, then addon image)
   const items = addons
@@ -691,7 +694,7 @@ function AddonImagesRow({
     // Still show the entry as a tappable section (no images available)
     return (
       <Link
-        href={`/${slug}/add-on?itemId=${itemId}`}
+        href={`/${slug}/add-on?itemId=${itemId}&qty=${quantity}`}
         className="mt-6 inline-flex items-center gap-2 px-4 py-2 rounded-full font-semibold text-sm self-start"
         style={{
           backgroundColor: `${colors.accentColor}14`,
@@ -716,7 +719,7 @@ function AddonImagesRow({
         Add-ons
       </h3>
       <Link
-        href={`/${slug}/add-on?itemId=${itemId}`}
+        href={`/${slug}/add-on?itemId=${itemId}&qty=${quantity}`}
         className="flex items-center gap-3 group"
       >
         <div className="flex -space-x-3">
