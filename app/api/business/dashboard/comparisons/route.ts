@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
        FROM orders
        WHERE business_id = $1
        AND DATE(created_at) = CURRENT_DATE
-       AND payment_status = 'completed'`,
+       AND payment_status IN ('paid', 'completed')`,
       [businessId]
     );
 
@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
        FROM orders
        WHERE business_id = $1
        AND DATE(created_at) = CURRENT_DATE - INTERVAL '1 day'
-       AND payment_status = 'completed'`,
+       AND payment_status IN ('paid', 'completed')`,
       [businessId]
     );
 

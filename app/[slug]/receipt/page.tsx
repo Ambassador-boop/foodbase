@@ -28,6 +28,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { fetchColorConfig, type ColorConfig } from '@/lib/color-config';
+import { toast } from 'sonner';
 
 interface OrderItem {
   id: string;
@@ -167,74 +168,112 @@ export default function ReceiptPage() {
 
   // ---------- Share / download ----------
   const captureCanvas = async () => {
-    if (!receiptRef.current) return null;
+    const node = receiptRef.current;
+    if (!node) throw new Error('Receipt is not ready yet. Please try again.');
+
+    // Wait one frame so any layout/popover transitions settle and fonts resolve
+    await new Promise((r) => requestAnimationFrame(() => r(null)));
+    if (typeof document !== 'undefined' && (document as any).fonts?.ready) {
+      try {
+        await (document as any).fonts.ready;
+      } catch {
+        /* ignore */
+      }
+    }
+
     const html2canvas = (await import('html2canvas')).default;
-    return html2canvas(receiptRef.current, {
+    return html2canvas(node, {
       useCORS: true,
       allowTaint: false,
       scale: 2,
       backgroundColor: '#ffffff',
       logging: false,
+      // Ignore elements with [data-html2canvas-ignore]
+      ignoreElements: (el) => el.hasAttribute?.('data-html2canvas-ignore'),
     });
   };
 
+  const triggerBlobDownload = (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.rel = 'noopener';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    // Revoke a bit later so Safari has time to start the download
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+  };
+
   const handleDownloadPNG = async () => {
+    if (downloading) return;
+    setShareOpen(false);
+    setDownloading('png');
+    const t = toast.loading('Preparing PNG receipt…');
     try {
-      setDownloading('png');
+      // Give the popover a tick to close before we capture
+      await new Promise((r) => setTimeout(r, 60));
       const canvas = await captureCanvas();
-      if (!canvas) return;
-      const dataUrl = canvas.toDataURL('image/png');
-      const link = document.createElement('a');
-      link.href = dataUrl;
-      link.download = `receipt-${orderData?.order.id || 'order'}.png`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      setShareOpen(false);
-    } catch (err) {
-      console.error('PNG download failed', err);
+      const blob: Blob | null = await new Promise((resolve) =>
+        canvas.toBlob((b) => resolve(b), 'image/png')
+      );
+      if (!blob) throw new Error('Could not encode PNG.');
+      const filename = `receipt-${String(orderData?.order.id || 'order').slice(0, 8)}.png`;
+      triggerBlobDownload(blob, filename);
+      toast.success('Receipt downloaded', { id: t });
+    } catch (err: any) {
+      console.error('[v0] PNG download failed', err);
+      toast.error(err?.message || 'Could not download PNG receipt.', { id: t });
     } finally {
       setDownloading(null);
     }
   };
 
   const handleDownloadPDF = async () => {
+    if (downloading) return;
+    setShareOpen(false);
+    setDownloading('pdf');
+    const t = toast.loading('Preparing PDF receipt…');
     try {
-      setDownloading('pdf');
+      await new Promise((r) => setTimeout(r, 60));
       const canvas = await captureCanvas();
-      if (!canvas) return;
       const { jsPDF } = await import('jspdf');
       const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'pt',
-        format: 'a4',
-      });
+
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
       const margin = 24;
       const imgWidth = pageWidth - margin * 2;
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
-      // If image fits on a single page, just add it; else paginate.
       if (imgHeight <= pageHeight - margin * 2) {
         pdf.addImage(imgData, 'PNG', margin, margin, imgWidth, imgHeight);
       } else {
-        let position = margin;
-        let heightLeft = imgHeight;
-        pdf.addImage(imgData, 'PNG', margin, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight - margin * 2;
-        while (heightLeft > 0) {
-          position = heightLeft - imgHeight + margin;
-          pdf.addPage();
-          pdf.addImage(imgData, 'PNG', margin, position, imgWidth, imgHeight);
-          heightLeft -= pageHeight - margin * 2;
+        // Multi-page slicing
+        const pageContentHeight = pageHeight - margin * 2;
+        let renderedHeight = 0;
+        while (renderedHeight < imgHeight) {
+          if (renderedHeight > 0) pdf.addPage();
+          pdf.addImage(
+            imgData,
+            'PNG',
+            margin,
+            margin - renderedHeight,
+            imgWidth,
+            imgHeight
+          );
+          renderedHeight += pageContentHeight;
         }
       }
-      pdf.save(`receipt-${orderData?.order.id || 'order'}.pdf`);
-      setShareOpen(false);
-    } catch (err) {
-      console.error('PDF download failed', err);
+
+      const filename = `receipt-${String(orderData?.order.id || 'order').slice(0, 8)}.pdf`;
+      pdf.save(filename);
+      toast.success('Receipt downloaded', { id: t });
+    } catch (err: any) {
+      console.error('[v0] PDF download failed', err);
+      toast.error(err?.message || 'Could not download PDF receipt.', { id: t });
     } finally {
       setDownloading(null);
     }
@@ -428,21 +467,45 @@ const ReceiptDocument = ({
   const { order, items, calculations } = data;
   const totalQty = items.reduce((sum, i) => sum + i.quantity, 0);
 
+  // Use only inline hex colors inside the captured area so html2canvas
+  // (which doesn't understand oklch()) can serialize the receipt reliably.
+  const C = {
+    ink: '#0f172a',
+    sub: '#64748b',
+    line: '#e5e7eb',
+    soft: '#f8fafc',
+    softer: '#f1f5f9',
+    white: '#ffffff',
+    bg: '#ffffff',
+    footerInk: '#475569',
+  };
+
   return (
     <article
       ref={ref}
-      className="bg-white rounded-2xl shadow-sm border border-border overflow-hidden"
-      style={{ color: '#0f172a' }}
+      className="rounded-2xl shadow-sm overflow-hidden"
+      style={{
+        color: C.ink,
+        backgroundColor: C.white,
+        border: `1px solid ${C.line}`,
+      }}
     >
       {/* Banner */}
       <div
         className="px-6 sm:px-8 pt-7 pb-6 text-center"
         style={{
-          background: `linear-gradient(180deg, ${accent}0F 0%, transparent 100%)`,
+          background: `linear-gradient(180deg, ${accent}0F 0%, ${C.white} 100%)`,
         }}
       >
         {/* Logo */}
-        <div className="mx-auto w-20 h-20 rounded-full overflow-hidden bg-white border-2 border-white shadow-md flex items-center justify-center">
+        <div
+          className="mx-auto w-20 h-20 rounded-full overflow-hidden flex items-center justify-center"
+          style={{
+            backgroundColor: C.white,
+            border: `2px solid ${C.white}`,
+            boxShadow: '0 4px 14px rgba(15,23,42,0.08)',
+          }}
+        >
           {order.logo_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -461,30 +524,43 @@ const ReceiptDocument = ({
           )}
         </div>
 
-        <p className="text-[11px] tracking-[0.2em] font-semibold uppercase mt-4 text-muted-foreground">
+        <p
+          className="text-[11px] tracking-[0.2em] font-semibold uppercase mt-4"
+          style={{ color: C.sub }}
+        >
           Order Receipt
         </p>
-        <h2 className="text-xl sm:text-2xl font-bold mt-1">
+        <h2 className="text-xl sm:text-2xl font-bold mt-1" style={{ color: C.ink }}>
           {order.business_name}
         </h2>
-        <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium"
+        <div
+          className="mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium"
           style={{ backgroundColor: `${accent}14`, color: accent }}
         >
           <span
             className="w-1.5 h-1.5 rounded-full"
             style={{ backgroundColor: accent }}
           />
-          {order.payment_status === 'paid' ? 'Payment received' : `Payment ${order.payment_status}`}
+          {order.payment_status === 'paid' || order.payment_status === 'completed'
+            ? 'Payment received'
+            : `Payment ${order.payment_status}`}
         </div>
       </div>
 
       {/* Order meta strip */}
-      <div className="px-6 sm:px-8 grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-3 py-5 border-y border-dashed border-border bg-muted/40">
+      <div
+        className="px-6 sm:px-8 grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-3 py-5"
+        style={{
+          borderTop: `1px dashed ${C.line}`,
+          borderBottom: `1px dashed ${C.line}`,
+          backgroundColor: C.soft,
+        }}
+      >
         <MetaCell
           icon={<Hash className="w-3.5 h-3.5" />}
           label="Order ID"
           value={
-            <span className="font-mono text-sm">
+            <span className="font-mono text-sm" style={{ color: C.ink }}>
               #{String(order.id).slice(0, 8).toUpperCase()}
             </span>
           }
@@ -492,27 +568,38 @@ const ReceiptDocument = ({
         <MetaCell
           icon={<Calendar className="w-3.5 h-3.5" />}
           label="Date"
-          value={<span className="text-sm font-semibold">{orderDateLabel.date}</span>}
+          value={
+            <span className="text-sm font-semibold" style={{ color: C.ink }}>
+              {orderDateLabel.date}
+            </span>
+          }
         />
         <MetaCell
           icon={<Clock className="w-3.5 h-3.5" />}
           label="Time"
-          value={<span className="text-sm font-semibold">{orderDateLabel.time}</span>}
+          value={
+            <span className="text-sm font-semibold" style={{ color: C.ink }}>
+              {orderDateLabel.time}
+            </span>
+          }
         />
       </div>
 
       {/* Items */}
       <section className="px-6 sm:px-8 py-6">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          <h3
+            className="text-sm font-semibold uppercase tracking-wide"
+            style={{ color: C.sub }}
+          >
             Items
           </h3>
-          <span className="text-xs font-medium text-muted-foreground">
+          <span className="text-xs font-medium" style={{ color: C.sub }}>
             {totalQty} {totalQty === 1 ? 'item' : 'items'}
           </span>
         </div>
 
-        <ul className="divide-y divide-dashed divide-border">
+        <ul>
           {items.map((item, idx) => {
             const perUnit = item.quantity > 0 ? item.item_price / item.quantity : item.item_price;
             const addonPerUnit =
@@ -522,9 +609,18 @@ const ReceiptDocument = ({
             const uniqueAddonIds = Array.from(new Set(item.addons.map((a) => a.id)));
 
             return (
-              <li key={idx} className="py-4 first:pt-0 last:pb-0">
+              <li
+                key={idx}
+                className="py-4 first:pt-0 last:pb-0"
+                style={{
+                  borderBottom: idx === items.length - 1 ? 'none' : `1px dashed ${C.line}`,
+                }}
+              >
                 <div className="flex gap-3 sm:gap-4">
-                  <div className="relative w-14 h-14 sm:w-16 sm:h-16 rounded-lg overflow-hidden flex-shrink-0 bg-muted">
+                  <div
+                    className="relative w-14 h-14 sm:w-16 sm:h-16 rounded-lg overflow-hidden flex-shrink-0"
+                    style={{ backgroundColor: C.softer }}
+                  >
                     {item.menu_item_image ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
@@ -534,7 +630,10 @@ const ReceiptDocument = ({
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                      <div
+                        className="w-full h-full flex items-center justify-center"
+                        style={{ color: C.sub }}
+                      >
                         <ShoppingBag className="w-5 h-5" />
                       </div>
                     )}
@@ -549,27 +648,39 @@ const ReceiptDocument = ({
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="font-semibold text-sm leading-tight truncate">
+                        <p
+                          className="font-semibold text-sm leading-tight truncate"
+                          style={{ color: C.ink }}
+                        >
                           {item.menu_item_name}
                         </p>
                         {item.menu_item_description && (
-                          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                          <p
+                            className="text-xs mt-0.5 line-clamp-2"
+                            style={{ color: C.sub }}
+                          >
                             {item.menu_item_description}
                           </p>
                         )}
                       </div>
-                      <p className="text-sm font-bold tabular-nums whitespace-nowrap">
+                      <p
+                        className="text-sm font-bold tabular-nums whitespace-nowrap"
+                        style={{ color: C.ink }}
+                      >
                         {formatCurrency(lineTotal)}
                       </p>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1 tabular-nums">
+                    <p
+                      className="text-xs mt-1 tabular-nums"
+                      style={{ color: C.sub }}
+                    >
                       {formatCurrency(perUnit + addonPerUnit)} × {item.quantity}
                     </p>
 
                     {uniqueAddonIds.length > 0 && (
                       <ul
-                        className="mt-2 pl-3 border-l-2 space-y-1"
-                        style={{ borderColor: `${accent}33` }}
+                        className="mt-2 pl-3 space-y-1"
+                        style={{ borderLeft: `2px solid ${accent}33` }}
                       >
                         {uniqueAddonIds.map((addonId) => {
                           const addon = item.addons.find((a) => a.id === addonId);
@@ -578,7 +689,8 @@ const ReceiptDocument = ({
                           return (
                             <li
                               key={addonId}
-                              className="flex items-center justify-between text-xs text-muted-foreground"
+                              className="flex items-center justify-between text-xs"
+                              style={{ color: C.sub }}
                             >
                               <span className="truncate">
                                 {addon.name}
@@ -604,12 +716,21 @@ const ReceiptDocument = ({
 
       {/* Totals */}
       <section className="px-6 sm:px-8 pb-6">
-        <div className="rounded-xl bg-muted/40 px-4 py-4 space-y-2 text-sm">
-          <Row label="Subtotal" value={formatCurrency(calculations.subtotal)} />
-          <Row label="Service Fee" value={`+ ${formatCurrency(calculations.serviceFee)}`} />
-          <div className="h-px bg-border my-1" />
+        <div
+          className="rounded-xl px-4 py-4 space-y-2 text-sm"
+          style={{ backgroundColor: C.soft }}
+        >
+          <Row label="Subtotal" value={formatCurrency(calculations.subtotal)} colors={C} />
+          <Row
+            label="Service Fee"
+            value={`+ ${formatCurrency(calculations.serviceFee)}`}
+            colors={C}
+          />
+          <div className="h-px my-1" style={{ backgroundColor: C.line }} />
           <div className="flex items-center justify-between pt-1">
-            <span className="text-base font-semibold">Total paid</span>
+            <span className="text-base font-semibold" style={{ color: C.ink }}>
+              Total paid
+            </span>
             <span
               className="text-lg font-extrabold tabular-nums"
               style={{ color: accent }}
@@ -623,7 +744,10 @@ const ReceiptDocument = ({
       {/* Customer info + QR */}
       <section className="px-6 sm:px-8 pb-7 grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-6 sm:gap-8 items-start">
         <div className="space-y-3">
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          <h3
+            className="text-sm font-semibold uppercase tracking-wide"
+            style={{ color: C.sub }}
+          >
             Customer
           </h3>
 
@@ -631,12 +755,14 @@ const ReceiptDocument = ({
             icon={<ShoppingBag className="w-3.5 h-3.5" />}
             label="Name"
             value={order.customer_name || '—'}
+            colors={C}
           />
           {order.customer_email && (
             <InfoLine
               icon={<Mail className="w-3.5 h-3.5" />}
               label="Email"
               value={order.customer_email}
+              colors={C}
             />
           )}
           {order.customer_phone && (
@@ -644,6 +770,7 @@ const ReceiptDocument = ({
               icon={<Phone className="w-3.5 h-3.5" />}
               label="Phone"
               value={order.customer_phone}
+              colors={C}
             />
           )}
           {order.address && (
@@ -651,33 +778,51 @@ const ReceiptDocument = ({
               icon={<MapPin className="w-3.5 h-3.5" />}
               label="Address"
               value={order.address}
+              colors={C}
             />
           )}
           {order.notes && (
-            <div className="rounded-lg border border-dashed border-border px-3 py-2 mt-2">
-              <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold">
+            <div
+              className="rounded-lg px-3 py-2 mt-2"
+              style={{ border: `1px dashed ${C.line}` }}
+            >
+              <p
+                className="text-[11px] uppercase tracking-wide font-semibold"
+                style={{ color: C.sub }}
+              >
                 Special instructions
               </p>
-              <p className="text-xs mt-1">{order.notes}</p>
+              <p className="text-xs mt-1" style={{ color: C.ink }}>
+                {order.notes}
+              </p>
             </div>
           )}
         </div>
 
         <div className="flex flex-col items-center sm:items-end gap-2">
-          <div className="rounded-xl border border-border bg-white p-3">
+          <div
+            className="rounded-xl p-3"
+            style={{
+              border: `1px solid ${C.line}`,
+              backgroundColor: C.white,
+            }}
+          >
             <QRCode
               value={qrUrl}
               size={104}
-              renderAs="svg"
+              renderAs="canvas"
               level="M"
               includeMargin={false}
               fgColor="#0f172a"
               bgColor="#ffffff"
             />
           </div>
-          <p className="text-[11px] text-muted-foreground text-center sm:text-right max-w-[180px] leading-snug">
+          <p
+            className="text-[11px] text-center sm:text-right max-w-[180px] leading-snug"
+            style={{ color: C.sub }}
+          >
             Scan to order again from{' '}
-            <span className="font-semibold text-foreground">
+            <span className="font-semibold" style={{ color: C.ink }}>
               {order.business_name}
             </span>
           </p>
@@ -689,7 +834,7 @@ const ReceiptDocument = ({
         className="px-6 sm:px-8 py-4 text-center text-[11px]"
         style={{
           backgroundColor: `${accent}0A`,
-          color: '#475569',
+          color: C.footerInk,
         }}
       >
         Powered by{' '}
@@ -706,6 +851,17 @@ ReceiptDocument.displayName = 'ReceiptDocument';
 
 // -------------- Small atoms --------------
 
+interface AtomColors {
+  ink: string;
+  sub: string;
+  line: string;
+  soft: string;
+  softer: string;
+  white: string;
+  bg: string;
+  footerInk: string;
+}
+
 function MetaCell({
   icon,
   label,
@@ -717,7 +873,10 @@ function MetaCell({
 }) {
   return (
     <div className="min-w-0">
-      <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground flex items-center gap-1.5">
+      <p
+        className="text-[10px] uppercase tracking-wider font-semibold flex items-center gap-1.5"
+        style={{ color: '#64748b' }}
+      >
         {icon}
         {label}
       </p>
@@ -726,11 +885,21 @@ function MetaCell({
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function Row({
+  label,
+  value,
+  colors,
+}: {
+  label: string;
+  value: string;
+  colors: AtomColors;
+}) {
   return (
     <div className="flex items-center justify-between">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="tabular-nums">{value}</span>
+      <span style={{ color: colors.sub }}>{label}</span>
+      <span className="tabular-nums" style={{ color: colors.ink }}>
+        {value}
+      </span>
     </div>
   );
 }
@@ -739,21 +908,31 @@ function InfoLine({
   icon,
   label,
   value,
+  colors,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
+  colors: AtomColors;
 }) {
   return (
     <div className="flex items-start gap-2.5">
-      <span className="mt-0.5 w-6 h-6 rounded-md bg-muted text-muted-foreground flex items-center justify-center flex-shrink-0">
+      <span
+        className="mt-0.5 w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0"
+        style={{ backgroundColor: colors.softer, color: colors.sub }}
+      >
         {icon}
       </span>
       <div className="min-w-0">
-        <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
+        <p
+          className="text-[10px] uppercase tracking-wider font-semibold"
+          style={{ color: colors.sub }}
+        >
           {label}
         </p>
-        <p className="text-sm font-medium break-words">{value}</p>
+        <p className="text-sm font-medium break-words" style={{ color: colors.ink }}>
+          {value}
+        </p>
       </div>
     </div>
   );

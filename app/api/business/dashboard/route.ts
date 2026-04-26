@@ -35,7 +35,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Business not found or unauthorized' }, { status: 404 });
     }
 
-    // Get today's orders (completed payment status only)
+    // Get today's paid orders (covers both 'paid' from verify/webhook and any
+    // legacy 'completed' rows)
     const todayStats = await getOne(
       `SELECT 
         COUNT(*) as order_count,
@@ -43,7 +44,7 @@ export async function GET(request: NextRequest) {
       FROM orders 
       WHERE business_id = $1 
       AND DATE(created_at) = CURRENT_DATE
-      AND payment_status = 'completed'`,
+      AND payment_status IN ('paid', 'completed')`,
       [businessId]
     );
 
@@ -52,30 +53,31 @@ export async function GET(request: NextRequest) {
       `SELECT COUNT(*) as order_count
        FROM orders 
        WHERE business_id = $1 
-       AND created_at >= CURRENT_DATE - INTERVAL '30 days'`,
+       AND created_at >= CURRENT_DATE - INTERVAL '30 days'
+       AND payment_status IN ('paid', 'completed')`,
       [businessId]
     );
 
-    // Get completed orders (both order status AND payment status completed)
+    // Completed orders = paid orders that have been fulfilled
     const completedStats = await getOne(
       `SELECT COUNT(*) as completed_count
        FROM orders 
        WHERE business_id = $1 
-       AND status = 'completed'
-       AND payment_status = 'completed'`,
+       AND status IN ('completed', 'confirmed')
+       AND payment_status IN ('paid', 'completed')`,
       [businessId]
     );
 
-    // Get total revenue (all orders with completed payment status)
+    // Lifetime revenue (paid orders only)
     const totalRevenueStats = await getOne(
       `SELECT COALESCE(SUM(total_amount), 0) as total
        FROM orders 
        WHERE business_id = $1
-       AND payment_status = 'completed'`,
+       AND payment_status IN ('paid', 'completed')`,
       [businessId]
     );
 
-    // Get last 7 days data from orders (not analytics table, since it might not be populated)
+    // Last 7 days for the chart, paid orders only
     const last7Days = await getAll(
       `SELECT 
         DATE(created_at) as date,
@@ -84,6 +86,7 @@ export async function GET(request: NextRequest) {
       FROM orders 
       WHERE business_id = $1 
       AND created_at >= CURRENT_DATE - INTERVAL '7 days'
+      AND payment_status IN ('paid', 'completed')
       GROUP BY DATE(created_at)
       ORDER BY DATE(created_at) ASC`,
       [businessId]

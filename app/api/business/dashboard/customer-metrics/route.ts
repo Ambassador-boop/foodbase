@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
       `SELECT AVG(total_amount) as avg_value
        FROM orders
        WHERE business_id = $1
-       AND payment_status = 'completed'`,
+       AND payment_status IN ('paid', 'completed')`,
       [businessId]
     );
 

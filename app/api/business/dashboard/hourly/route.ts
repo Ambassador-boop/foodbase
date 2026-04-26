@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
        FROM orders
        WHERE business_id = $1
        AND ${dateFilter}
-       AND payment_status = 'completed'
+       AND payment_status IN ('paid', 'completed')
        GROUP BY EXTRACT(HOUR FROM created_at)
        ORDER BY EXTRACT(HOUR FROM created_at) ASC`,
       [businessId]
