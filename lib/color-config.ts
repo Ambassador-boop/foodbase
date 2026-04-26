@@ -15,7 +15,7 @@ export const DEFAULT_COLORS: ColorConfig = {
   buttonTextColor: '#ffffff',
   headerColor: '#ffffff',
   headerTextColor: '#1a1a1a',
-  accentColor: '#6b8e23',
+  accentColor: '#8E3800',
 };
 
 export async function fetchColorConfig(
