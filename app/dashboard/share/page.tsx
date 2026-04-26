@@ -57,6 +57,40 @@ export default function ShareBusinessPage() {
     }
   };
 
+  const prepareElementForCapture = (element: HTMLElement): HTMLElement => {
+    const clone = element.cloneNode(true) as HTMLElement;
+    
+    // Force safe colors and remove problematic CSS variables
+    clone.style.backgroundColor = '#ffffff';
+    clone.style.color = '#000000';
+    
+    // Walk through all child elements and apply safe styles
+    const walkElements = (el: Element) => {
+      const htmlEl = el as HTMLElement;
+      
+      // Remove all classes to avoid oklch color issues
+      htmlEl.removeAttribute('class');
+      
+      // Apply safe inline styles for common elements
+      if (el.tagName === 'DIV' || el.tagName === 'P' || el.tagName === 'H1' || el.tagName === 'H2') {
+        htmlEl.style.backgroundColor = 'transparent';
+        htmlEl.style.color = '#000000';
+        htmlEl.style.borderColor = '#cccccc';
+      }
+      
+      // Handle border elements
+      if (htmlEl.style.borderWidth && htmlEl.style.borderWidth !== '0px') {
+        htmlEl.style.borderColor = '#cccccc';
+      }
+      
+      // Recursively process children
+      Array.from(el.children).forEach(child => walkElements(child));
+    };
+    
+    walkElements(clone);
+    return clone;
+  };
+
   const handleDownloadQR = async () => {
     try {
       setDownloadingPNG(true);
@@ -70,8 +104,16 @@ export default function ShareBusinessPage() {
       // Wait for QR code canvas to be fully rendered
       await new Promise(resolve => setTimeout(resolve, 800));
 
-      // Generate PNG from the full PDF content
-      const canvas = await html2canvas(pdfRef.current, {
+      // Prepare element with safe styles
+      const preparedElement = prepareElementForCapture(pdfRef.current);
+      preparedElement.style.position = 'absolute';
+      preparedElement.style.left = '-9999px';
+      preparedElement.style.top = '-9999px';
+      
+      document.body.appendChild(preparedElement);
+
+      // Generate PNG from the prepared content
+      const canvas = await html2canvas(preparedElement, {
         scale: 2,
         useCORS: true,
         backgroundColor: '#ffffff',
@@ -79,6 +121,8 @@ export default function ShareBusinessPage() {
         logging: false,
         foreignObjectRendering: true,
       });
+
+      document.body.removeChild(preparedElement);
 
       console.log('[v0] PNG canvas created:', { width: canvas.width, height: canvas.height });
 
@@ -113,7 +157,15 @@ export default function ShareBusinessPage() {
       // Wait for QR code to be fully rendered
       await new Promise(resolve => setTimeout(resolve, 800));
 
-      const canvas = await html2canvas(pdfRef.current, {
+      // Prepare element with safe styles
+      const preparedElement = prepareElementForCapture(pdfRef.current);
+      preparedElement.style.position = 'absolute';
+      preparedElement.style.left = '-9999px';
+      preparedElement.style.top = '-9999px';
+      
+      document.body.appendChild(preparedElement);
+
+      const canvas = await html2canvas(preparedElement, {
         scale: 2,
         useCORS: true,
         backgroundColor: '#ffffff',
@@ -121,6 +173,8 @@ export default function ShareBusinessPage() {
         logging: false,
         foreignObjectRendering: true,
       });
+
+      document.body.removeChild(preparedElement);
 
       console.log('[v0] PDF canvas created:', { width: canvas.width, height: canvas.height });
 
