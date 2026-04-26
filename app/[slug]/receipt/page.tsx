@@ -181,7 +181,9 @@ export default function ReceiptPage() {
       }
     }
 
-    const html2canvas = (await import('html2canvas')).default;
+    // html2canvas-pro is a drop-in replacement that supports modern CSS
+    // color functions (oklch, lab, lch, color-mix) which Tailwind v4 emits.
+    const html2canvas = (await import('html2canvas-pro')).default;
     return html2canvas(node, {
       useCORS: true,
       allowTaint: false,
