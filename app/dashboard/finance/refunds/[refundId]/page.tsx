@@ -177,7 +177,7 @@ export default function RefundDetailsPage() {
       const res = await fetch(`/api/refunds/${refundId}`, { cache: 'no-store' });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || 'Failed to load refund');
-      setRefund(data.refund || null);
+      setRefund(data || null);
     } catch (e: any) {
       console.error('[v0] refund detail error', e);
       if (!silent) toast.error(e.message || 'Could not load refund');
@@ -430,11 +430,10 @@ export default function RefundDetailsPage() {
                 <Info className="w-4 h-4 shrink-0 mt-0.5 text-blue-600" />
                 <p className="text-xs leading-relaxed">
                   {liveStatus === 'processing'
-                    ? `This refund is being processed by Paystack. ${
-                        refund.expected_at
-                          ? `Expected to settle by ${formatDateTime(refund.expected_at)}.`
-                          : 'It typically takes 1–10 business days.'
-                      }`
+                    ? `This refund is being processed by Paystack. ${refund.expected_at
+                      ? `Expected to settle by ${formatDateTime(refund.expected_at)}.`
+                      : 'It typically takes 1–10 business days.'
+                    }`
                     : 'Paystack will pick up this refund shortly. We auto-refresh the status every 15 seconds.'}
                 </p>
               </div>
@@ -470,25 +469,23 @@ export default function RefundDetailsPage() {
                       <li key={idx} className="relative pl-8 pb-6 last:pb-0">
                         {!isLast && (
                           <span
-                            className={`absolute left-[11px] top-5 bottom-0 w-px ${
-                              item.state === 'done'
+                            className={`absolute left-[11px] top-5 bottom-0 w-px ${item.state === 'done'
                                 ? 'bg-emerald-300'
                                 : item.state === 'fail'
                                   ? 'bg-red-300'
                                   : 'bg-muted-foreground/30'
-                            }`}
+                              }`}
                           />
                         )}
                         <span
-                          className={`absolute left-0 top-1 w-[22px] h-[22px] rounded-full border-2 border-background flex items-center justify-center ${
-                            item.state === 'done'
+                          className={`absolute left-0 top-1 w-[22px] h-[22px] rounded-full border-2 border-background flex items-center justify-center ${item.state === 'done'
                               ? 'bg-emerald-500 text-white'
                               : item.state === 'active'
                                 ? 'bg-blue-500 text-white'
                                 : item.state === 'fail'
                                   ? 'bg-red-500 text-white'
                                   : 'bg-muted text-muted-foreground'
-                          }`}
+                            }`}
                         >
                           {item.state === 'done' ? (
                             <CheckCircle2 className="w-3 h-3" />
@@ -747,9 +744,8 @@ function Detail({
       </span>
       <div className="text-right min-w-0 flex items-center gap-1.5 flex-wrap justify-end">
         <span
-          className={`${mono ? 'font-mono text-xs' : 'text-sm'} ${
-            bold ? 'font-bold' : 'font-medium'
-          } break-all`}
+          className={`${mono ? 'font-mono text-xs' : 'text-sm'} ${bold ? 'font-bold' : 'font-medium'
+            } break-all`}
         >
           {value}
         </span>
