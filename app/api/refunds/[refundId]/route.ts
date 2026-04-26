@@ -17,7 +17,7 @@ async function syncRefundFromPaystack(paystackRefundId: string, refundId: string
     const data = json.data;
     await db.query(
       `UPDATE refunds
-          SET status = $1,
+          SET status = $1::text,
               channel = COALESCE($2, channel),
               deducted_amount = COALESCE($3, deducted_amount),
               fully_deducted = COALESCE($4, fully_deducted),
