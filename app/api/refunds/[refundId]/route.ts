@@ -159,12 +159,11 @@ export async function GET(
         logo_url: null,
       },
     });
-  })
-} catch (err) {
-  console.error('[v0] GET /refunds/[id] error:', err);
-  return NextResponse.json(
-    { error: 'Failed to fetch refund' },
-    { status: 500 },
-  );
-}
+  } catch (err) {
+    console.error('[v0] GET /refunds/[id] error:', err);
+    return NextResponse.json(
+      { error: 'Failed to fetch refund' },
+      { status: 500 },
+    );
+  }
 }
