@@ -37,12 +37,11 @@ async function verifyAndSyncTransfer(reference: string, withdrawalId: string) {
                                                                                                         END,
                                                                                                                   updated_at = NOW()
                                                                                                                       WHERE id = $4::text`,
-    )
-    [
-      newStatus,
-      data.gateway_response || data.failures || null,
-      data.transfer_code || null,
-      withdrawalId,
+      [
+        newStatus,
+        data.gateway_response || data.failures || null,
+        data.transfer_code || null,
+        withdrawalId,
       ],
     );
 
