@@ -12,7 +12,7 @@ async function sendBrevoEmail(
 ): Promise<boolean> {
   try {
     const apiKey = process.env.BREVO_API_KEY;
-    const senderEmail = process.env.BREVO_EMAIL || 'wisdommeremeze@gmail.com';
+    const senderEmail = process.env.BREVO_EMAIL || 'auth@foodbase.ng';
 
     if (!apiKey) {
       console.error('[v0] BREVO_API_KEY not configured');
