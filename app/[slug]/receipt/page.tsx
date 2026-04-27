@@ -841,7 +841,7 @@ const ReceiptDocument = ({
       >
         Powered by{' '}
         <span className="font-semibold" style={{ color: accent }}>
-          MyFoodBase
+          FoodBase
         </span>{' '}
         · foodbase.ng
       </footer>
