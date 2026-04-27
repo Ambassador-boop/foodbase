@@ -34,7 +34,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     locale: 'en_NG',
-    url: 'https://myfoodbase.vercel.app',
+    url: 'https://foodbase.ng',
     siteName: 'FoodBase',
     description: 'Seamless restaurant ordering and payment platform',
   },
