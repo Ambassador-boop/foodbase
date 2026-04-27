@@ -26,7 +26,7 @@ async function verifyAndSyncTransfer(reference: string, withdrawalId: string) {
 
     await db.query(
       `UPDATE withdrawals
-              SET status = $1::text,
+              SET status = $1::withdrawal_status,
                         gateway_response = $2,
                                   transfer_code = COALESCE($3, transfer_code),
                                             processed_at = CASE
