@@ -119,7 +119,7 @@ Copy and paste these names, then get the values from the respective services:
 | `CLOUDINARY_API_SECRET` | `abc123def456` | Cloudinary | Prod, Preview, Dev |
 | `BREVO_EMAIL` | `wisdommeremeze@gmail.com` | Fixed | Prod, Preview, Dev |
 | `BREVO_API_KEY` | `xsmtpsib-xxx` | Brevo | Prod, Preview, Dev |
-| `APP_BASE_URL` | `https://foodbase.vercel.app` | Vercel | Prod, Preview, Dev |
+| `APP_BASE_URL` | `https://foodbase.ng` | Vercel | Prod, Preview, Dev |
 
 ---
 
