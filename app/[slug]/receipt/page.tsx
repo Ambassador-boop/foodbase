@@ -70,7 +70,7 @@ interface OrderData {
   };
 }
 
-const PUBLIC_BASE_URL = 'https://myfoodbase.vercel.app';
+const PUBLIC_BASE_URL = 'https://foodbase.ng';
 
 export default function ReceiptPage() {
   const params = useParams();
@@ -843,7 +843,7 @@ const ReceiptDocument = ({
         <span className="font-semibold" style={{ color: accent }}>
           MyFoodBase
         </span>{' '}
-        · myfoodbase.vercel.app
+        · foodbase.ng
       </footer>
     </article>
   );
