@@ -7,7 +7,7 @@ This document lists all changes made after the initial build to fix deployment a
 ### 1. Email Configuration Updated
 **File:** `lib/email.ts`
 - **Changed:** All Brevo sender email addresses
-- **From:** `process.env.BREVO_EMAIL || 'noreply@foodbase.com'`
+- **From:** `process.env.BREVO_EMAIL || 'noreply@foodbase.ng'`
 - **To:** `'wisdommeremeze@gmail.com'` (hardcoded)
 - **Reason:** Use consistent sender email across all transactional emails
 - **Affected Functions:**
