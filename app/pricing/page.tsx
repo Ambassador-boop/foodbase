@@ -220,7 +220,7 @@ export default function PricingPage() {
             <details className="border border-border rounded-lg p-4 cursor-pointer">
               <summary className="font-semibold text-sm">Do you offer discounts for annual billing?</summary>
               <p className="text-sm text-muted-foreground mt-3">
-                Yes, we offer a 15% discount when you choose annual billing. Contact our sales team at sales@foodbase.com for more information on annual plans.
+                Yes, we offer a 15% discount when you choose annual billing. Contact our sales team at sales@foodbase.ng for more information on annual plans.
               </p>
             </details>
             <details className="border border-border rounded-lg p-4 cursor-pointer">

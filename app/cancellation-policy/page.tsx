@@ -65,7 +65,7 @@ export default function CancellationPolicyPage() {
 
           <h3 className="text-lg font-semibold mb-3">Option 2: Contact Support</h3>
           <p className="text-muted-foreground mb-8">
-            If you prefer, you can request cancellation by emailing support@foodbase.com with your account email address and request for cancellation. Our support team will process your request within 24 hours and confirm cancellation via email. If you have any questions or concerns before canceling, our support team is happy to discuss them with you.
+            If you prefer, you can request cancellation by emailing support@foodbase.ng with your account email address and request for cancellation. Our support team will process your request within 24 hours and confirm cancellation via email. If you have any questions or concerns before canceling, our support team is happy to discuss them with you.
           </p>
 
           <h2 className="text-2xl font-bold mb-4">3. What Happens When You Cancel</h2>
@@ -102,7 +102,7 @@ export default function CancellationPolicyPage() {
 
           <h2 className="text-2xl font-bold mb-4">6. Enterprise Plan Cancellations</h2>
           <p className="text-muted-foreground mb-8">
-            Enterprise plans may have custom terms negotiated directly with our sales team. For Enterprise plan cancellations, please contact your dedicated account manager or email sales@foodbase.com to discuss termination options, data transition plans, and any applicable wind-down procedures. Most Enterprise agreements include transition support to ensure minimal disruption to your operations.
+            Enterprise plans may have custom terms negotiated directly with our sales team. For Enterprise plan cancellations, please contact your dedicated account manager or email sales@foodbase.ng to discuss termination options, data transition plans, and any applicable wind-down procedures. Most Enterprise agreements include transition support to ensure minimal disruption to your operations.
           </p>
 
           <h2 className="text-2xl font-bold mb-4">7. Account Reactivation</h2>
@@ -112,12 +112,12 @@ export default function CancellationPolicyPage() {
 
           <h2 className="text-2xl font-bold mb-4">8. Data Export Before Cancellation</h2>
           <p className="text-muted-foreground mb-8">
-            Before canceling your subscription, we encourage you to export your important data. FoodBase provides tools to export your menu, customer information, order history, and analytics reports. You can access data export options in your account settings. If you need assistance with data export, contact our support team at support@foodbase.com, and we'll provide the data in your preferred format.
+            Before canceling your subscription, we encourage you to export your important data. FoodBase provides tools to export your menu, customer information, order history, and analytics reports. You can access data export options in your account settings. If you need assistance with data export, contact our support team at support@foodbase.ng, and we'll provide the data in your preferred format.
           </p>
 
           <h2 className="text-2xl font-bold mb-4">9. Cancellation Confirmations</h2>
           <p className="text-muted-foreground mb-8">
-            Once your subscription is canceled, you will receive a confirmation email with details including your cancellation date, any applicable refunds, and your data retention timeline. This email serves as official documentation of your cancellation. Please retain this email for your records. If you don't receive a confirmation email within 24 hours, please contact support@foodbase.com.
+            Once your subscription is canceled, you will receive a confirmation email with details including your cancellation date, any applicable refunds, and your data retention timeline. This email serves as official documentation of your cancellation. Please retain this email for your records. If you don't receive a confirmation email within 24 hours, please contact support@foodbase.ng.
           </p>
 
           <h2 className="text-2xl font-bold mb-4">10. Feedback and Improvement</h2>
@@ -142,7 +142,7 @@ export default function CancellationPolicyPage() {
 
           <h2 className="text-2xl font-bold mb-4">12. Transition Support</h2>
           <p className="text-muted-foreground mb-8">
-            We understand that switching platforms can be challenging. If you're canceling to move to another system, our support team can provide guidance on data export, API documentation, and integration options. We want your transition to be as smooth as possible. Contact support@foodbase.com for transition assistance.
+            We understand that switching platforms can be challenging. If you're canceling to move to another system, our support team can provide guidance on data export, API documentation, and integration options. We want your transition to be as smooth as possible. Contact support@foodbase.ng for transition assistance.
           </p>
 
           <h2 className="text-2xl font-bold mb-4">13. Contact Information</h2>
@@ -151,7 +151,7 @@ export default function CancellationPolicyPage() {
           </p>
           <div className="bg-primary/5 border border-border rounded-lg p-6 mb-8">
             <p className="font-semibold mb-2">FoodBase Support Team</p>
-            <p className="text-sm text-muted-foreground">Email: support@foodbase.com</p>
+            <p className="text-sm text-muted-foreground">Email: support@foodbase.ng</p>
             <p className="text-sm text-muted-foreground">Response time: Within 24 hours</p>
             <p className="text-sm text-muted-foreground">Available: Monday - Friday, 9 AM - 6 PM WAT</p>
           </div>

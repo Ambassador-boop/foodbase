@@ -119,7 +119,7 @@ export default function SecurityPage() {
                 FoodBase undergoes regular penetration testing by independent third-party security firms at least quarterly. We employ both manual and automated vulnerability scanning tools to identify and remediate security weaknesses before they can be exploited.
               </p>
               <p className="text-sm text-muted-foreground">
-                We maintain a responsible disclosure program and encourage the security community to report vulnerabilities through our dedicated security@foodbase.com email address, which we monitor continuously.
+                We maintain a responsible disclosure program and encourage the security community to report vulnerabilities through our dedicated security@foodbase.ng email address, which we monitor continuously.
               </p>
             </div>
 

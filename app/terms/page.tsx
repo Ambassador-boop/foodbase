@@ -81,7 +81,7 @@ export default function TermsPage() {
 
           <h2 className="text-2xl font-bold mb-4">6. Links</h2>
           <p className="text-muted-foreground mb-8">
-            FoodBase has not reviewed all of the sites linked to its website and is not responsible for the contents of any such linked site. The inclusion of any link does not imply endorsement by FoodBase of the site. Use of any such linked website is at the user's own risk. If you believe any linked site contains inappropriate content, please contact us immediately at support@foodbase.com.
+            FoodBase has not reviewed all of the sites linked to its website and is not responsible for the contents of any such linked site. The inclusion of any link does not imply endorsement by FoodBase of the site. Use of any such linked website is at the user's own risk. If you believe any linked site contains inappropriate content, please contact us immediately at support@foodbase.ng.
           </p>
 
           <h2 className="text-2xl font-bold mb-4">7. Modifications</h2>
@@ -129,7 +129,7 @@ export default function TermsPage() {
 
           <h2 className="text-2xl font-bold mb-4">14. Service Level Agreement</h2>
           <p className="text-muted-foreground mb-8">
-            FoodBase commits to maintaining 99.9% uptime for our services, measured on a monthly basis, excluding scheduled maintenance. In the event of service outages exceeding the guaranteed uptime, customers may be eligible for service credits. Please contact support@foodbase.com for details on claiming service credits.
+            FoodBase commits to maintaining 99.9% uptime for our services, measured on a monthly basis, excluding scheduled maintenance. In the event of service outages exceeding the guaranteed uptime, customers may be eligible for service credits. Please contact support@foodbase.ng for details on claiming service credits.
           </p>
 
           <h2 className="text-2xl font-bold mb-4">15. Termination</h2>
@@ -143,7 +143,7 @@ export default function TermsPage() {
           </p>
           <div className="bg-primary/5 border border-border rounded-lg p-6">
             <p className="font-semibold mb-2">FoodBase Legal Team</p>
-            <p className="text-sm text-muted-foreground">Email: legal@foodbase.com</p>
+            <p className="text-sm text-muted-foreground">Email: legal@foodbase.ng</p>
             <p className="text-sm text-muted-foreground">Address: Lagos, Nigeria</p>
             <p className="text-sm text-muted-foreground">Response time: Within 5 business days</p>
           </div>

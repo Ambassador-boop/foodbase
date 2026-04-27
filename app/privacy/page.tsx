@@ -153,7 +153,7 @@ export default function PrivacyPage() {
           </p>
           <div className="bg-primary/5 border border-border rounded-lg p-6">
             <p className="font-semibold mb-2">FoodBase Privacy Team</p>
-            <p className="text-sm text-muted-foreground">Email: privacy@foodbase.com</p>
+            <p className="text-sm text-muted-foreground">Email: privacy@foodbase.ng</p>
             <p className="text-sm text-muted-foreground">Address: Lagos, Nigeria</p>
             <p className="text-sm text-muted-foreground">Response time: Within 48 hours</p>
           </div>

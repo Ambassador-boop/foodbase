@@ -51,7 +51,7 @@ export default function RefundPolicyPage() {
           <h2 className="text-2xl font-bold mb-4">1. Subscription Refunds</h2>
           <h3 className="text-lg font-semibold mb-3">14-Day Money-Back Guarantee</h3>
           <p className="text-muted-foreground mb-6">
-            If you're not completely satisfied with FoodBase within the first 14 days of your subscription, we offer a full refund of your subscription fee. This applies to all plans: Starter, Professional, and Enterprise. To request a refund within this period, simply contact our support team at support@foodbase.com with your account details and reason for the refund request. We will process your refund within 5-7 business days after approval.
+            If you're not completely satisfied with FoodBase within the first 14 days of your subscription, we offer a full refund of your subscription fee. This applies to all plans: Starter, Professional, and Enterprise. To request a refund within this period, simply contact our support team at support@foodbase.ng with your account details and reason for the refund request. We will process your refund within 5-7 business days after approval.
           </p>
 
           <h3 className="text-lg font-semibold mb-3">Partial Month Refunds</h3>
@@ -85,7 +85,7 @@ export default function RefundPolicyPage() {
             <div className="bg-primary/5 border border-border rounded-lg p-4">
               <p className="font-semibold text-sm mb-2">Step 1: Contact Support</p>
               <p className="text-sm text-muted-foreground">
-                Email support@foodbase.com with your account email address and the reason for your refund request. Include any relevant details that help us understand your request better.
+                Email support@foodbase.ng with your account email address and the reason for your refund request. Include any relevant details that help us understand your request better.
               </p>
             </div>
             <div className="bg-primary/5 border border-border rounded-lg p-4">
@@ -118,7 +118,7 @@ export default function RefundPolicyPage() {
 
           <h2 className="text-2xl font-bold mb-4">7. Dispute Resolution</h2>
           <p className="text-muted-foreground mb-8">
-            If you believe you are entitled to a refund that has been denied, or if you have additional questions about our refund policy, please contact our support team at support@foodbase.com or legal@foodbase.com. We will review your case and provide a response within 10 business days. We're committed to resolving disputes fairly and maintaining positive relationships with our customers.
+            If you believe you are entitled to a refund that has been denied, or if you have additional questions about our refund policy, please contact our support team at support@foodbase.ng or legal@foodbase.ng. We will review your case and provide a response within 10 business days. We're committed to resolving disputes fairly and maintaining positive relationships with our customers.
           </p>
 
           <h2 className="text-2xl font-bold mb-4">8. Policy Changes</h2>
@@ -132,7 +132,7 @@ export default function RefundPolicyPage() {
           </p>
           <div className="bg-primary/5 border border-border rounded-lg p-6 mb-8">
             <p className="font-semibold mb-2">FoodBase Support Team</p>
-            <p className="text-sm text-muted-foreground">Email: support@foodbase.com</p>
+            <p className="text-sm text-muted-foreground">Email: support@foodbase.ng</p>
             <p className="text-sm text-muted-foreground">Response time: Within 24 hours</p>
             <p className="text-sm text-muted-foreground">Address: Lagos, Nigeria</p>
           </div>
