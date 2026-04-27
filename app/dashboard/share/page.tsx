@@ -34,7 +34,7 @@ interface Business {
   logo_url?: string;
 }
 
-const PUBLIC_BASE_URL = 'https://myfoodbase.vercel.app';
+const PUBLIC_BASE_URL = 'https://foodbase.ng';
 
 export default function ShareBusinessPage() {
   const [business, setBusiness] = useState<Business | null>(null);
