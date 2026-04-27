@@ -26,22 +26,23 @@ async function verifyAndSyncTransfer(reference: string, withdrawalId: string) {
 
     await db.query(
       `UPDATE withdrawals
-          SET status = $1,
-              gateway_response = $2,
-              transfer_code = COALESCE($3, transfer_code),
-              processed_at = CASE
-                WHEN $1 IN ('success','failed','reversed','abandoned','blocked','rejected')
-                  AND processed_at IS NULL
-                THEN NOW()
-                ELSE processed_at
-              END,
-              updated_at = NOW()
-        WHERE id = $4`,
-      [
-        newStatus,
-        data.gateway_response || data.failures || null,
-        data.transfer_code || null,
-        withdrawalId,
+              SET status = $1::text,
+                        gateway_response = $2,
+                                  transfer_code = COALESCE($3, transfer_code),
+                                            processed_at = CASE
+                                                        WHEN $1::text IN ('success','failed','reversed','abandoned','blocked','rejected')
+                                                                      AND processed_at IS NULL
+                                                                                  THEN NOW()
+                                                                                              ELSE processed_at
+                                                                                                        END,
+                                                                                                                  updated_at = NOW()
+                                                                                                                      WHERE id = $4::text`,
+    )
+    [
+      newStatus,
+      data.gateway_response || data.failures || null,
+      data.transfer_code || null,
+      withdrawalId,
       ],
     );
 
