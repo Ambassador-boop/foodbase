@@ -218,6 +218,20 @@ export function StorefrontFooter({
             <span>&copy; {YEAR} FoodBase.</span>
           </nav>
         </div>
+
+        {/* Live status badge */}
+        <div className="mt-6 flex justify-center md:justify-start">
+          <iframe
+            src="https://status.foodbase.ng/badge?theme=dark"
+            width="250"
+            height="30"
+            frameBorder={0}
+            scrolling="no"
+            style={{ colorScheme: 'normal' }}
+            title="FoodBase status"
+            loading="lazy"
+          />
+        </div>
       </div>
     </footer>
   );

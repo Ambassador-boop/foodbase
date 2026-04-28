@@ -26,6 +26,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { fetchColorConfig, type ColorConfig, DEFAULT_COLORS } from '@/lib/color-config';
 import { StorefrontFooter } from '@/components/storefront/storefront-footer';
+import { CookingLoader } from '@/components/storefront/cooking-loader';
 
 /* ------------------------------- Types ------------------------------- */
 
@@ -301,14 +302,7 @@ export default function RestaurantPage() {
   /* ----------------------- Loading / error ----------------------- */
 
   if (loading) {
-    return (
-      <div
-        className="min-h-screen flex items-center justify-center"
-        style={{ backgroundColor: colors.backgroundColor }}
-      >
-        <p style={{ color: colors.textColor, opacity: 0.7 }}>Loading menu...</p>
-      </div>
-    );
+    return <CookingLoader colors={colors} />;
   }
 
   if (error || !restaurant) {
