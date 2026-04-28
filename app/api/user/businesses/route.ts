@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     }
 
     const { rows } = await sql.query(
-      'SELECT id, name, email, phone, slug FROM businesses WHERE owner_id = $1 ORDER BY created_at DESC',
+      'SELECT id, name, email, phone, slug, logo_url, cover_image_url, address FROM businesses WHERE owner_id = $1 ORDER BY created_at DESC',
       [payload.userId]
     )
 

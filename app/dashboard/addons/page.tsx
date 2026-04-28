@@ -1,12 +1,22 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Plus, X, AlertCircle, Edit2, Eye, EyeOff, Search, Upload, Trash2, ExternalLink } from 'lucide-react';
+import {
+  Plus,
+  AlertCircle,
+  Edit2,
+  Eye,
+  EyeOff,
+  Search,
+  Trash2,
+  Layers,
+  ImageIcon,
+  CheckCircle2,
+  XCircle,
+} from 'lucide-react';
 import Image from 'next/image';
 
 interface AddonOption {
@@ -28,50 +38,44 @@ interface Addon {
   options?: AddonOption[];
 }
 
+const TYPE_COLORS: Record<string, string> = {
+  protein: 'bg-orange-50 text-orange-700 border-orange-200',
+  side: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  topping: 'bg-amber-50 text-amber-700 border-amber-200',
+  extra: 'bg-blue-50 text-blue-700 border-blue-200',
+};
+
 export default function AddonsPage() {
   const [addons, setAddons] = useState<Addon[]>([]);
-  const [filteredAddons, setFilteredAddons] = useState<Addon[]>([]);
+  const [filtered, setFiltered] = useState<Addon[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [showForm, setShowForm] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [formData, setFormData] = useState({
-    name: '',
-    addonType: 'protein',
-    description: '',
-    price: '',
-    isRequired: false,
-    allowMultiple: true,
-    imageFile: null as File | null,
-    imageUrl: '',
-    options: [{ name: '', price: '' }],
-  });
+  const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchAddons();
   }, []);
 
   useEffect(() => {
-    // Filter addons based on search term
-    const filtered = addons.filter(addon =>
-      addon.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      addon.description?.toLowerCase().includes(searchTerm.toLowerCase())
+    let f = addons.filter(
+      (a) =>
+        a.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        a.description?.toLowerCase().includes(searchTerm.toLowerCase()),
     );
-    setFilteredAddons(filtered);
-  }, [searchTerm, addons]);
+    if (typeFilter !== 'all') f = f.filter((a) => a.addon_type === typeFilter);
+    setFiltered(f);
+  }, [searchTerm, addons, typeFilter]);
 
   const fetchAddons = async () => {
     try {
-      const response = await fetch('/api/business/addons');
+      const response = await fetch('/api/business/addons', {
+        credentials: 'include',
+      });
       const data = await response.json();
-
       if (!response.ok) throw new Error(data.error);
-
       setAddons(data.addons || []);
-      setFilteredAddons(data.addons || []);
     } catch (err) {
       setError('Failed to load add-ons');
       console.error(err);
@@ -80,538 +84,383 @@ export default function AddonsPage() {
     }
   };
 
-  const uploadImageToCloudinary = async (file: File): Promise<string | null> => {
-    try {
-      const formDataObj = new FormData();
-      formDataObj.append('file', file);
-      formDataObj.append('upload_preset', 'foodbase_upload');
-      formDataObj.append('folder', 'foodbase/addons');
-
-      const response = await fetch(
-        `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`,
-        {
-          method: 'POST',
-          body: formDataObj,
-        }
-      );
-
-      if (!response.ok) throw new Error('Upload failed');
-
-      const data = await response.json();
-      return data.secure_url;
-    } catch (err) {
-      console.error('[v0] Upload error:', err);
-      setError('Failed to upload image');
-      return null;
-    }
-  };
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setFormData({ ...formData, imageFile: file });
-    }
-  };
-
-  const handleAddAddon = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-
-    if (!formData.name || formData.options.filter((o) => o.name.trim()).length === 0) {
-      setError('Name and at least one option are required');
-      return;
-    }
-
-    setUploading(true);
-    let imageUrl = formData.imageUrl;
-
-    // Upload image if selected
-    if (formData.imageFile) {
-      imageUrl = await uploadImageToCloudinary(formData.imageFile);
-      if (!imageUrl) {
-        setUploading(false);
-        return;
-      }
-    }
-
-    try {
-      const endpoint = editingId
-        ? `/api/business/addons/${editingId}`
-        : '/api/business/addons';
-      const method = editingId ? 'PATCH' : 'POST';
-
-      const response = await fetch(endpoint, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: formData.name,
-          addonType: formData.addonType,
-          description: formData.description,
-          price: formData.price ? parseFloat(formData.price) : 0,
-          imageUrl: imageUrl || null,
-          isRequired: formData.isRequired,
-          allowMultiple: formData.allowMultiple,
-          options: formData.options
-            .filter((o) => o.name.trim())
-            .map((o) => ({ name: o.name, price: o.price ? parseFloat(o.price) : 0 })),
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.error || 'Failed to save addon');
-        setUploading(false);
-        return;
-      }
-
-      if (editingId) {
-        setAddons(addons.map(item => item.id === editingId ? data.addon : item));
-      } else {
-        setAddons([data.addon, ...addons]);
-      }
-
-      setFormData({
-        name: '',
-        addonType: 'protein',
-        description: '',
-        price: '',
-        isRequired: false,
-        allowMultiple: true,
-        imageFile: null,
-        imageUrl: '',
-        options: [{ name: '', price: '' }],
-      });
-      setEditingId(null);
-      setShowForm(false);
-    } catch (err) {
-      setError('An error occurred. Please try again.');
-      console.error(err);
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const handleToggleAvailable = async (addonId: string, currentState: boolean) => {
+  const handleToggleAvailable = async (
+    addonId: string,
+    currentState: boolean,
+  ) => {
     try {
       const response = await fetch(`/api/business/addons/${addonId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_available: !currentState }),
       });
-
       if (response.ok) {
-        setAddons(addons.map(item =>
-          item.id === addonId ? { ...item, is_available: !currentState } : item
-        ));
+        setAddons((prev) =>
+          prev.map((item) =>
+            item.id === addonId
+              ? { ...item, is_available: !currentState }
+              : item,
+          ),
+        );
       }
     } catch (err) {
       console.error('Error toggling availability:', err);
     }
   };
 
-  const handleEditAddon = (addon: Addon) => {
-    setFormData({
-      name: addon.name,
-      addonType: addon.addon_type,
-      description: addon.description || '',
-      price: addon.price?.toString() || '',
-      isRequired: addon.is_required,
-      allowMultiple: addon.allow_multiple,
-      imageFile: null,
-      imageUrl: addon.image_url || '',
-      options: addon.options || [{ name: '', price: '' }],
-    });
-    setEditingId(addon.id);
-    setShowForm(true);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
   const handleDeleteAddon = async (addonId: string) => {
-    if (!window.confirm('Are you sure you want to delete this add-on? This will also remove it from all associated menu items.')) {
+    if (
+      !window.confirm(
+        'Delete this add-on? It will also be removed from any associated menu items.',
+      )
+    )
       return;
-    }
-
     try {
+      setDeletingId(addonId);
       const response = await fetch(`/api/business/addons/${addonId}`, {
         method: 'DELETE',
       });
-
       if (!response.ok) {
         const data = await response.json();
         setError(data.error || 'Failed to delete add-on');
         return;
       }
-
-      setAddons(addons.filter((addon) => addon.id !== addonId));
+      setAddons((prev) => prev.filter((a) => a.id !== addonId));
     } catch (err) {
-      console.error('Error deleting add-on:', err);
+      console.error('Delete error:', err);
       setError('Failed to delete add-on');
+    } finally {
+      setDeletingId(null);
     }
   };
 
-  const addOptionField = () => {
-    setFormData({
-      ...formData,
-      options: [...formData.options, { name: '', price: '' }],
-    });
-  };
-
-  const removeOptionField = (index: number) => {
-    setFormData({
-      ...formData,
-      options: formData.options.filter((_, i) => i !== index),
-    });
-  };
-
-  const updateOption = (index: number, field: 'name' | 'price', value: string) => {
-    const newOptions = [...formData.options];
-    newOptions[index] = { ...newOptions[index], [field]: value };
-    setFormData({ ...formData, options: newOptions });
-  };
-
   const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(amount);
+    new Intl.NumberFormat('en-NG', {
+      style: 'currency',
+      currency: 'NGN',
+      maximumFractionDigits: 0,
+    }).format(amount);
+
+  // Stats
+  const total = addons.length;
+  const available = addons.filter((a) => a.is_available).length;
+  const required = addons.filter((a) => a.is_required).length;
+  const types = new Set(addons.map((a) => a.addon_type)).size;
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <p className="text-muted-foreground text-sm">Loading add-ons...</p>
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+          <p className="text-muted-foreground text-xs">Loading add-ons...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold mb-1">Add-ons</h1>
-          <p className="text-xs text-muted-foreground">Manage proteins, sides, toppings, and extras</p>
+    <div className="space-y-5">
+      {/* Hero */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary to-primary/80 p-5 sm:p-6 text-primary-foreground">
+        <div className="absolute -top-12 -right-12 w-48 h-48 rounded-full bg-white/10" />
+        <div className="absolute -bottom-16 -right-4 w-32 h-32 rounded-full bg-white/5" />
+        <div className="relative flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 mb-1.5">
+              <Layers className="w-4 h-4" />
+              <span className="text-xs font-medium opacity-90">Add-ons</span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold mb-1">
+              Build your customizations
+            </h1>
+            <p className="text-xs sm:text-sm opacity-90 max-w-md text-pretty">
+              Proteins, sides, toppings, and extras that customers can add to
+              their orders.
+            </p>
+          </div>
+          <Link href="/dashboard/addons/new">
+            <Button className="h-9 text-xs bg-white text-primary hover:bg-white/90">
+              <Plus className="w-3.5 h-3.5 mr-1.5" />
+              Create Add-on
+            </Button>
+          </Link>
         </div>
-        <Link href="/dashboard/addons/new">
-          <Button className="h-8 text-xs bg-primary text-white hover:bg-primary-dark">
-            <Plus className="w-4 h-4 mr-1" />
-            Create Add-on
-          </Button>
-        </Link>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatTile
+          label="Total"
+          value={total}
+          icon={<Layers className="w-4 h-4" />}
+          tone="primary"
+        />
+        <StatTile
+          label="Available"
+          value={available}
+          icon={<CheckCircle2 className="w-4 h-4" />}
+          tone="success"
+        />
+        <StatTile
+          label="Required"
+          value={required}
+          icon={<XCircle className="w-4 h-4" />}
+          tone="warning"
+        />
+        <StatTile
+          label="Types"
+          value={types}
+          icon={<ImageIcon className="w-4 h-4" />}
+          tone="accent"
+        />
       </div>
 
       {error && (
-        <div className="p-3 bg-red-50 border border-red-200 rounded text-red-700 text-xs flex items-start gap-2">
+        <div className="p-3 bg-destructive/5 border border-destructive/20 rounded-lg text-destructive text-xs flex items-start gap-2">
           <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
           <span>{error}</span>
         </div>
       )}
 
-      {showForm && (
-        <div className="bg-white border border-border rounded-lg p-4 space-y-3">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold">{editingId ? 'Edit Add-on' : 'Add New Add-on'}</h2>
-            <button onClick={() => { setShowForm(false); setEditingId(null); }} className="p-1">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-
-          <form onSubmit={handleAddAddon} className="space-y-3">
-            <div>
-              <Label htmlFor="name" className="text-xs font-semibold">
-                Add-on Name
-              </Label>
-              <Input
-                id="name"
-                placeholder="e.g., Protein"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="mt-1 h-8 text-xs"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label htmlFor="type" className="text-xs font-semibold">
-                  Type
-                </Label>
-                <select
-                  id="type"
-                  value={formData.addonType}
-                  onChange={(e) => setFormData({ ...formData, addonType: e.target.value })}
-                  className="mt-1 h-8 w-full text-xs border border-input rounded px-2 py-1"
-                >
-                  <option value="protein">Protein</option>
-                  <option value="side">Side</option>
-                  <option value="topping">Topping</option>
-                  <option value="extra">Extra</option>
-                </select>
-              </div>
-              <div>
-                <Label htmlFor="price" className="text-xs font-semibold">
-                  Base Price (NGN)
-                </Label>
-                <Input
-                  id="price"
-                  type="number"
-                  step="0.01"
-                  placeholder="Optional"
-                  value={formData.price}
-                  onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                  className="mt-1 h-8 text-xs"
-                />
-              </div>
-            </div>
-
-            <div>
-              <Label htmlFor="description" className="text-xs font-semibold">
-                Description
-              </Label>
-              <Textarea
-                id="description"
-                placeholder="e.g., Choose your protein..."
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className="mt-1 text-xs min-h-12"
-              />
-            </div>
-
-            <div>
-              <Label className="text-xs font-semibold">Add-on Image</Label>
-              <div className="mt-2 space-y-2">
-                {formData.imageUrl ? (
-                  <div className="relative w-20 h-20 rounded border border-border overflow-hidden">
-                    <Image src={formData.imageUrl} alt="Preview" fill className="object-cover" />
-                    <button
-                      type="button"
-                      onClick={() => setFormData({ ...formData, imageFile: null, imageUrl: '' })}
-                      className="absolute top-0 right-0 bg-red-500 text-white p-1"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </div>
-                ) : (
-                  <div>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleFileSelect}
-                      className="hidden"
-                      id="addon-image"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-8 text-xs w-full"
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      <Upload className="w-3 h-3 mr-1" />
-                      Upload Image
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="flex items-center gap-2 text-xs">
-                <input
-                  type="checkbox"
-                  checked={formData.isRequired}
-                  onChange={(e) => setFormData({ ...formData, isRequired: e.target.checked })}
-                />
-                <span>Required for all dishes</span>
-              </label>
-              <label className="flex items-center gap-2 text-xs">
-                <input
-                  type="checkbox"
-                  checked={formData.allowMultiple}
-                  onChange={(e) => setFormData({ ...formData, allowMultiple: e.target.checked })}
-                />
-                <span>Allow multiple selections</span>
-              </label>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <Label className="text-xs font-semibold">Options</Label>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-6 text-xs"
-                  onClick={addOptionField}
-                >
-                  Add Option
-                </Button>
-              </div>
-              <div className="space-y-2">
-                {formData.options.map((option, index) => (
-                  <div key={index} className="flex gap-2">
-                    <Input
-                      placeholder="e.g., Chicken"
-                      value={option.name}
-                      onChange={(e) => updateOption(index, 'name', e.target.value)}
-                      className="h-8 text-xs flex-1"
-                    />
-                    <Input
-                      placeholder="Price (0 for free)"
-                      type="number"
-                      step="0.01"
-                      value={option.price}
-                      onChange={(e) => updateOption(index, 'price', e.target.value)}
-                      className="h-8 text-xs w-20"
-                    />
-                    {formData.options.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removeOptionField(index)}
-                        className="p-1 hover:bg-red-50 rounded text-red-600"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <Button type="submit" disabled={uploading} className="w-full h-8 text-xs bg-primary text-white hover:bg-primary-dark">
-              {uploading ? 'Uploading...' : editingId ? 'Update Add-on' : 'Add Add-on'}
-            </Button>
-          </form>
-        </div>
-      )}
-
-      {/* Search Bar */}
-      {addons.length > 0 && (
-        <div className="relative">
-          <Search className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" />
+      {/* Search + Filters */}
+      <div className="flex flex-col sm:flex-row gap-2.5">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             placeholder="Search add-ons..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9 h-8 text-xs"
+            className="pl-9 h-10 text-sm bg-card"
           />
         </div>
-      )}
+        <div className="flex gap-1 bg-muted/30 p-1 rounded-lg overflow-x-auto">
+          {['all', 'protein', 'side', 'topping', 'extra'].map((t) => (
+            <button
+              key={t}
+              onClick={() => setTypeFilter(t)}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium capitalize transition-colors whitespace-nowrap ${
+                typeFilter === t
+                  ? 'bg-card text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+      </div>
 
-      {/* Add-ons Card Grid */}
-      {filteredAddons.length === 0 ? (
-        <div className="p-8 text-center bg-white border border-border rounded-lg">
-          <p className="text-sm text-muted-foreground">
-            {addons.length === 0 ? 'No add-ons yet. Create your first add-on group!' : 'No add-ons match your search.'}
+      {/* Grid */}
+      {filtered.length === 0 ? (
+        <div className="bg-card border border-dashed border-border rounded-2xl p-10 text-center">
+          <div className="w-14 h-14 mx-auto rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-3">
+            <Layers className="w-7 h-7" />
+          </div>
+          <h3 className="text-base font-semibold mb-1">
+            {addons.length === 0 ? 'No add-ons yet' : 'No matching add-ons'}
+          </h3>
+          <p className="text-xs text-muted-foreground max-w-sm mx-auto mb-4">
+            {addons.length === 0
+              ? 'Create your first add-on group to give customers more options.'
+              : 'Try a different search or filter.'}
           </p>
+          {addons.length === 0 && (
+            <Link href="/dashboard/addons/new">
+              <Button className="h-9 text-xs">
+                <Plus className="w-3.5 h-3.5 mr-1.5" />
+                Create your first add-on
+              </Button>
+            </Link>
+          )}
         </div>
       ) : (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          {filteredAddons.map((addon) => (
-            <div key={addon.id} className="bg-white border border-border rounded-lg overflow-hidden flex flex-col">
-              {/* Image */}
-              <div className="relative w-full h-40 bg-muted/20 overflow-hidden flex items-center justify-center">
-                {addon.image_url ? (
-                  <Image
-                    src={addon.image_url}
-                    alt={addon.name}
-                    fill
-                    className="object-cover"
-                  />
-                ) : (
-                  <div className="text-muted-foreground text-xs">No image</div>
-                )}
-              </div>
-
-              {/* Content */}
-              <div className="p-3 flex-1 flex flex-col">
-                <h3 className="font-semibold text-sm mb-1 line-clamp-2">{addon.name}</h3>
-                <p className="text-xs text-muted-foreground line-clamp-2 mb-3">{addon.description}</p>
-
-                <div className="space-y-2 mt-auto">
-                  <div className="flex flex-wrap gap-1">
-                    <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
-                      {addon.addon_type}
-                    </span>
-                    {addon.is_required && (
-                      <span className="text-xs bg-red-50 text-red-700 px-2 py-0.5 rounded">
-                        Required
-                      </span>
-                    )}
-                    {addon.allow_multiple && (
-                      <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">
-                        Multiple
-                      </span>
-                    )}
-                  </div>
-
-                  {addon.options && addon.options.length > 0 && (
-                    <div>
-                      <p className="text-xs font-semibold text-muted-foreground mb-1">Options:</p>
-                      <div className="space-y-1">
-                        {addon.options.map((opt) => (
-                          <div key={opt.id} className="text-xs text-muted-foreground">
-                            {opt.name} {opt.price > 0 && `(+${formatCurrency(opt.price)})`}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Status Badge */}
-                <div className="mt-3 mb-3">
-                  <span
-                    className={`inline-block px-2 py-1 rounded text-xs font-medium ${
-                      addon.is_available
-                        ? 'bg-green-50 text-green-700'
-                        : 'bg-gray-50 text-gray-700'
-                    }`}
-                  >
-                    {addon.is_available ? 'Available' : 'Unavailable'}
-                  </span>
-                </div>
-
-                {/* Actions */}
-                <div className="flex gap-2 flex-col">
-                  <div className="flex gap-2">
-                    <Link href={`/dashboard/addons/edit/${addon.id}`} className="flex-1">
-                      <Button
-                        variant="outline"
-                        className="w-full h-7 text-xs"
-                      >
-                        <Edit2 className="w-3 h-3 mr-1" />
-                        Edit
-                      </Button>
-                    </Link>
-                    <Button
-                      onClick={() => handleToggleAvailable(addon.id, addon.is_available)}
-                      variant="outline"
-                      className="flex-1 h-7 text-xs"
-                    >
-                      {addon.is_available ? (
-                        <>
-                          <Eye className="w-3 h-3 mr-1" />
-                          Hide
-                        </>
-                      ) : (
-                        <>
-                          <EyeOff className="w-3 h-3 mr-1" />
-                          Show
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                  <Button
-                    onClick={() => handleDeleteAddon(addon.id)}
-                    variant="outline"
-                    className="w-full h-7 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
-                  >
-                    <Trash2 className="w-3 h-3 mr-1" />
-                    Delete
-                  </Button>
-                </div>
-              </div>
-            </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {filtered.map((addon) => (
+            <AddonCard
+              key={addon.id}
+              addon={addon}
+              onToggle={() =>
+                handleToggleAvailable(addon.id, addon.is_available)
+              }
+              onDelete={() => handleDeleteAddon(addon.id)}
+              deleting={deletingId === addon.id}
+              formatCurrency={formatCurrency}
+            />
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function StatTile({
+  label,
+  value,
+  icon,
+  tone,
+}: {
+  label: string;
+  value: number;
+  icon: React.ReactNode;
+  tone: 'primary' | 'success' | 'warning' | 'accent';
+}) {
+  const tones: Record<typeof tone, string> = {
+    primary: 'bg-primary/10 text-primary',
+    success: 'bg-emerald-50 text-emerald-700',
+    warning: 'bg-amber-50 text-amber-700',
+    accent: 'bg-secondary/10 text-secondary',
+  };
+  return (
+    <div className="bg-card border border-border rounded-xl p-3.5 flex items-center gap-3">
+      <div
+        className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${tones[tone]}`}
+      >
+        {icon}
+      </div>
+      <div className="min-w-0">
+        <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+          {label}
+        </p>
+        <p className="text-lg font-bold leading-tight">
+          {value.toLocaleString()}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function AddonCard({
+  addon,
+  onToggle,
+  onDelete,
+  deleting,
+  formatCurrency,
+}: {
+  addon: Addon;
+  onToggle: () => void;
+  onDelete: () => void;
+  deleting: boolean;
+  formatCurrency: (n: number) => string;
+}) {
+  const typeClass =
+    TYPE_COLORS[addon.addon_type] ||
+    'bg-muted/40 text-muted-foreground border-border';
+  return (
+    <div className="group bg-card border border-border rounded-xl overflow-hidden flex flex-col transition-all hover:border-primary/30 hover:shadow-md">
+      <div className="relative w-full aspect-[4/3] bg-muted/20 overflow-hidden">
+        {addon.image_url ? (
+          <Image
+            src={addon.image_url}
+            alt={addon.name}
+            fill
+            className="object-cover transition-transform group-hover:scale-105"
+            unoptimized
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+            <ImageIcon className="w-10 h-10 opacity-30" />
+          </div>
+        )}
+        <div className="absolute top-2 left-2 flex flex-wrap gap-1">
+          <span
+            className={`text-[10px] font-semibold px-2 py-0.5 rounded-full backdrop-blur-sm border ${typeClass}`}
+          >
+            {addon.addon_type}
+          </span>
+          {!addon.is_available && (
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-foreground/70 text-background backdrop-blur-sm">
+              Hidden
+            </span>
+          )}
+        </div>
+        {addon.is_required && (
+          <div className="absolute top-2 right-2">
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-500/90 text-white backdrop-blur-sm">
+              Required
+            </span>
+          </div>
+        )}
+      </div>
+
+      <div className="p-3.5 flex-1 flex flex-col">
+        <h3 className="font-semibold text-sm leading-tight line-clamp-1 mb-0.5">
+          {addon.name}
+        </h3>
+        {addon.description && (
+          <p className="text-xs text-muted-foreground line-clamp-2 mb-2.5">
+            {addon.description}
+          </p>
+        )}
+
+        {addon.options && addon.options.length > 0 && (
+          <div className="mb-3 mt-auto pt-2 border-t border-dashed border-border">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
+              {addon.options.length}{' '}
+              {addon.options.length === 1 ? 'option' : 'options'}
+            </p>
+            <div className="space-y-1 max-h-20 overflow-hidden">
+              {addon.options.slice(0, 3).map((opt) => (
+                <div
+                  key={opt.id}
+                  className="flex items-center justify-between text-xs"
+                >
+                  <span className="text-foreground/80 truncate">
+                    {opt.name}
+                  </span>
+                  {Number(opt.price) > 0 && (
+                    <span className="text-primary font-medium ml-2 flex-shrink-0">
+                      +{formatCurrency(Number(opt.price))}
+                    </span>
+                  )}
+                </div>
+              ))}
+              {addon.options.length > 3 && (
+                <p className="text-[10px] text-muted-foreground italic">
+                  +{addon.options.length - 3} more
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-3 gap-1.5 mt-auto">
+          <Link
+            href={`/dashboard/addons/edit/${addon.id}`}
+            className="col-span-1"
+          >
+            <Button variant="outline" className="w-full h-8 text-[11px] px-1">
+              <Edit2 className="w-3 h-3 mr-1" />
+              Edit
+            </Button>
+          </Link>
+          <Button
+            onClick={onToggle}
+            variant="outline"
+            className="h-8 text-[11px] px-1"
+          >
+            {addon.is_available ? (
+              <>
+                <EyeOff className="w-3 h-3 mr-1" />
+                Hide
+              </>
+            ) : (
+              <>
+                <Eye className="w-3 h-3 mr-1" />
+                Show
+              </>
+            )}
+          </Button>
+          <Button
+            onClick={onDelete}
+            disabled={deleting}
+            variant="outline"
+            className="h-8 text-[11px] px-1 text-destructive hover:bg-destructive/5 hover:text-destructive border-destructive/20"
+          >
+            <Trash2 className="w-3 h-3 mr-1" />
+            {deleting ? '...' : 'Del'}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

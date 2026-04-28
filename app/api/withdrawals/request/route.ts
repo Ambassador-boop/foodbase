@@ -104,20 +104,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get business and verify ownership
-    const businessResult = await db.query(
-      `SELECT id, available_balance FROM businesses WHERE owner_id = $1`,
-      [userId]
-    );
-
-    if (!businessResult || businessResult.length === 0) {
+    // Resolve the active business for this owner (cookie-based switcher).
+    const business = await getActiveBusinessForUser(userId);
+    if (!business) {
       return NextResponse.json(
         { error: 'Business not found' },
         { status: 404 }
       );
     }
-
-    const business = businessResult[0];
     const withdrawAmount = parseFloat(amount);
 
     if (withdrawAmount <= 0) {
