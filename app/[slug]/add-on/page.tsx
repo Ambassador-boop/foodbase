@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { fetchColorConfig, DEFAULT_COLORS, type ColorConfig } from '@/lib/color-config';
+import { StorefrontFooter } from '@/components/storefront/storefront-footer';
 
 interface AddonOption {
   id: string;
@@ -721,6 +722,10 @@ export default function AddonPage() {
           </div>
         )}
       </div>
+
+      {/* Footer (renders above the fixed sticky bar; the page already has
+          enough bottom padding to keep it visible on scroll) */}
+      <StorefrontFooter colors={colors} />
 
       {/* Sticky bottom: full price breakdown */}
       <div

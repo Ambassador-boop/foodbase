@@ -1,66 +1,71 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getOne, getAll } from '@/lib/db';
 
+/**
+ * Restaurant storefront menu endpoint.
+ *
+ * In addition to the basic business + categories + menu_items + drinks payload,
+ * this endpoint computes:
+ *   - featured: one menu item picked from each category, in randomised order.
+ *       Per category we pick:
+ *         1) item with the highest order_count (>0); else
+ *         2) cheapest item (min price); ties broken by most-recent created_at.
+ *   - hotPicks: top 5 menu items by orders placed in the last 48 hours
+ *       (joined through order_items + orders).
+ *   - business now also returns address, phone and availability so the storefront
+ *     "info" panel can be populated.
+ */
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
     const { slug } = await params;
-    console.log('[v0] API: Fetching menu for slug:', slug);
 
-    // Get business by slug
+    // -------- Business lookup --------
     const business = await getOne(
       'SELECT * FROM businesses WHERE slug = $1 AND is_active = true',
       [slug]
     );
 
-    console.log('[v0] API: Business lookup result:', business ? `Found ${business.name}` : 'Not found');
-
     if (!business) {
-      console.log('[v0] API: No active business found for slug:', slug);
       return NextResponse.json(
         { error: 'Restaurant not found' },
         { status: 404 }
       );
     }
 
-    // Get categories
+    // -------- Categories --------
     const categories = await getAll(
       'SELECT * FROM categories WHERE business_id = $1 ORDER BY display_order, created_at DESC',
       [business.id]
     );
-    console.log('[v0] API: Categories fetched:', categories.length);
 
-    // Get menu items with their add-ons - simplified query without nested JSON aggregation
+    // -------- Menu items --------
     const menuItems = await getAll(
-      `SELECT m.id, m.name, m.description, m.price, m.original_price, m.image_url, m.is_available, 
-              m.display_order, m.category_id, m.is_popular, m.order_count,
-              m.discount_type, m.discount_value,
-              c.name as category_name
-       FROM menu_items m
-       LEFT JOIN categories c ON m.category_id = c.id
-       WHERE m.business_id = $1 AND m.is_available = true
-       ORDER BY m.display_order, m.created_at DESC`,
+      `SELECT m.id, m.name, m.description, m.price, m.original_price, m.image_url,
+              m.is_available, m.display_order, m.category_id, m.is_popular,
+              m.order_count, m.discount_type, m.discount_value, m.created_at,
+              c.name AS category_name
+         FROM menu_items m
+         LEFT JOIN categories c ON m.category_id = c.id
+        WHERE m.business_id = $1 AND m.is_available = true
+        ORDER BY m.display_order, m.created_at DESC`,
       [business.id]
     );
-    console.log('[v0] API: Menu items fetched:', menuItems.length);
 
-    // Get addons for each menu item separately to avoid JSON query issues
+    // -------- Add-ons (per item) --------
     const menuItemsWithAddons = await Promise.all(
       menuItems.map(async (item: any) => {
         try {
           const addons = await getAll(
             `SELECT a.id, a.name, a.addon_type, a.is_required, a.allow_multiple, a.description, a.image_url
-             FROM menu_item_addons mia
-             LEFT JOIN addons a ON mia.addon_id = a.id
-             WHERE mia.menu_item_id = $1
-             GROUP BY a.id, a.name, a.addon_type, a.is_required, a.allow_multiple, a.description, a.image_url`,
+               FROM menu_item_addons mia
+               LEFT JOIN addons a ON mia.addon_id = a.id
+              WHERE mia.menu_item_id = $1
+              GROUP BY a.id, a.name, a.addon_type, a.is_required, a.allow_multiple, a.description, a.image_url`,
             [item.id]
           );
-          console.log(`[v0] API: Addons for menu item ${item.id}:`, addons?.length || 0);
-
-          // Get options for each addon
           const addonsWithOptions = await Promise.all(
             (addons || []).map(async (addon: any) => {
               const options = await getAll(
@@ -70,29 +75,92 @@ export async function GET(
               return { ...addon, options: options || [] };
             })
           );
-
           return { ...item, addons: addonsWithOptions };
-        } catch (err) {
-          // If addon query fails, just return item without addons
-          console.error('[v0] Error fetching addons for menu item:', item.id, err);
+        } catch {
           return { ...item, addons: [] };
         }
       })
     );
 
-    // Get drinks
+    // -------- Drinks --------
     const drinks = await getAll(
       'SELECT * FROM drinks WHERE business_id = $1 AND is_available = true ORDER BY display_order, created_at DESC',
       [business.id]
     );
-    console.log('[v0] API: Drinks fetched:', drinks.length);
 
-    // Get popular dishes
+    // -------- Popular dishes --------
     const popularDishes = await getAll(
       'SELECT * FROM popular_dishes WHERE business_id = $1 ORDER BY display_order, created_at DESC LIMIT 5',
       [business.id]
     );
-    console.log('[v0] API: Popular dishes fetched:', popularDishes.length);
+
+    // -------- Hot picks (last 48h) --------
+    // Uses paid orders' items to count true sales. Falls back to empty list if none.
+    const hotPicksRows = await getAll(
+      `SELECT m.id, m.name, m.description, m.price, m.original_price, m.image_url,
+              m.is_available, m.display_order, m.category_id, m.is_popular,
+              m.order_count, m.discount_type, m.discount_value,
+              c.name AS category_name,
+              COALESCE(SUM(oi.quantity), 0)::int AS recent_orders
+         FROM menu_items m
+         LEFT JOIN categories c ON m.category_id = c.id
+         JOIN order_items oi ON oi.menu_item_id = m.id
+         JOIN orders o ON o.id = oi.order_id
+        WHERE m.business_id = $1
+          AND m.is_available = true
+          AND o.business_id = $1
+          AND o.created_at >= NOW() - INTERVAL '48 hours'
+        GROUP BY m.id, c.name
+        HAVING COALESCE(SUM(oi.quantity), 0) > 0
+        ORDER BY recent_orders DESC, m.created_at DESC
+        LIMIT 5`,
+      [business.id]
+    );
+
+    // Re-attach addons we already loaded so hot picks render consistently.
+    const addonsById = new Map<string, any[]>();
+    menuItemsWithAddons.forEach((m: any) => addonsById.set(m.id, m.addons || []));
+    const hotPicks = (hotPicksRows || []).map((r: any) => ({
+      ...r,
+      addons: addonsById.get(r.id) || [],
+    }));
+    const hotPickIds = new Set<string>(hotPicks.map((h) => h.id));
+
+    // -------- Featured (one per category, randomised) --------
+    const featured: any[] = [];
+    if (categories.length > 0) {
+      for (const cat of categories) {
+        const itemsInCat = menuItemsWithAddons.filter(
+          (m: any) => m.category_id === cat.id
+        );
+        if (itemsInCat.length === 0) continue;
+
+        const withOrders = itemsInCat.filter((m: any) => Number(m.order_count) > 0);
+        let chosen: any = null;
+
+        if (withOrders.length > 0) {
+          chosen = withOrders.reduce((best: any, cur: any) =>
+            Number(cur.order_count) > Number(best.order_count) ? cur : best
+          );
+        } else {
+          // Cheapest; ties broken by most recent created_at.
+          chosen = [...itemsInCat].sort((a: any, b: any) => {
+            const pa = Number(a.price);
+            const pb = Number(b.price);
+            if (pa !== pb) return pa - pb;
+            const ta = new Date(a.created_at).getTime();
+            const tb = new Date(b.created_at).getTime();
+            return tb - ta;
+          })[0];
+        }
+        if (chosen) featured.push(chosen);
+      }
+      // Randomise (Fisher–Yates) so each visit feels fresh.
+      for (let i = featured.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [featured[i], featured[j]] = [featured[j], featured[i]];
+      }
+    }
 
     const response = {
       success: true,
@@ -105,20 +173,29 @@ export async function GET(
         cover_image_url: business.cover_image_url,
         email: business.email,
         phone: business.phone,
+        address: business.address,
+        city: business.city,
+        state: business.state,
+        country: business.country,
+        availability: business.availability ?? null,
       },
       categories,
       menuItems: menuItemsWithAddons,
       drinks,
       popularDishes,
+      featured,
+      hotPicks,
+      hotPickIds: Array.from(hotPickIds),
     };
-    
-    console.log('[v0] API: Returning successful response');
+
     return NextResponse.json(response);
   } catch (error) {
     console.error('[v0] Get menu error:', error);
-    console.error('[v0] Error details:', error instanceof Error ? error.message : 'Unknown error');
     return NextResponse.json(
-      { error: 'Failed to fetch menu', details: error instanceof Error ? error.message : 'Unknown error' },
+      {
+        error: 'Failed to fetch menu',
+        details: error instanceof Error ? error.message : 'Unknown error',
+      },
       { status: 500 }
     );
   }

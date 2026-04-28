@@ -22,6 +22,7 @@ import {
   type ColorConfig,
   DEFAULT_COLORS,
 } from '@/lib/color-config';
+import { StorefrontFooter } from '@/components/storefront/storefront-footer';
 
 /* ----------------------------- Types ----------------------------- */
 
@@ -595,6 +596,9 @@ export default function ItemDetailPage() {
             formatCurrency={formatCurrency}
           />
         )}
+
+        {/* ---------- Footer ---------- */}
+        <StorefrontFooter colors={colors} />
       </main>
 
       {/* ---------- Sticky bottom CTA ---------- */}
