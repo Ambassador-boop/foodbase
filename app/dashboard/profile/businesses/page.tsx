@@ -1,190 +1,281 @@
-'use client'
+"use client"
 
-import { useEffect, useState } from 'react'
-import Link from 'next/link'
-import Image from 'next/image'
-import { Button } from '@/components/ui/button'
-import { AlertCircle } from 'lucide-react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState } from "react"
+import Link from "next/link"
+import Image from "next/image"
+import {
+  AlertCircle,
+  ArrowLeftRight,
+  Building2,
+  CheckCircle2,
+  Loader2,
+  Mail,
+  Pencil,
+  Phone,
+  Plus,
+  UtensilsCrossed,
+} from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Empty, EmptyDescription, EmptyTitle } from "@/components/ui/empty"
+import { switchBusiness } from "@/lib/business-switch"
+import { useToast } from "@/hooks/use-toast"
 
 interface Business {
   id: string
   name: string
   email: string
   phone: string
+  slug: string
   description?: string
-  logo_url?: string
-  is_active: boolean
+  logo_url?: string | null
+  cover_image_url?: string | null
+  address?: string | null
+  is_active?: boolean
 }
 
 export default function BusinessesPage() {
-  const router = useRouter()
   const [businesses, setBusinesses] = useState<Business[]>([])
+  const [activeId, setActiveId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [selectedBusinessId, setSelectedBusinessId] = useState<string | null>(null)
+  const [error, setError] = useState("")
+  const [switchingId, setSwitchingId] = useState<string | null>(null)
+  const { toast } = useToast()
 
   useEffect(() => {
-    fetchBusinesses()
+    let cancelled = false
+    async function load() {
+      try {
+        const [allRes, activeRes] = await Promise.all([
+          fetch("/api/user/businesses", { credentials: "include" }),
+          fetch("/api/business", { credentials: "include" }),
+        ])
+        const allData = await allRes.json()
+        const activeData = await activeRes.json()
+        if (cancelled) return
+        setBusinesses(allData.businesses || [])
+        setActiveId(activeData?.business?.id || null)
+      } catch (err) {
+        console.error("[v0] businesses load error", err)
+        setError("Failed to load businesses")
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    load()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
-  const fetchBusinesses = async () => {
-    try {
-      const response = await fetch('/api/user/businesses')
-      if (!response.ok) throw new Error('Failed to fetch businesses')
-      
-      const data = await response.json()
-      setBusinesses(data.businesses || [])
-    } catch (err) {
-      console.error('Error:', err)
-      setError('Failed to load businesses')
-    } finally {
-      setLoading(false)
+  async function handleSwitch(target: Business) {
+    if (target.id === activeId) {
+      toast({ title: "Already managing this business" })
+      return
     }
-  }
-
-  const handleSwitchBusiness = async (businessId: string) => {
+    const current = businesses.find((b) => b.id === activeId) || null
+    setSwitchingId(target.id)
     try {
-      setSelectedBusinessId(businessId)
-      const response = await fetch('/api/user/switch-business', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ business_id: businessId }),
-      })
-
-      if (!response.ok) throw new Error('Failed to switch business')
-      
-      // Redirect to dashboard after switching
-      router.push('/dashboard/menu')
+      await switchBusiness(current, target)
+      // switchBusiness handles redirect; if it doesn't, fall back:
+      setActiveId(target.id)
     } catch (err) {
-      console.error('Error:', err)
-      setError('Failed to switch business')
+      console.error("[v0] switch failed", err)
+      toast({ title: "Could not switch business", variant: "destructive" })
     } finally {
-      setSelectedBusinessId(null)
+      setSwitchingId(null)
     }
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/5 p-4 sm:p-6 md:p-8">
-        <div className="max-w-4xl mx-auto">
-          <div className="animate-pulse space-y-4">
-            <div className="h-8 bg-muted rounded w-48"></div>
-            <div className="space-y-3">
-              <div className="h-24 bg-muted rounded"></div>
-              <div className="h-24 bg-muted rounded"></div>
-            </div>
-          </div>
+      <div className="space-y-6">
+        <div className="h-8 w-48 animate-pulse rounded-md bg-muted" />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {[1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className="h-64 animate-pulse rounded-xl bg-muted"
+            />
+          ))}
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/5 p-4 sm:p-6 md:p-8">
-      <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Businesses</h1>
-            <p className="text-muted-foreground text-xs mt-1">View, switch, and manage your businesses</p>
-          </div>
-          <Link href="/dashboard/profile">
-            <button className="inline-flex items-center justify-center px-3 py-1.5 bg-muted text-foreground rounded-lg font-medium text-sm hover:bg-muted/80 transition-colors duration-200">
-              Back
-            </button>
-          </Link>
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1">
+          <h1 className="text-balance text-2xl font-bold tracking-tight sm:text-3xl">
+            Your businesses
+          </h1>
+          <p className="text-pretty text-sm text-muted-foreground">
+            View, switch and manage every business under your account.
+          </p>
         </div>
-
-        {error && (
-          <div className="mb-6 p-4 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm flex items-start gap-3">
-            <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-            <span>{error}</span>
-          </div>
-        )}
-
-        {businesses.length === 0 ? (
-          <div className="bg-card border border-border rounded-xl shadow-sm p-8 text-center">
-            <p className="text-muted-foreground text-sm">No businesses found.</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {businesses.map((business) => (
-              <div
-                key={business.id}
-                className="bg-card border border-border rounded-xl shadow-sm p-4 hover:shadow-md transition-shadow duration-300"
-              >
-                <div className="flex flex-col sm:flex-row items-start gap-4">
-                  {/* Logo */}
-                  {business.logo_url && (
-                    <div className="relative w-20 h-20 flex-shrink-0 bg-secondary/20 rounded-lg overflow-hidden border border-border">
-                      <Image
-                        src={business.logo_url}
-                        alt={business.name}
-                        fill
-                        className="object-cover"
-                      />
-                    </div>
-                  )}
-
-                  {/* Business Info */}
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-base font-semibold text-card-foreground truncate">{business.name}</h3>
-                    <div className="flex flex-col gap-0.5 mt-1 text-xs text-muted-foreground">
-                      <p className="truncate">{business.email}</p>
-                      <p className="truncate">{business.phone}</p>
-                    </div>
-                    {business.description && (
-                      <p className="text-xs text-muted-foreground mt-2 line-clamp-2">{business.description}</p>
-                    )}
-                    <div className="mt-2">
-                      <span
-                        className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
-                          business.is_active
-                            ? 'bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-200'
-                            : 'bg-muted text-muted-foreground'
-                        }`}
-                      >
-                        {business.is_active ? 'Active' : 'Inactive'}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-                    <Link href={`/dashboard/profile/businesses/edit/${business.id}`} className="flex-1 sm:flex-none">
-                      <button className="w-full inline-flex items-center justify-center px-3 py-1.5 bg-primary text-primary-foreground rounded-lg font-medium text-xs hover:opacity-90 transition-opacity duration-200">
-                        <svg className="w-3 h-3 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                        </svg>
-                        Edit
-                      </button>
-                    </Link>
-                    <Link href={`/dashboard/menu/customize?businessId=${business.id}`} className="flex-1 sm:flex-none">
-                      <button className="w-full inline-flex items-center justify-center px-3 py-1.5 bg-muted text-foreground rounded-lg font-medium text-xs hover:bg-muted/80 transition-colors duration-200">
-                        <svg className="w-3 h-3 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.5a2 2 0 00-1 3.75A4 4 0 0010 21z" />
-                        </svg>
-                        Menu
-                      </button>
-                    </Link>
-                    <button
-                      onClick={() => handleSwitchBusiness(business.id)}
-                      disabled={selectedBusinessId === business.id}
-                      className="flex-1 sm:flex-none inline-flex items-center justify-center px-3 py-1.5 bg-primary text-primary-foreground rounded-lg font-medium text-xs hover:opacity-90 disabled:opacity-60 transition-opacity duration-200"
-                    >
-                      {selectedBusinessId === business.id ? 'Switching...' : 'Switch'}
-                      <svg className="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        <Link href="/dashboard/profile">
+          <Button variant="outline" size="sm">
+            Back to profile
+          </Button>
+        </Link>
       </div>
+
+      {error && (
+        <div className="flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-400">
+          <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {businesses.length === 0 ? (
+        <Card className="border-border/60">
+          <CardContent className="py-10">
+            <Empty>
+              <Building2 className="mb-3 h-10 w-10 text-muted-foreground" />
+              <EmptyTitle>No businesses yet</EmptyTitle>
+              <EmptyDescription>
+                Once you create a business it will appear here.
+              </EmptyDescription>
+            </Empty>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {businesses.map((business) => {
+            const isActive = business.id === activeId
+            return (
+              <Card
+                key={business.id}
+                className={`group overflow-hidden border transition-all ${
+                  isActive
+                    ? "border-primary/50 ring-2 ring-primary/20"
+                    : "border-border/60 hover:border-primary/40 hover:shadow-md"
+                }`}
+              >
+                <div className="relative h-24 overflow-hidden bg-gradient-to-br from-primary/15 via-primary/5 to-amber-500/10">
+                  {business.cover_image_url ? (
+                    <Image
+                      src={business.cover_image_url || "/placeholder.svg"}
+                      alt=""
+                      fill
+                      className="object-cover opacity-70"
+                      unoptimized
+                    />
+                  ) : null}
+                  {isActive ? (
+                    <Badge className="absolute right-3 top-3 border-0 bg-emerald-500/95 text-white shadow-sm">
+                      <CheckCircle2 className="mr-1 h-3 w-3" />
+                      Active
+                    </Badge>
+                  ) : null}
+                </div>
+
+                <CardContent className="-mt-8 space-y-4 p-4">
+                  <div className="flex items-end gap-3">
+                    <div className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-xl border-4 border-background bg-card shadow-sm ring-1 ring-border">
+                      {business.logo_url ? (
+                        <Image
+                          src={business.logo_url || "/placeholder.svg"}
+                          alt={business.name}
+                          fill
+                          className="object-cover"
+                          unoptimized
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center bg-primary/10 text-lg font-bold text-primary">
+                          {business.name.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1 pb-1">
+                      <h3 className="truncate text-base font-semibold">
+                        {business.name}
+                      </h3>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {business.slug}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5 text-xs text-muted-foreground">
+                    {business.email ? (
+                      <div className="flex items-center gap-2">
+                        <Mail className="h-3.5 w-3.5 flex-shrink-0" />
+                        <span className="truncate">{business.email}</span>
+                      </div>
+                    ) : null}
+                    {business.phone ? (
+                      <div className="flex items-center gap-2">
+                        <Phone className="h-3.5 w-3.5 flex-shrink-0" />
+                        <span className="truncate">{business.phone}</span>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  {business.description ? (
+                    <p className="line-clamp-2 text-xs text-muted-foreground">
+                      {business.description}
+                    </p>
+                  ) : null}
+
+                  <div className="grid grid-cols-2 gap-2 border-t border-border/60 pt-3">
+                    <Link
+                      href={`/dashboard/profile/businesses/edit/${business.id}`}
+                    >
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full gap-1.5"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        Edit
+                      </Button>
+                    </Link>
+                    <Link
+                      href={`/dashboard/menu/customize?businessId=${business.id}`}
+                    >
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full gap-1.5"
+                      >
+                        <UtensilsCrossed className="h-3.5 w-3.5" />
+                        Menu
+                      </Button>
+                    </Link>
+                  </div>
+
+                  <Button
+                    onClick={() => handleSwitch(business)}
+                    disabled={switchingId === business.id || isActive}
+                    className="w-full gap-2"
+                    variant={isActive ? "secondary" : "default"}
+                  >
+                    {switchingId === business.id ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Switching...
+                      </>
+                    ) : isActive ? (
+                      <>
+                        <CheckCircle2 className="h-4 w-4" />
+                        Currently managing
+                      </>
+                    ) : (
+                      <>
+                        <ArrowLeftRight className="h-4 w-4" />
+                        Switch to this business
+                      </>
+                    )}
+                  </Button>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

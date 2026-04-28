@@ -1,428 +1,416 @@
-'use client';
+"use client"
 
-import { useEffect, useRef, useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Plus, X, AlertCircle, Edit2, Eye, EyeOff, Search, Upload } from 'lucide-react';
-import Image from 'next/image';
+import { useEffect, useMemo, useState } from "react"
+import Link from "next/link"
+import {
+  Plus,
+  Search,
+  Wine,
+  Pencil,
+  Trash2,
+  Loader2,
+  CheckCircle2,
+  XCircle,
+  Package,
+  Eye,
+  EyeOff,
+} from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { Empty, EmptyDescription, EmptyTitle } from "@/components/ui/empty"
+import { useToast } from "@/hooks/use-toast"
 
-interface Drink {
-  id: string;
-  name: string;
-  description?: string;
-  price: number;
-  image_url?: string;
-  is_available: boolean;
+type Drink = {
+  id: string
+  name: string
+  description: string | null
+  price: number
+  image_url: string | null
+  is_available: boolean
+  size?: string | null
+  category?: string | null
+  created_at: string
+}
+
+function formatPrice(value: number) {
+  return new Intl.NumberFormat("en-NG", {
+    style: "currency",
+    currency: "NGN",
+    maximumFractionDigits: 0,
+  }).format(Number(value || 0))
 }
 
 export default function DrinksPage() {
-  const [drinks, setDrinks] = useState<Drink[]>([]);
-  const [filteredDrinks, setFilteredDrinks] = useState<Drink[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [showForm, setShowForm] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    price: '',
-    imageFile: null as File | null,
-    imageUrl: '',
-  });
+  const [drinks, setDrinks] = useState<Drink[]>([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState("")
+  const [filter, setFilter] = useState<"all" | "available" | "unavailable">(
+    "all",
+  )
+  const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const { toast } = useToast()
+
+  async function load() {
+    setLoading(true)
+    try {
+      const res = await fetch("/api/business/drinks", { cache: "no-store" })
+      if (!res.ok) throw new Error("Failed to load drinks")
+      const data = await res.json()
+      setDrinks(Array.isArray(data) ? data : data.drinks || [])
+    } catch (err) {
+      console.error("[v0] drinks load error", err)
+      toast({
+        title: "Could not load drinks",
+        description: "Please refresh the page.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    fetchDrinks();
-  }, []);
+    load()
+    function onSwitch() {
+      load()
+    }
+    window.addEventListener("business-switched", onSwitch)
+    return () => window.removeEventListener("business-switched", onSwitch)
+  }, [])
 
-  useEffect(() => {
-    // Filter drinks based on search term
-    const filtered = drinks.filter(drink =>
-      drink.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      drink.description?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-    setFilteredDrinks(filtered);
-  }, [searchTerm, drinks]);
+  const filtered = useMemo(() => {
+    return drinks.filter((d) => {
+      const matchesSearch =
+        !search ||
+        d.name.toLowerCase().includes(search.toLowerCase()) ||
+        (d.description ?? "").toLowerCase().includes(search.toLowerCase())
+      const matchesFilter =
+        filter === "all" ||
+        (filter === "available" && d.is_available) ||
+        (filter === "unavailable" && !d.is_available)
+      return matchesSearch && matchesFilter
+    })
+  }, [drinks, search, filter])
 
-  const fetchDrinks = async () => {
+  const stats = useMemo(() => {
+    const total = drinks.length
+    const available = drinks.filter((d) => d.is_available).length
+    const avgPrice =
+      drinks.length === 0
+        ? 0
+        : drinks.reduce((sum, d) => sum + Number(d.price || 0), 0) /
+          drinks.length
+    return { total, available, avgPrice }
+  }, [drinks])
+
+  async function toggleAvailability(drink: Drink) {
     try {
-      const response = await fetch('/api/business/drinks');
-      const data = await response.json();
-
-      if (!response.ok) throw new Error(data.error);
-
-      setDrinks(data.drinks || []);
-      setFilteredDrinks(data.drinks || []);
+      const res = await fetch(`/api/business/drinks/${drink.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_available: !drink.is_available }),
+      })
+      if (!res.ok) throw new Error("Failed")
+      setDrinks((prev) =>
+        prev.map((d) =>
+          d.id === drink.id ? { ...d, is_available: !drink.is_available } : d,
+        ),
+      )
     } catch (err) {
-      setError('Failed to load drinks');
-      console.error(err);
+      toast({
+        title: "Could not update drink",
+        variant: "destructive",
+      })
+    }
+  }
+
+  async function handleDelete() {
+    if (!deleteId) return
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/business/drinks/${deleteId}`, {
+        method: "DELETE",
+      })
+      if (!res.ok) throw new Error("Failed")
+      toast({ title: "Drink removed" })
+      setDeleteId(null)
+      load()
+    } catch (err) {
+      toast({
+        title: "Could not delete drink",
+        variant: "destructive",
+      })
     } finally {
-      setLoading(false);
+      setDeleting(false)
     }
-  };
-
-  const uploadImageToCloudinary = async (file: File): Promise<string | null> => {
-    try {
-      const formDataObj = new FormData();
-      formDataObj.append('file', file);
-      formDataObj.append('upload_preset', 'foodbase_upload');
-      formDataObj.append('folder', 'foodbase/drinks');
-
-      const response = await fetch(
-        `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`,
-        {
-          method: 'POST',
-          body: formDataObj,
-        }
-      );
-
-      if (!response.ok) throw new Error('Upload failed');
-
-      const data = await response.json();
-      return data.secure_url;
-    } catch (err) {
-      console.error('[v0] Upload error:', err);
-      setError('Failed to upload image');
-      return null;
-    }
-  };
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setFormData({ ...formData, imageFile: file });
-    }
-  };
-
-  const handleAddDrink = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-
-    if (!formData.name || !formData.price) {
-      setError('Name and price are required');
-      return;
-    }
-
-    setUploading(true);
-    let imageUrl = formData.imageUrl;
-
-    // Upload image if selected
-    if (formData.imageFile) {
-      imageUrl = await uploadImageToCloudinary(formData.imageFile);
-      if (!imageUrl) {
-        setUploading(false);
-        return;
-      }
-    }
-
-    try {
-      const endpoint = editingId
-        ? `/api/business/drinks/${editingId}`
-        : '/api/business/drinks';
-      const method = editingId ? 'PATCH' : 'POST';
-
-      const response = await fetch(endpoint, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: formData.name,
-          description: formData.description,
-          price: parseFloat(formData.price),
-          imageUrl: imageUrl || null,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.error || 'Failed to save drink');
-        setUploading(false);
-        return;
-      }
-
-      if (editingId) {
-        setDrinks(drinks.map(item => item.id === editingId ? data.drink : item));
-      } else {
-        setDrinks([data.drink, ...drinks]);
-      }
-
-      setFormData({ name: '', description: '', price: '', imageFile: null, imageUrl: '' });
-      setEditingId(null);
-      setShowForm(false);
-    } catch (err) {
-      setError('An error occurred. Please try again.');
-      console.error(err);
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(amount);
-
-  const handleToggleAvailable = async (drinkId: string, currentState: boolean) => {
-    try {
-      const response = await fetch(`/api/business/drinks/${drinkId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ is_available: !currentState }),
-      });
-
-      if (response.ok) {
-        setDrinks(drinks.map(item =>
-          item.id === drinkId ? { ...item, is_available: !currentState } : item
-        ));
-      }
-    } catch (err) {
-      console.error('Error toggling availability:', err);
-    }
-  };
-
-  const handleEditDrink = (drink: Drink) => {
-    setFormData({
-      name: drink.name,
-      description: drink.description || '',
-      price: drink.price.toString(),
-      imageFile: null,
-      imageUrl: drink.image_url || '',
-    });
-    setEditingId(drink.id);
-    setShowForm(true);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <p className="text-muted-foreground text-sm">Loading drinks...</p>
-      </div>
-    );
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-bold mb-1">Drinks</h1>
-          <p className="text-xs text-muted-foreground">Manage beverages and drinks</p>
-        </div>
-        <Button
-          onClick={() => {
-            setEditingId(null);
-            setFormData({ name: '', description: '', price: '', imageFile: null, imageUrl: '' });
-            setShowForm(!showForm);
-          }}
-          className="h-8 text-xs bg-primary text-white hover:bg-primary-dark"
-        >
-          <Plus className="w-4 h-4 mr-1" />
-          Add Drink
-        </Button>
-      </div>
-
-      {error && (
-        <div className="p-3 bg-red-50 border border-red-200 rounded text-red-700 text-xs flex items-start gap-2">
-          <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-          <span>{error}</span>
-        </div>
-      )}
-
-      {showForm && (
-        <div className="bg-white border border-border rounded-lg p-4 space-y-3">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold">{editingId ? 'Edit Drink' : 'Add New Drink'}</h2>
-            <button onClick={() => { setShowForm(false); setEditingId(null); }} className="p-1">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-
-          <form onSubmit={handleAddDrink} className="space-y-3">
-            <div>
-              <Label htmlFor="name" className="text-xs font-semibold">
-                Drink Name
-              </Label>
-              <Input
-                id="name"
-                placeholder="e.g., Coca Cola"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="mt-1 h-8 text-xs"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="description" className="text-xs font-semibold">
-                Description
-              </Label>
-              <Textarea
-                id="description"
-                placeholder="Describe the drink..."
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className="mt-1 text-xs min-h-16"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="price" className="text-xs font-semibold">
-                Price (NGN)
-              </Label>
-              <Input
-                id="price"
-                type="number"
-                step="0.01"
-                placeholder="500"
-                value={formData.price}
-                onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                className="mt-1 h-8 text-xs"
-              />
-            </div>
-
-            <div>
-              <Label className="text-xs font-semibold">Drink Image</Label>
-              <div className="mt-2 space-y-2">
-                {formData.imageUrl ? (
-                  <div className="relative w-20 h-20 rounded border border-border overflow-hidden">
-                    <Image src={formData.imageUrl} alt="Preview" fill className="object-cover" />
-                    <button
-                      type="button"
-                      onClick={() => setFormData({ ...formData, imageFile: null, imageUrl: '' })}
-                      className="absolute top-0 right-0 bg-red-500 text-white p-1"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </div>
-                ) : (
-                  <div>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleFileSelect}
-                      className="hidden"
-                      id="drink-image"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-8 text-xs w-full"
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      <Upload className="w-3 h-3 mr-1" />
-                      Upload Image
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <Button type="submit" disabled={uploading} className="w-full h-8 text-xs bg-primary text-white hover:bg-primary-dark">
-              {uploading ? 'Uploading...' : editingId ? 'Update Drink' : 'Add Drink'}
-            </Button>
-          </form>
-        </div>
-      )}
-
-      {/* Search Bar */}
-      {drinks.length > 0 && (
-        <div className="relative">
-          <Search className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Search drinks..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9 h-8 text-xs"
-          />
-        </div>
-      )}
-
-      {/* Drinks Card Grid */}
-      {filteredDrinks.length === 0 ? (
-        <div className="p-8 text-center bg-white border border-border rounded-lg">
-          <p className="text-sm text-muted-foreground">
-            {drinks.length === 0 ? 'No drinks added yet. Add your first drink!' : 'No drinks match your search.'}
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1">
+          <h1 className="text-balance text-2xl font-bold tracking-tight sm:text-3xl">
+            Drinks
+          </h1>
+          <p className="text-pretty text-sm text-muted-foreground">
+            Manage your beverage menu, pricing and availability.
           </p>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredDrinks.map((drink) => (
-            <div key={drink.id} className="bg-white border border-border rounded-lg overflow-hidden flex flex-col">
-              {/* Image */}
-              <div className="relative w-full h-40 bg-muted/20 overflow-hidden flex items-center justify-center">
-                {drink.image_url ? (
-                  <Image
-                    src={drink.image_url}
-                    alt={drink.name}
-                    fill
-                    className="object-cover"
-                  />
-                ) : (
-                  <div className="text-muted-foreground text-xs">No image</div>
-                )}
-              </div>
+        <Link href="/dashboard/drinks/new">
+          <Button className="w-full gap-2 sm:w-auto">
+            <Plus className="h-4 w-4" />
+            Add drink
+          </Button>
+        </Link>
+      </div>
 
-              {/* Content */}
-              <div className="p-3 flex-1 flex flex-col">
-                <h3 className="font-semibold text-sm mb-1 line-clamp-2">{drink.name}</h3>
-                <p className="text-xs text-muted-foreground line-clamp-2 mb-3">{drink.description}</p>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <Card className="border-border/60">
+          <CardContent className="flex items-center gap-3 p-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Wine className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Total drinks</p>
+              <p className="text-xl font-semibold">{stats.total}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-border/60">
+          <CardContent className="flex items-center gap-3 p-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600">
+              <CheckCircle2 className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Available</p>
+              <p className="text-xl font-semibold">{stats.available}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="col-span-2 border-border/60 sm:col-span-1">
+          <CardContent className="flex items-center gap-3 p-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600">
+              <Package className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Avg. price</p>
+              <p className="text-xl font-semibold">
+                {formatPrice(stats.avgPrice)}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
-                <div className="space-y-2 mt-auto">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">Price:</span>
-                    <span className="font-bold text-primary">{formatCurrency(drink.price)}</span>
+      <Card className="border-border/60">
+        <CardHeader className="space-y-4 pb-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <CardTitle className="text-lg">All drinks</CardTitle>
+              <CardDescription>
+                {filtered.length} of {drinks.length} drinks
+              </CardDescription>
+            </div>
+            <div className="relative w-full sm:max-w-xs">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search drinks..."
+                className="pl-9"
+              />
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {(["all", "available", "unavailable"] as const).map((f) => (
+              <Button
+                key={f}
+                size="sm"
+                variant={filter === f ? "default" : "outline"}
+                onClick={() => setFilter(f)}
+                className="capitalize"
+              >
+                {f}
+              </Button>
+            ))}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : filtered.length === 0 ? (
+            <Empty className="py-12">
+              <Wine className="mb-3 h-10 w-10 text-muted-foreground" />
+              <EmptyTitle>No drinks yet</EmptyTitle>
+              <EmptyDescription>
+                {drinks.length === 0
+                  ? "Add your first drink to start building your beverage menu."
+                  : "Try adjusting your search or filters."}
+              </EmptyDescription>
+              {drinks.length === 0 && (
+                <Link href="/dashboard/drinks/new" className="mt-4 inline-block">
+                  <Button className="gap-2">
+                    <Plus className="h-4 w-4" />
+                    Add your first drink
+                  </Button>
+                </Link>
+              )}
+            </Empty>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {filtered.map((drink) => (
+                <div
+                  key={drink.id}
+                  className="group relative overflow-hidden rounded-xl border border-border/60 bg-card transition-all hover:border-primary/40 hover:shadow-md"
+                >
+                  <div className="relative aspect-[4/3] overflow-hidden bg-muted">
+                    {drink.image_url ? (
+                      <img
+                        src={drink.image_url || "/placeholder.svg"}
+                        alt={drink.name}
+                        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                        <Wine className="h-10 w-10" />
+                      </div>
+                    )}
+                    <div className="absolute right-2 top-2">
+                      {drink.is_available ? (
+                        <Badge className="border-0 bg-emerald-500/90 text-white shadow-sm">
+                          <CheckCircle2 className="mr-1 h-3 w-3" />
+                          Available
+                        </Badge>
+                      ) : (
+                        <Badge className="border-0 bg-rose-500/90 text-white shadow-sm">
+                          <XCircle className="mr-1 h-3 w-3" />
+                          Unavailable
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  <div className="space-y-3 p-4">
+                    <div>
+                      <h3 className="line-clamp-1 font-semibold">
+                        {drink.name}
+                      </h3>
+                      {drink.description ? (
+                        <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                          {drink.description}
+                        </p>
+                      ) : null}
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-lg font-bold text-primary">
+                        {formatPrice(drink.price)}
+                      </span>
+                      {drink.size ? (
+                        <Badge variant="secondary" className="text-xs">
+                          {drink.size}
+                        </Badge>
+                      ) : null}
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 border-t border-border/60 pt-3">
+                      <Link
+                        href={`/dashboard/drinks/edit/${drink.id}`}
+                        className="col-span-1"
+                      >
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full gap-1.5"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          Edit
+                        </Button>
+                      </Link>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => toggleAvailability(drink)}
+                        className="col-span-1 gap-1.5"
+                      >
+                        {drink.is_available ? (
+                          <>
+                            <EyeOff className="h-3.5 w-3.5" />
+                            Hide
+                          </>
+                        ) : (
+                          <>
+                            <Eye className="h-3.5 w-3.5" />
+                            Show
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setDeleteId(drink.id)}
+                        className="col-span-1 text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:hover:bg-rose-950/40"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
-
-                {/* Status Badge */}
-                <div className="mt-3 mb-3">
-                  <span
-                    className={`inline-block px-2 py-1 rounded text-xs font-medium ${
-                      drink.is_available
-                        ? 'bg-green-50 text-green-700'
-                        : 'bg-gray-50 text-gray-700'
-                    }`}
-                  >
-                    {drink.is_available ? 'Available' : 'Unavailable'}
-                  </span>
-                </div>
-
-                {/* Actions */}
-                <div className="flex gap-2">
-                  <Button
-                    onClick={() => handleEditDrink(drink)}
-                    variant="outline"
-                    className="flex-1 h-7 text-xs"
-                  >
-                    <Edit2 className="w-3 h-3 mr-1" />
-                    Edit
-                  </Button>
-                  <Button
-                    onClick={() => handleToggleAvailable(drink.id, drink.is_available)}
-                    variant="outline"
-                    className="flex-1 h-7 text-xs"
-                  >
-                    {drink.is_available ? (
-                      <>
-                        <Eye className="w-3 h-3 mr-1" />
-                        Hide
-                      </>
-                    ) : (
-                      <>
-                        <EyeOff className="w-3 h-3 mr-1" />
-                        Show
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </div>
+              ))}
             </div>
-          ))}
-        </div>
-      )}
+          )}
+        </CardContent>
+      </Card>
+
+      <AlertDialog
+        open={!!deleteId}
+        onOpenChange={(open) => !open && setDeleteId(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this drink?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. The drink will be permanently
+              removed from your menu.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleting}
+              className="bg-rose-600 hover:bg-rose-700"
+            >
+              {deleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
-  );
+  )
 }
