@@ -1,53 +1,93 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getOne, query } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
+import { getActiveBusiness } from '@/lib/active-business';
 
-// PATCH - Update menu item
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+// GET - Fetch a single menu item belonging to the active business
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const currentUser = await getCurrentUser();
     const { id } = await params;
 
     if (!currentUser || currentUser.role !== 'business_owner') {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
-    const body = await request.json();
-    const { name, description, price, originalPrice, categoryId, imageUrl, is_available, discountType, discountValue } = body;
-
-    // Get business
-    const business = await getOne(
-      'SELECT id FROM businesses WHERE owner_id = $1',
-      [currentUser.id]
-    );
-
+    const business = await getActiveBusiness();
     if (!business) {
-      return NextResponse.json(
-        { error: 'Business not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Business not found' }, { status: 404 });
     }
 
-    // Verify menu item belongs to business
     const menuItem = await getOne(
-      'SELECT * FROM menu_items WHERE id = $1 AND business_id = $2',
-      [id, business.id]
+      `SELECT m.*, c.name as category_name
+         FROM menu_items m
+         LEFT JOIN categories c ON m.category_id = c.id
+        WHERE m.id = $1 AND m.business_id = $2`,
+      [id, business.id],
     );
 
     if (!menuItem) {
       return NextResponse.json(
         { error: 'Menu item not found' },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
-    // Build update query dynamically
+    return NextResponse.json({ success: true, menuItem });
+  } catch (error) {
+    console.error('[v0] Get menu item error:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch menu item' },
+      { status: 500 },
+    );
+  }
+}
+
+// PATCH - Update menu item
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const currentUser = await getCurrentUser();
+    const { id } = await params;
+
+    if (!currentUser || currentUser.role !== 'business_owner') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const {
+      name,
+      description,
+      price,
+      originalPrice,
+      categoryId,
+      imageUrl,
+      is_available,
+      discountType,
+      discountValue,
+    } = body;
+
+    const business = await getActiveBusiness();
+    if (!business) {
+      return NextResponse.json({ error: 'Business not found' }, { status: 404 });
+    }
+
+    const menuItem = await getOne(
+      'SELECT * FROM menu_items WHERE id = $1 AND business_id = $2',
+      [id, business.id],
+    );
+    if (!menuItem) {
+      return NextResponse.json(
+        { error: 'Menu item not found' },
+        { status: 404 },
+      );
+    }
+
     const updates: string[] = ['updated_at = CURRENT_TIMESTAMP'];
     const values: any[] = [];
     let paramCount = 1;
@@ -93,12 +133,12 @@ export async function PATCH(
 
     await query(
       `UPDATE menu_items SET ${updates.join(', ')} WHERE id = $${paramCount}`,
-      values
+      values,
     );
 
     const updated = await getOne(
       'SELECT * FROM menu_items WHERE id = $1',
-      [id]
+      [id],
     );
 
     return NextResponse.json({
@@ -110,64 +150,48 @@ export async function PATCH(
     console.error('[v0] Update menu item error:', error);
     return NextResponse.json(
       { error: 'Failed to update menu item' },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
 
 // DELETE - Delete menu item
 export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const currentUser = await getCurrentUser();
     const { id } = await params;
 
     if (!currentUser || currentUser.role !== 'business_owner') {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
-    // Get business
-    const business = await getOne(
-      'SELECT id FROM businesses WHERE owner_id = $1',
-      [currentUser.id]
-    );
-
+    const business = await getActiveBusiness();
     if (!business) {
-      return NextResponse.json(
-        { error: 'Business not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Business not found' }, { status: 404 });
     }
 
-    // Verify and delete
     const menuItem = await getOne(
       'SELECT * FROM menu_items WHERE id = $1 AND business_id = $2',
-      [id, business.id]
+      [id, business.id],
     );
-
     if (!menuItem) {
       return NextResponse.json(
         { error: 'Menu item not found' },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
     await query('DELETE FROM menu_items WHERE id = $1', [id]);
 
-    return NextResponse.json({
-      success: true,
-      message: 'Menu item deleted',
-    });
+    return NextResponse.json({ success: true, message: 'Menu item deleted' });
   } catch (error) {
     console.error('[v0] Delete menu item error:', error);
     return NextResponse.json(
       { error: 'Failed to delete menu item' },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { getOne, getAll } from '@/lib/db';
+import { getActiveBusiness } from '@/lib/active-business';
 
 export async function GET(request: NextRequest) {
   try {
@@ -9,20 +10,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get the businessId from query params or use the first one
+    // Resolve business: explicit query param wins, otherwise the active
+    // business cookie set when the user switched in the sidebar.
     const { searchParams } = new URL(request.url);
     let businessId = searchParams.get('businessId');
 
     if (!businessId) {
-      // If no businessId provided, get all businesses for this owner and use the first one
-      const businessData = await getOne(
-        'SELECT id FROM businesses WHERE owner_id = $1 LIMIT 1',
-        [currentUser.id]
-      );
-      if (!businessData) {
+      const active = await getActiveBusiness();
+      if (!active) {
         return NextResponse.json({ error: 'Business not found' }, { status: 404 });
       }
-      businessId = businessData.id;
+      businessId = active.id;
     }
 
     // Verify the business belongs to the current user

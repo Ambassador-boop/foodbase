@@ -1,6 +1,7 @@
 import { sql } from '@vercel/postgres';
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken, getAuthCookie } from '@/lib/auth';
+import { getActiveBusinessForUser } from '@/lib/active-business';
 
 export async function GET(req: NextRequest) {
   try {
@@ -17,6 +18,11 @@ export async function GET(req: NextRequest) {
 
     // The JWT payload exposes `userId`, not `id`.
     const userId = (user as any).userId || (user as any).id;
+
+    const business = await getActiveBusinessForUser(userId);
+    if (!business) {
+      return NextResponse.json({ error: 'Business not found' }, { status: 404 });
+    }
 
     const { searchParams } = new URL(req.url);
     const type = searchParams.get('type'); // matches transaction_type column
@@ -41,9 +47,9 @@ export async function GET(req: NextRequest) {
       FROM transactions t
       JOIN businesses b ON t.business_id = b.id
       LEFT JOIN orders o ON t.order_id = o.id
-      WHERE b.owner_id = $1
+      WHERE t.business_id = $1
     `;
-    const params: any[] = [userId];
+    const params: any[] = [business.id];
 
     if (type) {
       query += ` AND t.transaction_type = $${params.length + 1}`;

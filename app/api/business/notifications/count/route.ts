@@ -1,46 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { getOne } from '@/lib/db';
+import { getActiveBusiness } from '@/lib/active-business';
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     const currentUser = await getCurrentUser();
     if (!currentUser || currentUser.role !== 'business_owner') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get businessId from query params or use the first one
-    const { searchParams } = new URL(request.url);
-    let businessId = searchParams.get('businessId');
-
-    if (!businessId) {
-      const businessData = await getOne(
-        'SELECT id FROM businesses WHERE owner_id = $1 LIMIT 1',
-        [currentUser.id]
-      );
-      if (!businessData) {
-        return NextResponse.json({ error: 'Business not found' }, { status: 404 });
-      }
-      businessId = businessData.id;
+    const business = await getActiveBusiness();
+    if (!business) {
+      return NextResponse.json({ unreadCount: 0 });
     }
 
-    // Verify the business belongs to the current user
-    const businessData = await getOne(
-      'SELECT id FROM businesses WHERE id = $1 AND owner_id = $2',
-      [businessId, currentUser.id]
-    );
-
-    if (!businessData) {
-      return NextResponse.json({ error: 'Business not found or unauthorized' }, { status: 404 });
-    }
-
-    // Count unread notifications
     const result = await getOne(
       `SELECT COUNT(*) as count
-       FROM notifications
-       WHERE business_id = $1
-       AND is_read = false`,
-      [businessId]
+         FROM notifications
+        WHERE business_id = $1
+          AND is_read = false`,
+      [business.id],
     );
 
     return NextResponse.json({
@@ -50,7 +30,7 @@ export async function GET(request: NextRequest) {
     console.error('Notification count error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch notification count' },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

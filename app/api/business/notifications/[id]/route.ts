@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
-import { getOne } from '@/lib/db';
+import { getOne, query } from '@/lib/db';
+import { getActiveBusiness } from '@/lib/active-business';
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const currentUser = await getCurrentUser();
@@ -12,34 +13,30 @@ export async function PATCH(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id } = params;
+    const { id } = await params;
     const body = await request.json();
     const { isRead } = body;
 
-    // Get business
-    const businessData = await getOne(
-      'SELECT * FROM businesses WHERE owner_id = $1 LIMIT 1',
-      [currentUser.id]
-    );
-
-    if (!businessData) {
+    const business = await getActiveBusiness();
+    if (!business) {
       return NextResponse.json({ error: 'Business not found' }, { status: 404 });
     }
 
-    // Verify notification belongs to user's business
     const notification = await getOne(
       'SELECT * FROM notifications WHERE id = $1 AND business_id = $2',
-      [id, businessData.id]
+      [id, business.id],
     );
 
     if (!notification) {
-      return NextResponse.json({ error: 'Notification not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Notification not found' },
+        { status: 404 },
+      );
     }
 
-    // Update notification
-    await getOne(
+    await query(
       'UPDATE notifications SET is_read = $1, updated_at = NOW() WHERE id = $2',
-      [isRead, id]
+      [isRead, id],
     );
 
     return NextResponse.json({ success: true });
@@ -47,14 +44,14 @@ export async function PATCH(
     console.error('Notification update error:', error);
     return NextResponse.json(
       { error: 'Failed to update notification' },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
 
 export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const currentUser = await getCurrentUser();
@@ -62,37 +59,33 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id } = params;
+    const { id } = await params;
 
-    // Get business
-    const businessData = await getOne(
-      'SELECT * FROM businesses WHERE owner_id = $1 LIMIT 1',
-      [currentUser.id]
-    );
-
-    if (!businessData) {
+    const business = await getActiveBusiness();
+    if (!business) {
       return NextResponse.json({ error: 'Business not found' }, { status: 404 });
     }
 
-    // Verify notification belongs to user's business
     const notification = await getOne(
       'SELECT * FROM notifications WHERE id = $1 AND business_id = $2',
-      [id, businessData.id]
+      [id, business.id],
     );
 
     if (!notification) {
-      return NextResponse.json({ error: 'Notification not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Notification not found' },
+        { status: 404 },
+      );
     }
 
-    // Delete notification
-    await getOne('DELETE FROM notifications WHERE id = $1', [id]);
+    await query('DELETE FROM notifications WHERE id = $1', [id]);
 
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Notification delete error:', error);
     return NextResponse.json(
       { error: 'Failed to delete notification' },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

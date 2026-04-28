@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { getOne, getAll } from '@/lib/db';
+import { getActiveBusiness } from '@/lib/active-business';
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,14 +15,11 @@ export async function GET(request: NextRequest) {
     let businessId = searchParams.get('businessId');
 
     if (!businessId) {
-      const businessData = await getOne(
-        'SELECT id FROM businesses WHERE owner_id = $1 LIMIT 1',
-        [currentUser.id]
-      );
-      if (!businessData) {
+      const active = await getActiveBusiness();
+      if (!active) {
         return NextResponse.json({ error: 'Business not found' }, { status: 404 });
       }
-      businessId = businessData.id;
+      businessId = active.id;
     }
 
     // Verify the business belongs to the current user

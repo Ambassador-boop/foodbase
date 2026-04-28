@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { verifyJWT } from '@/lib/auth';
+import { getActiveBusinessForUser } from '@/lib/active-business';
 import { generateAlphanumericId } from '@/lib/utils';
 
 const PAYSTACK_API_KEY = process.env.PAYSTACK_SECRET_KEY;

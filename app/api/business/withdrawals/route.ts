@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { verifyJWT } from '@/lib/auth';
+import { getActiveBusinessForUser } from '@/lib/active-business';
 import { nanoid } from 'nanoid';
 
 const PAYSTACK_API_KEY = process.env.PAYSTACK_SECRET_KEY;
@@ -91,6 +92,11 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const business = await getActiveBusinessForUser(userId);
+    if (!business) {
+      return NextResponse.json({ error: 'Business not found' }, { status: 404 });
+    }
+
     const rows: any = await db.query(
       `SELECT
          w.id,
@@ -114,11 +120,10 @@ export async function GET(req: NextRequest) {
          w.created_at,
          w.updated_at
        FROM withdrawals w
-       JOIN businesses b ON w.business_id = b.id
-       WHERE b.owner_id = $1
+       WHERE w.business_id = $1
        ORDER BY w.created_at DESC
        LIMIT 200`,
-      [userId],
+      [business.id],
     );
 
     const list = Array.isArray(rows) ? rows : rows?.rows ?? [];
@@ -176,17 +181,10 @@ export async function POST(req: NextRequest) {
     }
 
     /* ------------- Business + balance check ----------------------- */
-    const bizRows: any = await db.query(
-      `SELECT id, available_balance
-         FROM businesses
-        WHERE owner_id = $1`,
-      [userId],
-    );
-    const bizList = Array.isArray(bizRows) ? bizRows : bizRows?.rows ?? [];
-    if (bizList.length === 0) {
+    const business = await getActiveBusinessForUser(userId);
+    if (!business) {
       return NextResponse.json({ error: 'Business not found' }, { status: 404 });
     }
-    const business = bizList[0];
     const availableBalance = Number(business.available_balance ?? 0);
 
     /* ------------- Daily withdrawal counter ----------------------- */

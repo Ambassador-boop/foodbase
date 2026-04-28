@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { verifyJWT } from '@/lib/auth';
+import { getActiveBusinessForUser } from '@/lib/active-business';
 
 export async function GET(request: NextRequest) {
   try {
@@ -17,6 +18,10 @@ export async function GET(request: NextRequest) {
     }
 
     const userId = (user as any).userId || (user as any).id;
+    const business = await getActiveBusinessForUser(userId);
+    if (!business) {
+      return NextResponse.json({ error: 'Business not found' }, { status: 404 });
+    }
 
     // Get all refunds for the business owner's orders. We expose both the
     // legacy integer `amount` and the new numeric `refund_amount` columns,
@@ -39,12 +44,11 @@ export async function GET(request: NextRequest) {
         o.customer_name,
         o.customer_email
        FROM refunds r
-       JOIN businesses b ON r.business_id = b.id
        LEFT JOIN orders o ON r.order_id = o.id
-       WHERE b.owner_id = $1
+       WHERE r.business_id = $1
        ORDER BY r.created_at DESC
        LIMIT 200`,
-      [userId]
+      [business.id]
     );
 
     const rows = Array.isArray(result) ? result : (result?.rows ?? []);
