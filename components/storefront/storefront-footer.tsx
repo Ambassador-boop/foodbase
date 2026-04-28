@@ -58,9 +58,8 @@ export function StorefrontFooter({
       }}
     >
       <div
-        className={`${
-          inContentColumn ? 'w-full' : 'max-w-6xl mx-auto'
-        } px-4 sm:px-6 py-8 sm:py-10`}
+        className={`${inContentColumn ? 'w-full' : 'max-w-6xl mx-auto'
+          } px-4 sm:px-6 py-8 sm:py-10`}
       >
         {/* Disclosure */}
         <p
@@ -222,7 +221,7 @@ export function StorefrontFooter({
         {/* Live status badge */}
         <div className="mt-6 flex justify-center md:justify-start">
           <iframe
-            src="https://status.foodbase.ng/badge?theme=dark"
+            src="https://status.foodbase.ng/badge?theme=light"
             width="250"
             height="30"
             frameBorder={0}
