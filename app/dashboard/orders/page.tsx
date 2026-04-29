@@ -268,7 +268,7 @@ export default function OrdersPage() {
       .then((data) => {
         if (active && data?.business?.id) setBusinessId(data.business.id);
       })
-      .catch(() => {});
+      .catch(() => { });
     return () => {
       active = false;
     };
@@ -368,28 +368,7 @@ export default function OrdersPage() {
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
               Orders
             </h1>
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              Live
-            </span>
           </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            Auto-refreshing every {REFRESH_MS / 1000}s • {orders.length} total
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={() => fetchOrders(false)}
-            disabled={refreshing}
-            className="gap-2"
-          >
-            <RefreshCw
-              className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`}
-            />
-            <span className="hidden sm:inline">Refresh</span>
-          </Button>
         </div>
       </header>
 
@@ -434,35 +413,6 @@ export default function OrdersPage() {
         </div>
       )}
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard
-          label="Today"
-          value={stats.todayCount.toString()}
-          sub={formatNGN(stats.todayRevenue)}
-          icon={<TrendingUp className="w-4 h-4" />}
-          tone="emerald"
-        />
-        <StatCard
-          label="Pending"
-          value={stats.pending.toString()}
-          icon={<Clock className="w-4 h-4" />}
-          tone="amber"
-        />
-        <StatCard
-          label="Preparing"
-          value={stats.preparing.toString()}
-          icon={<Loader2 className="w-4 h-4" />}
-          tone="blue"
-        />
-        <StatCard
-          label="Completed"
-          value={stats.completed.toString()}
-          icon={<CheckCircle2 className="w-4 h-4" />}
-          tone="slate"
-        />
-      </div>
-
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 flex items-start gap-2">
           <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
@@ -488,11 +438,10 @@ export default function OrdersPage() {
             <button
               key={f.key}
               onClick={() => setStatusFilter(f.key)}
-              className={`px-3 h-10 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
-                statusFilter === f.key
+              className={`px-3 h-10 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${statusFilter === f.key
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-muted text-muted-foreground hover:bg-muted/70'
-              }`}
+                }`}
             >
               {f.label}
             </button>
