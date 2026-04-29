@@ -603,11 +603,14 @@ const ReceiptDocument = ({
 
         <ul>
           {items.map((item, idx) => {
-            const perUnit = item.quantity > 0 ? item.item_price / item.quantity : item.item_price;
+            // item.item_price is the BASE per-unit price.
+            // The addons array may contain duplicates: each entry contributes
+            // its own price once per unit of the menu item.
+            const perUnit = Number(item.item_price) || 0;
             const addonPerUnit =
               item.addons?.reduce((sum, a) => sum + Number(a.price || 0), 0) || 0;
             const lineTotal = (perUnit + addonPerUnit) * item.quantity;
-            // Deduplicate addons
+            // Deduplicate addons by id so each unique add-on shows on one row
             const uniqueAddonIds = Array.from(new Set(item.addons.map((a) => a.id)));
 
             return (

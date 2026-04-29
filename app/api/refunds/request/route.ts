@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { verifyJWT } from '@/lib/auth';
+import { generateAlphanumericId } from '@/lib/utils';
 import { nanoid } from 'nanoid';
 
 const PAYSTACK_API_KEY = process.env.PAYSTACK_SECRET_KEY;
@@ -73,9 +74,16 @@ export async function POST(request: NextRequest) {
       );
     }
     const order = orderList[0];
-    // 🔍 Get actual transaction ID from transactions table using order_id
+
+    // 🔍 Get actual transaction row from transactions table using order_id.
+    // We also pull settlement_status / balance_bucket so we know whether to
+    // deduct from pending_balance or available_balance.
     const txRows: any = await db.query(
-      `SELECT id FROM transactions WHERE order_id = $1 LIMIT 1`,
+      `SELECT id, settlement_status, balance_bucket, amount
+         FROM transactions
+        WHERE order_id = $1
+        ORDER BY created_at ASC
+        LIMIT 1`,
       [orderId],
     );
     const txList = Array.isArray(txRows) ? txRows : txRows?.rows ?? [];
@@ -87,7 +95,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const transactionId = txList[0].id;
+    const transaction = txList[0];
+    const transactionId = transaction.id;
     const refundAmount = Number(amount);
     const orderTotal = Number(order.total_amount ?? 0);
 
@@ -127,6 +136,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    /* -------- Decide which balance bucket to deduct from -------- */
+    // If the originating transaction is still in `pending` (paid today and
+    // not yet swept by the cron), we deduct from pending_balance. Otherwise
+    // deduct from available_balance.
+    const bucket: 'pending' | 'available' =
+      String(transaction.balance_bucket || 'available').toLowerCase() ===
+      'pending'
+        ? 'pending'
+        : 'available';
+
     const refundId = `rf_${nanoid(14)}`;
     const merchantNote = `Refund for order ${orderId} — reason: ${reason}`;
     const customerNote = `Refund issued for your order. ${notes || ''}`.trim();
@@ -137,8 +156,9 @@ export async function POST(request: NextRequest) {
         (id, order_id, transaction_id, business_id,
          original_amount, refund_amount, amount,
          reason, notes, customer_note, merchant_note,
+         balance_affected,
          status, requested_at, created_at, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'pending',NOW(),NOW(),NOW())`,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'pending',NOW(),NOW(),NOW())`,
       [
         refundId,
         orderId,
@@ -151,8 +171,51 @@ export async function POST(request: NextRequest) {
         notes || null,
         customerNote,
         merchantNote,
+        bucket,
       ],
     );
+
+    /* -------- Deduct from the chosen balance bucket immediately. */
+    // Refunds debit the business right away. If Paystack later reports the
+    // refund as failed, the GET handler in [refundId]/route.ts (and the
+    // retry endpoint) will restore the funds to the same bucket.
+    try {
+      if (bucket === 'pending') {
+        await db.query(
+          `UPDATE businesses
+              SET pending_balance = GREATEST(0, COALESCE(pending_balance, 0) - $1),
+                  updated_at = NOW()
+            WHERE id = $2`,
+          [refundAmount, order.business_id],
+        );
+      } else {
+        await db.query(
+          `UPDATE businesses
+              SET available_balance = GREATEST(0, COALESCE(available_balance, 0) - $1),
+                  updated_at = NOW()
+            WHERE id = $2`,
+          [refundAmount, order.business_id],
+        );
+      }
+
+      await db.query(
+        `INSERT INTO finance_records
+           (id, business_id, record_type, bucket, direction, amount,
+            related_id, reference, description, created_at)
+         VALUES ($1, $2, 'refund', $3, 'out', $4, $5, $6, $7, NOW())`,
+        [
+          `fr_${generateAlphanumericId()}`,
+          order.business_id,
+          bucket,
+          refundAmount,
+          refundId,
+          order.payment_reference || null,
+          `Refund issued — deducted from ${bucket} balance`,
+        ],
+      );
+    } catch (err) {
+      console.error('[v0] Refund balance debit failed:', err);
+    }
 
     /* -------- Initiate Paystack refund -------------------------- */
     if (!PAYSTACK_API_KEY || !order.payment_reference) {
@@ -197,11 +260,13 @@ export async function POST(request: NextRequest) {
         success: true,
         refundId,
         status: data.status || 'pending',
+        bucket,
         message: 'Refund queued for processing.',
       });
     } catch (err: any) {
       console.error('[v0] Paystack refund error:', err);
       const errMsg = err?.message?.slice(0, 500) || 'Refund failed';
+
       await db.query(
         `UPDATE refunds
             SET status = 'failed',
@@ -210,6 +275,46 @@ export async function POST(request: NextRequest) {
           WHERE id = $2`,
         [errMsg, refundId],
       );
+
+      // Restore the funds to whichever bucket we just debited.
+      try {
+        if (bucket === 'pending') {
+          await db.query(
+            `UPDATE businesses
+                SET pending_balance = COALESCE(pending_balance, 0) + $1,
+                    updated_at = NOW()
+              WHERE id = $2`,
+            [refundAmount, order.business_id],
+          );
+        } else {
+          await db.query(
+            `UPDATE businesses
+                SET available_balance = COALESCE(available_balance, 0) + $1,
+                    updated_at = NOW()
+              WHERE id = $2`,
+            [refundAmount, order.business_id],
+          );
+        }
+
+        await db.query(
+          `INSERT INTO finance_records
+             (id, business_id, record_type, bucket, direction, amount,
+              related_id, reference, description, created_at)
+           VALUES ($1, $2, 'refund_reversed', $3, 'in', $4, $5, $6,
+                   'Refund failed — funds restored', NOW())`,
+          [
+            `fr_${generateAlphanumericId()}`,
+            order.business_id,
+            bucket,
+            refundAmount,
+            refundId,
+            order.payment_reference || null,
+          ],
+        );
+      } catch (revErr) {
+        console.error('[v0] Refund reversal on failure failed:', revErr);
+      }
+
       return NextResponse.json(
         {
           success: false,

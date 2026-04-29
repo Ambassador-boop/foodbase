@@ -91,10 +91,16 @@ export async function GET(
     });
 
     // Use the stored service fee from the order, not a recomputed 7.5%.
-    // item_price is the per-unit price that already includes the per-unit
-    // sum of addon prices, so subtotal is item_price * quantity per row.
+    // item_price is the BASE per-unit price; add-ons live in `addons` and
+    // are summed on top. subtotal = (base + per-unit addon sum) * qty.
     const subtotal = items.reduce((total, item) => {
-      return total + item.item_price * item.quantity;
+      const addonsPerUnit = Array.isArray(item.addons)
+        ? item.addons.reduce(
+            (s: number, a: any) => s + (Number(a?.price) || 0),
+            0
+          )
+        : 0;
+      return total + (Number(item.item_price) + addonsPerUnit) * item.quantity;
     }, 0);
 
     const total = parseFloat(order.total_amount) || subtotal;

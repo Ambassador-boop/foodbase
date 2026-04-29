@@ -2,16 +2,20 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyPayment } from '@/lib/paystack';
 import { db, query, getOne } from '@/lib/db';
 import { generateAlphanumericId } from '@/lib/utils';
+import { computeAvailableAt } from '@/lib/wat';
 
 /**
  * Verifies a Paystack payment, then atomically settles the order:
  *  - Marks the order paid / confirmed.
  *  - Records a transaction with the NET amount routed to the business
  *    (total minus service fee — the service fee is admin revenue).
- *  - Credits businesses.available_balance with the net amount.
+ *  - Credits businesses.PENDING_balance (NOT available_balance). The daily
+ *    05:00 WAT cron at /api/cron/settle-balances moves it to available
+ *    once it's due (Mon-Thu next day, Fri/Sat/Sun -> Monday).
  *  - Increments businesses.total_orders by 1.
  *  - Increments menu_items.order_count by ordered quantity for each item.
  *  - Credits admin_revenue with the service fee.
+ *  - Writes a finance_records row of type 'payment_pending'.
  *
  * Idempotent: re-verifying an already paid order will not double-count.
  */
@@ -80,6 +84,9 @@ export async function POST(request: NextRequest) {
     const serviceFee = Number(order.service_fee_amount) || 0;
     const netToBusiness = Math.max(0, totalAmount - serviceFee);
 
+    const paidAt = new Date();
+    const availableAt = computeAvailableAt(paidAt);
+
     // 1) Mark order paid + confirmed
     await db.query(
       `UPDATE orders
@@ -93,12 +100,14 @@ export async function POST(request: NextRequest) {
     );
     console.log('[v0] Verify: Order marked paid:', order.id);
 
-    // 2) Insert transaction (net to business)
+    // 2) Insert transaction (net to business) — sits in `pending` bucket
+    //    until the daily settlement cron moves it.
     try {
       await db.query(
         `INSERT INTO transactions
-           (id, business_id, order_id, transaction_type, amount, payment_method, payment_reference, status, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
+           (id, business_id, order_id, transaction_type, amount, payment_method, payment_reference, status,
+            settlement_status, balance_bucket, available_at, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())`,
         [
           `txn_${generateAlphanumericId()}`,
           order.business_id,
@@ -108,24 +117,27 @@ export async function POST(request: NextRequest) {
           'paystack',
           reference,
           'completed',
+          'pending',
+          'pending',
+          availableAt.toISOString(),
         ]
       );
     } catch (err) {
       console.error('[v0] Verify: Failed to insert transaction:', err);
     }
 
-    // 3) Credit business available_balance + bump total_orders
+    // 3) Credit business PENDING balance + bump total_orders
     try {
       await db.query(
         `UPDATE businesses
-            SET available_balance = COALESCE(available_balance, 0) + $1,
+            SET pending_balance = COALESCE(pending_balance, 0) + $1,
                 total_orders = COALESCE(total_orders, 0) + 1,
                 updated_at = NOW()
           WHERE id = $2`,
         [netToBusiness, order.business_id]
       );
     } catch (err) {
-      console.error('[v0] Verify: Failed to update business balance/total_orders:', err);
+      console.error('[v0] Verify: Failed to update business pending_balance/total_orders:', err);
     }
 
     // 4) Increment menu_items.order_count for each item
@@ -171,7 +183,27 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 6) Fire-and-forget notification (existing behaviour)
+    // 6) Append a finance_records audit entry (powers /dashboard/finance Records)
+    try {
+      await db.query(
+        `INSERT INTO finance_records
+           (id, business_id, record_type, bucket, direction, amount,
+            related_id, reference, description, created_at)
+         VALUES ($1, $2, 'payment_pending', 'pending', 'in', $3, $4, $5, $6, NOW())`,
+        [
+          `fr_${generateAlphanumericId()}`,
+          order.business_id,
+          netToBusiness,
+          order.id,
+          reference,
+          `Payment received — settles ${availableAt.toISOString()}`,
+        ]
+      );
+    } catch (err) {
+      console.error('[v0] Verify: Failed to insert finance_records:', err);
+    }
+
+    // 7) Fire-and-forget notification (existing behaviour)
     try {
       await fetch(
         `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/notifications/send-order`,
@@ -195,6 +227,7 @@ export async function POST(request: NextRequest) {
       totalAmount,
       serviceFee,
       netToBusiness,
+      availableAt: availableAt.toISOString(),
     });
 
     return NextResponse.json({

@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { verifyJWT } from '@/lib/auth';
+import { generateAlphanumericId } from '@/lib/utils';
 
 const PAYSTACK_API_KEY = process.env.PAYSTACK_SECRET_KEY;
 const PAYSTACK_BASE = 'https://api.paystack.co';
+
+const TERMINAL_FAILED = new Set(['failed', 'rejected']);
 
 async function syncRefundFromPaystack(paystackRefundId: string, refundId: string) {
   if (!PAYSTACK_API_KEY || !paystackRefundId) return null;
@@ -43,6 +46,85 @@ async function syncRefundFromPaystack(paystackRefundId: string, refundId: string
   }
 }
 
+/**
+ * If a refund has hit a terminal failure status AND we previously debited
+ * the business's balance for it, restore the funds to the same bucket
+ * that was originally affected. Idempotent — once processed, refunds.amount
+ * is left alone but a per-record marker is set via failure_reason updates.
+ *
+ * To keep the operation idempotent we use a small guard table keyed by
+ * refund id; that way repeated GETs after the failure don't keep crediting.
+ */
+async function ensureFailedRefundReversed(refundId: string) {
+  // Check current refund row + see if we've already reversed
+  const r: any = await db.query(
+    `SELECT r.id, r.status, r.refund_amount, r.amount,
+            r.balance_affected, r.business_id,
+            EXISTS (
+              SELECT 1 FROM finance_records fr
+               WHERE fr.related_id = r.id
+                 AND fr.record_type = 'refund_reversed'
+            ) AS already_reversed
+       FROM refunds r
+      WHERE r.id = $1`,
+    [refundId],
+  );
+  const row = (Array.isArray(r) ? r : r?.rows ?? [])[0];
+  if (!row) return;
+
+  const status = String(row.status || '').toLowerCase();
+  if (!TERMINAL_FAILED.has(status)) return;
+  if (row.already_reversed) return;
+
+  const amount = Number(row.refund_amount ?? row.amount ?? 0) || 0;
+  if (amount <= 0) return;
+
+  // balance_affected may be NULL on legacy rows — default to 'available'
+  const bucket =
+    String(row.balance_affected || 'available').toLowerCase() === 'pending'
+      ? 'pending'
+      : 'available';
+
+  try {
+    if (bucket === 'pending') {
+      await db.query(
+        `UPDATE businesses
+            SET pending_balance = COALESCE(pending_balance, 0) + $1,
+                updated_at = NOW()
+          WHERE id = $2`,
+        [amount, row.business_id],
+      );
+    } else {
+      await db.query(
+        `UPDATE businesses
+            SET available_balance = COALESCE(available_balance, 0) + $1,
+                updated_at = NOW()
+          WHERE id = $2`,
+        [amount, row.business_id],
+      );
+    }
+
+    await db.query(
+      `INSERT INTO finance_records
+         (id, business_id, record_type, bucket, direction, amount,
+          related_id, reference, description, created_at)
+       VALUES ($1, $2, 'refund_reversed', $3, 'in', $4, $5, NULL,
+               'Refund failed at gateway — funds restored', NOW())`,
+      [
+        `fr_${generateAlphanumericId()}`,
+        row.business_id,
+        bucket,
+        amount,
+        row.id,
+      ],
+    );
+
+    console.log('[v0] Refund reversed on failed sync:', refundId);
+  } catch (err) {
+    console.error('[v0] Refund reversal failed:', err);
+  }
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ refundId: string }> },
@@ -69,6 +151,7 @@ export async function GET(
          r.customer_note, r.merchant_note,
          r.paystack_refund_id, r.failure_reason,
          r.channel, r.deducted_amount, r.fully_deducted,
+         r.balance_affected,
          r.expected_at, r.requested_at, r.processed_at,
          r.created_at, r.updated_at,
          o.customer_name, o.customer_email, o.payment_reference,
@@ -107,6 +190,9 @@ export async function GET(
       }
     }
 
+    // If sync flipped this into a terminal failure, restore funds.
+    await ensureFailedRefundReversed(refundId);
+
     return NextResponse.json({
       id: row.id,
 
@@ -123,6 +209,7 @@ export async function GET(
       notes: row.notes,
       customer_note: row.customer_note,
       merchant_note: row.merchant_note,
+      balance_affected: row.balance_affected,
 
       failure_reason: row.failure_reason,
 
@@ -141,7 +228,6 @@ export async function GET(
       customer_name: row.customer_name,
       customer_email: row.customer_email,
 
-      // 👇 ADD THIS (fix for your frontend crash)
       order: {
         id: row.order_id,
         customer_name: row.customer_name,

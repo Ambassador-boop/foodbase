@@ -1,9 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { verifyJWT } from '@/lib/auth';
+import { generateAlphanumericId } from '@/lib/utils';
 
 const PAYSTACK_API_KEY = process.env.PAYSTACK_SECRET_KEY;
 const PAYSTACK_BASE = 'https://api.paystack.co';
+
+const TERMINAL_FAILED = new Set([
+  'failed',
+  'reversed',
+  'abandoned',
+  'blocked',
+  'rejected',
+]);
 
 /* ------------------------------------------------------------------ */
 /*  Verify the live Paystack status and reconcile our DB row           */
@@ -49,6 +58,60 @@ async function verifyAndSyncTransfer(reference: string, withdrawalId: string) {
   } catch (err) {
     console.error('[v0] verifyAndSyncTransfer error:', err);
     return null;
+  }
+}
+
+/**
+ * If a withdrawal has hit a terminal failure status AND we haven't yet
+ * reversed the balance, return the gross amount to the business's
+ * available_balance and write a 'withdrawal_reversed' finance_records row.
+ *
+ * Idempotent via the `balance_reversed` flag on withdrawals.
+ */
+async function reverseFailedWithdrawalIfNeeded(row: any) {
+  const status = String(row.status || '').toLowerCase();
+  if (!TERMINAL_FAILED.has(status)) return;
+  if (row.balance_reversed === true) return;
+
+  const amount = Number(row.amount) || 0;
+  if (amount <= 0) return;
+
+  try {
+    await db.query(
+      `UPDATE businesses
+          SET available_balance = COALESCE(available_balance, 0) + $1,
+              updated_at = NOW()
+        WHERE id = $2`,
+      [amount, row.business_id],
+    );
+
+    await db.query(
+      `UPDATE withdrawals
+          SET balance_reversed = true,
+              updated_at = NOW()
+        WHERE id = $1`,
+      [row.id],
+    );
+
+    await db.query(
+      `INSERT INTO finance_records
+         (id, business_id, record_type, bucket, direction, amount,
+          related_id, reference, description, created_at)
+       VALUES ($1, $2, 'withdrawal_reversed', 'available', 'in', $3, $4, $5,
+               $6, NOW())`,
+      [
+        `fr_${generateAlphanumericId()}`,
+        row.business_id,
+        amount,
+        row.id,
+        row.reference || row.payment_reference || null,
+        `Withdrawal failed (${status}) — funds returned to available balance`,
+      ],
+    );
+
+    console.log('[v0] Withdrawal reversed:', row.id, 'amount:', amount);
+  } catch (err) {
+    console.error('[v0] Withdrawal reversal failed:', err);
   }
 }
 
@@ -109,6 +172,10 @@ export async function GET(
       }
     }
 
+    // After possibly refreshing, if it's now in a failed state and we
+    // haven't already restored the funds, do it now.
+    await reverseFailedWithdrawalIfNeeded(row);
+
     return NextResponse.json({
       id: row.id,
       amount: Number(row.amount ?? 0),
@@ -132,6 +199,7 @@ export async function GET(
       created_at: row.created_at,
       updated_at: row.updated_at,
       business_name: row.business_name,
+      balance_reversed: !!row.balance_reversed,
     });
   } catch (err) {
     console.error('[v0] GET /withdrawals/[id] error:', err);

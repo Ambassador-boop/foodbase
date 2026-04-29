@@ -469,10 +469,14 @@ export default function OrderDetailsPage() {
 
             <ul className="divide-y divide-border">
               {orderData.items.map((item, idx) => {
-                const perUnitPrice = item.item_price / item.quantity;
+                // item.item_price is the BASE per-unit price.
+                // Add-ons sit in `addons` and are summed on top per-unit.
+                const perUnitPrice = Number(item.item_price) || 0;
                 const addonsTotalPerUnit =
-                  item.addons?.reduce((sum, addon) => sum + addon.price, 0) ||
-                  0;
+                  item.addons?.reduce(
+                    (sum, addon) => sum + Number(addon.price || 0),
+                    0,
+                  ) || 0;
                 const lineTotal =
                   (perUnitPrice + addonsTotalPerUnit) * item.quantity;
                 const uniqueAddonIds = Array.from(

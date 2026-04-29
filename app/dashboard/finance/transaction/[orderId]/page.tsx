@@ -122,6 +122,11 @@ export default function TransactionDetailPage() {
   const [data, setData] = useState<Resp | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [rechecking, setRechecking] = useState(false);
+  const [recheckMessage, setRecheckMessage] = useState<{
+    tone: 'ok' | 'warn' | 'err';
+    text: string;
+  } | null>(null);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState<string | null>(null);
 
@@ -144,6 +149,37 @@ export default function TransactionDetailPage() {
     } finally {
       setLoading(false);
       setRefreshing(false);
+    }
+  };
+
+  const handleRecheck = async () => {
+    setRechecking(true);
+    setRecheckMessage(null);
+    try {
+      const res = await fetch(`/api/transactions/recheck/${orderId}`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const j = await res.json().catch(() => ({}));
+      if (res.ok && j.ok) {
+        setRecheckMessage({
+          tone: 'ok',
+          text: j.message || 'Payment confirmed.',
+        });
+        await fetchData();
+      } else {
+        setRecheckMessage({
+          tone: j.paystackStatus === 'success' ? 'ok' : 'warn',
+          text: j.message || j.error || 'Paystack has not confirmed this yet.',
+        });
+      }
+    } catch (err: any) {
+      setRecheckMessage({
+        tone: 'err',
+        text: err?.message || 'Failed to recheck transaction',
+      });
+    } finally {
+      setRechecking(false);
     }
   };
 

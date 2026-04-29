@@ -121,9 +121,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (withdrawAmount > business.available_balance) {
+    // Withdrawals can ONLY be paid out from available_balance.
+    // pending_balance is reserved for funds that haven't yet cleared the
+    // settlement window (see /api/cron/settle-balances).
+    const availableBalance = Number(business.available_balance) || 0;
+    if (withdrawAmount > availableBalance) {
       return NextResponse.json(
-        { error: 'Insufficient available balance' },
+        {
+          error:
+            'Insufficient available balance. Pending balance cannot be withdrawn.',
+        },
         { status: 400 }
       );
     }
@@ -165,11 +172,14 @@ export async function POST(request: NextRequest) {
 
       console.log('[v0] Transfer initiated:', transfer.reference);
 
-      // Create withdrawal record
+      // Create withdrawal record. Status starts as 'pending' until Paystack
+      // confirms via webhook / reconciliation in [withdrawalId]/route.ts.
+      // We deduct the gross amount from available_balance immediately and,
+      // if the transfer ends up failing, the GET handler returns it.
       await db.query(
         `INSERT INTO withdrawals 
-        (id, business_id, amount, service_fee, transfer_recipient_id, paystack_transfer_id, status, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
+        (id, business_id, amount, service_fee, transfer_recipient_id, paystack_transfer_id, reference, status, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
         [
           withdrawalId,
           business.id,
@@ -177,17 +187,39 @@ export async function POST(request: NextRequest) {
           serviceFee,
           transferRecipientId,
           transfer.transfer_code,
-          'completed',
+          withdrawalId,
+          'pending',
         ]
       );
 
       console.log('[v0] Withdrawal record created:', withdrawalId);
 
-      // Update available balance (subtract gross amount, NOT the service fee)
+      // Update available balance (subtract gross amount, NOT the service fee).
+      // If the transfer later fails, we restore this in the GET reconciliation.
       await db.query(
-        `UPDATE businesses SET available_balance = available_balance - $1 WHERE id = $2`,
+        `UPDATE businesses SET available_balance = GREATEST(0, COALESCE(available_balance, 0) - $1), updated_at = NOW() WHERE id = $2`,
         [withdrawAmount, business.id]
       );
+
+      // finance_records: outflow from available
+      try {
+        await db.query(
+          `INSERT INTO finance_records
+             (id, business_id, record_type, bucket, direction, amount,
+              related_id, reference, description, created_at)
+           VALUES ($1, $2, 'withdrawal', 'available', 'out', $3, $4, $5,
+                   'Withdrawal initiated', NOW())`,
+          [
+            `fr_${generateAlphanumericId()}`,
+            business.id,
+            withdrawAmount,
+            withdrawalId,
+            withdrawalId,
+          ]
+        );
+      } catch (err) {
+        console.error('[v0] Withdrawal finance_records insert failed:', err);
+      }
 
       return NextResponse.json({
         success: true,
@@ -200,11 +232,13 @@ export async function POST(request: NextRequest) {
       const errorMessage =
         paystackError instanceof Error ? paystackError.message : 'Unknown error';
 
-      // Create failed withdrawal record for reference
+      // Create failed withdrawal record for reference. No balance was
+      // deducted (we only deduct AFTER Paystack accepts the transfer), so
+      // there's nothing to restore here.
       await db.query(
         `INSERT INTO withdrawals 
-        (id, business_id, amount, service_fee, status, failure_reason, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+        (id, business_id, amount, service_fee, status, failure_reason, balance_reversed, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, true, NOW())`,
         [
           withdrawalId,
           business.id,

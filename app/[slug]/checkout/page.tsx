@@ -163,12 +163,12 @@ export default function CheckoutPage() {
           notes: formData.notes.trim(),
           items: cartItems.map((item) => {
             const basePrice = Number(item.price) || 0;
-            const addonsPrice =
-              item.addons?.reduce((sum, a) => sum + (Number(a.price) || 0), 0) || 0;
             return {
               menu_item_id: item.id,
               quantity: item.quantity,
-              item_price: basePrice + addonsPrice, // unit price including add-ons
+              // item_price is the BASE per-unit price only.
+              // Add-ons live in `configuration` and are summed at render time.
+              item_price: basePrice,
               configuration: item.addons || null,
             };
           }),
