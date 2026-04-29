@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import { formatWat } from '@/lib/wat';
 import {
   AlertCircle,
   ArrowLeft,
@@ -200,20 +201,24 @@ export default function OrderDetailsPage() {
     if (!orderData) return null;
     const created = new Date(orderData.order.created_at);
     const ready = new Date(created.getTime() + 30 * 60_000);
+    // Render in West Africa Time so the timestamp matches what the
+    // business owner sees on their wall clock in Lagos.
     return {
-      placedDate: created.toLocaleDateString(undefined, {
+      placedDate: formatWat(created, {
         weekday: 'short',
         day: 'numeric',
         month: 'short',
         year: 'numeric',
       }),
-      placedTime: created.toLocaleTimeString([], {
+      placedTime: formatWat(created, {
         hour: '2-digit',
         minute: '2-digit',
+        hour12: true,
       }),
-      etaTime: ready.toLocaleTimeString([], {
+      etaTime: formatWat(ready, {
         hour: '2-digit',
         minute: '2-digit',
+        hour12: true,
       }),
     };
   }, [orderData]);

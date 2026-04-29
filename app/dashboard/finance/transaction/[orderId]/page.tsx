@@ -690,10 +690,15 @@ export default function TransactionDetailPage() {
           {order.paid_at && (
             <Identifier
               label="Paid at"
-              value={format(
-                parseISO(order.paid_at),
-                'MMM dd, yyyy · h:mm:ss a',
-              )}
+              value={`${formatWat(order.paid_at, {
+                year: 'numeric',
+                month: 'short',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true,
+              })} WAT`}
             />
           )}
         </dl>

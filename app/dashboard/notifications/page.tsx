@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { ArrowLeft, Check, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { formatWat } from '@/lib/wat';
 
 interface Notification {
   id: string;
@@ -71,12 +72,14 @@ export default function NotificationsPage() {
   };
 
   const formatTime = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-NG', {
+    // Render in West Africa Time so notification timestamps match the
+    // business owner's local clock.
+    return formatWat(dateString, {
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
+      hour12: true,
     });
   };
 

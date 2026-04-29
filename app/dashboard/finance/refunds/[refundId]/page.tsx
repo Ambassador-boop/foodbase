@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { formatWat } from '@/lib/wat';
 import {
   ArrowLeft,
   RefreshCw,
@@ -69,14 +70,18 @@ const formatCurrency = (amount: number) =>
 
 const formatDateTime = (iso?: string | null) => {
   if (!iso) return '—';
-  return new Date(iso).toLocaleString('en-NG', {
+  // Always render in West Africa Time so the business owner sees
+  // the same wall-clock value regardless of viewer timezone.
+  const out = formatWat(iso, {
     weekday: 'short',
     day: 'numeric',
     month: 'short',
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
+    hour12: true,
   });
+  return out ? `${out} WAT` : '—';
 };
 
 type StatusKey =

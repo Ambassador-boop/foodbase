@@ -19,8 +19,8 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { format, parseISO, isToday, isYesterday } from 'date-fns';
 import { toast } from 'sonner';
+import { formatWat, formatWatYMD } from '@/lib/wat';
 
 interface Order {
   id: string;
@@ -53,14 +53,26 @@ const formatNGN = (amount: number) =>
     amount
   );
 
+// All grouping/labels are computed in West Africa Time so that an
+// order placed at 11:30 PM Lagos doesn't get bucketed into "tomorrow"
+// just because the viewer is in another timezone.
 const niceDate = (iso: string) => {
-  const d = parseISO(iso);
-  if (isToday(d)) return 'Today';
-  if (isYesterday(d)) return 'Yesterday';
-  return format(d, 'EEEE, MMM dd yyyy');
+  const orderYMD = formatWatYMD(iso);
+  const todayYMD = formatWatYMD(new Date());
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayYMD = formatWatYMD(yesterday);
+  if (orderYMD === todayYMD) return 'Today';
+  if (orderYMD === yesterdayYMD) return 'Yesterday';
+  return formatWat(iso, {
+    weekday: 'long',
+    month: 'short',
+    day: '2-digit',
+    year: 'numeric',
+  });
 };
 
-const dateKey = (iso: string) => format(parseISO(iso), 'yyyy-MM-dd');
+const dateKey = (iso: string) => formatWatYMD(iso);
 
 function statusTone(status: string) {
   switch (status) {
@@ -303,7 +315,7 @@ export default function OrdersPage() {
   /* -------------------------------- Stats -------------------------------- */
 
   const stats = useMemo(() => {
-    const todayKey = format(new Date(), 'yyyy-MM-dd');
+    const todayKey = formatWatYMD(new Date());
     const todayOrders = orders.filter(
       (o) => dateKey(o.created_at) === todayKey
     );
@@ -598,7 +610,12 @@ function OrderCard({ order }: { order: Order }) {
             {order.customer_name}
           </p>
           <p className="text-[11px] text-muted-foreground">
-            #{order.id.slice(0, 8)} • {format(parseISO(order.created_at), 'p')}
+            #{order.id.slice(0, 8)} •{' '}
+            {formatWat(order.created_at, {
+              hour: '2-digit',
+              minute: '2-digit',
+              hour12: true,
+            })}
           </p>
         </div>
         <p className="font-semibold text-sm tabular-nums whitespace-nowrap">
@@ -676,7 +693,11 @@ function OrderRow({ order }: { order: Order }) {
         {formatNGN(Number(order.total_amount))}
       </td>
       <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
-        {format(parseISO(order.created_at), 'p')}
+        {formatWat(order.created_at, {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+        })}
       </td>
       <td className="px-2 py-3">
         <Link
