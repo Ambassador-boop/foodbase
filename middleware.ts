@@ -4,9 +4,19 @@ import type { NextRequest } from 'next/server';
 export function middleware(request: NextRequest) {
   const authToken = request.cookies.get('auth_token')?.value;
   const { pathname } = request.nextUrl;
+  const userAgent = request.headers.get('user-agent') || '';
+
+  const isMedianBrowser =
+    userAgent.includes('wv') &&
+    userAgent.toLowerCase().includes('median');
 
   // Public routes that don't require authentication
   const publicRoutes = ['/', '/login', '/forgot-password'];
+
+  // Redirect "/" to "/dashboard" ONLY for median WebView users
+  if (pathname === '/' && isMedianBrowser) {
+    return NextResponse.redirect(new URL('/dashboard', request.url));
+  }
 
   // Check if the route is public
   const isPublicRoute = publicRoutes.includes(pathname);
