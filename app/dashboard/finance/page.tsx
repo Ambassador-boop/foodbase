@@ -152,7 +152,7 @@ export default function FinancePage() {
         for (const b of d.banks) map[String(b.code)] = b.name;
         setBankNameMap(map);
       })
-      .catch(() => {});
+      .catch(() => { });
     return () => {
       cancelled = true;
     };
@@ -200,11 +200,10 @@ export default function FinancePage() {
         amount: Number(w.amount || 0),
         title: 'Withdrawal',
         subtitle: bankName
-          ? `${bankName}${
-              w.bank_account_number
-                ? ` •••• ${w.bank_account_number.slice(-4)}`
-                : ''
-            }`
+          ? `${bankName}${w.bank_account_number
+            ? ` •••• ${w.bank_account_number.slice(-4)}`
+            : ''
+          }`
           : w.bank_account_number
             ? `Bank •••• ${w.bank_account_number.slice(-4)}`
             : 'Bank transfer',
@@ -285,23 +284,7 @@ export default function FinancePage() {
             <Sparkles className="h-6 w-6 text-primary" />
             Finance
           </h1>
-          <p className="mt-1 text-xs text-muted-foreground md:text-sm">
-            Every Naira moving through your business — orders, payouts and
-            refunds, in real time.
-          </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => fetchAll(false)}
-          disabled={refreshing}
-          className="h-9 gap-1.5"
-        >
-          <RefreshCw
-            className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`}
-          />
-          {refreshing ? 'Refreshing' : 'Refresh'}
-        </Button>
       </div>
 
       {error && (
@@ -389,17 +372,15 @@ export default function FinancePage() {
               key={k}
               type="button"
               onClick={() => setTab(k)}
-              className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                tab === k
+              className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${tab === k
                   ? 'bg-primary text-primary-foreground shadow-sm'
                   : 'text-muted-foreground hover:bg-muted/60'
-              }`}
+                }`}
             >
               {label}
               <span
-                className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
-                  tab === k ? 'bg-white/20' : 'bg-muted/60 text-foreground'
-                }`}
+                className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${tab === k ? 'bg-white/20' : 'bg-muted/60 text-foreground'
+                  }`}
               >
                 {count}
               </span>
@@ -469,11 +450,10 @@ export default function FinancePage() {
                   </div>
                   <div className="shrink-0 text-right">
                     <p
-                      className={`text-sm font-bold tabular-nums ${
-                        u.kind === 'income'
+                      className={`text-sm font-bold tabular-nums ${u.kind === 'income'
                           ? 'text-emerald-600'
                           : 'text-rose-600'
-                      }`}
+                        }`}
                     >
                       {u.kind === 'income' ? '+' : '−'}
                       {NGN(u.amount)}
