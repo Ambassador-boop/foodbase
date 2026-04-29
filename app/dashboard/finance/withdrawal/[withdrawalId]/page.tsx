@@ -22,7 +22,7 @@ import {
   ShieldCheck,
   XCircle,
 } from 'lucide-react';
-import { format, parseISO } from 'date-fns';
+import { formatWat } from '@/lib/wat';
 
 interface Withdrawal {
   id: string;
@@ -447,7 +447,16 @@ export default function WithdrawalDetailsPage() {
                   </p>
                   {step.at && (
                     <p className="mt-1 text-[11px] text-muted-foreground/80">
-                      {format(parseISO(step.at), 'MMM dd, yyyy · h:mm:ss a')}
+                      {formatWat(step.at, {
+                        year: 'numeric',
+                        month: 'short',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        hour12: true,
+                      })}{' '}
+                      WAT
                     </p>
                   )}
                 </div>
@@ -524,12 +533,28 @@ export default function WithdrawalDetailsPage() {
           )}
           <Identifier
             label="Created"
-            value={format(parseISO(w.created_at), 'MMM dd, yyyy · h:mm:ss a')}
+            value={`${formatWat(w.created_at, {
+              year: 'numeric',
+              month: 'short',
+              day: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+              hour12: true,
+            })} WAT`}
           />
           {w.processed_at && (
             <Identifier
               label="Processed"
-              value={format(parseISO(w.processed_at), 'MMM dd, yyyy · h:mm:ss a')}
+              value={`${formatWat(w.processed_at, {
+                year: 'numeric',
+                month: 'short',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true,
+              })} WAT`}
             />
           )}
           {w.notes && <Identifier label="Note" value={w.notes} />}

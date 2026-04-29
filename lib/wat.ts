@@ -102,6 +102,34 @@ export function formatWatShort(input: Date | string | null | undefined): string 
   });
 }
 
+/** Returns YYYY-MM-DD as observed in WAT (Africa/Lagos). */
+export function formatWatYMD(input: Date | string | null | undefined): string {
+  if (!input) return '';
+  const d = typeof input === 'string' ? new Date(input) : input;
+  if (Number.isNaN(d.getTime())) return '';
+  try {
+    // 'en-CA' yields YYYY-MM-DD format from Intl
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Africa/Lagos',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(d);
+  } catch {
+    const w = toWatWall(d);
+    return `${w.getUTCFullYear()}-${String(w.getUTCMonth() + 1).padStart(2, '0')}-${String(w.getUTCDate()).padStart(2, '0')}`;
+  }
+}
+
+/** Just the time portion in WAT, e.g., "06:18 pm". */
+export function formatWatTime(input: Date | string | null | undefined): string {
+  return formatWat(input, {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
+}
+
 /** Now in real UTC. Useful in tests / cron. */
 export function nowUtc(): Date {
   return new Date();

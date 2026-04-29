@@ -24,7 +24,7 @@ import {
   User,
   XCircle,
 } from 'lucide-react';
-import { format, parseISO } from 'date-fns';
+import { formatWat } from '@/lib/wat';
 
 interface Authorization {
   authorization_code?: string;
@@ -356,10 +356,54 @@ export default function TransactionDetailPage() {
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Payment status
             </p>
-            <p className={`mt-1 text-xl font-bold ${tone.text}`}>{heroCfg.label}</p>
+            <p className={`mt-1 text-xl font-bold ${tone.text}`}>
+              {heroCfg.label}
+            </p>
             <p className="mt-1 text-xs text-muted-foreground md:text-sm">
               {heroCfg.msg}
             </p>
+
+            {/* Recheck CTA — shown for any non-success state so the
+                business owner can pull the latest from Paystack and
+                self-heal pending/failed orders. */}
+            {!['success', 'completed'].includes(statusKey) && (
+              <div className="mt-3 flex flex-col gap-2">
+                <Button
+                  size="sm"
+                  onClick={handleRecheck}
+                  disabled={rechecking}
+                  className="h-8 w-fit gap-1.5"
+                >
+                  <RefreshCw
+                    className={`h-3.5 w-3.5 ${
+                      rechecking ? 'animate-spin' : ''
+                    }`}
+                  />
+                  {rechecking
+                    ? 'Rechecking…'
+                    : 'Recheck transaction status'}
+                </Button>
+                {recheckMessage && (
+                  <div
+                    className={`flex items-start gap-2 rounded-lg border p-2.5 text-xs ${
+                      recheckMessage.tone === 'ok'
+                        ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                        : recheckMessage.tone === 'warn'
+                          ? 'border-amber-200 bg-amber-50 text-amber-800'
+                          : 'border-rose-200 bg-rose-50 text-rose-800'
+                    }`}
+                    role="status"
+                  >
+                    {recheckMessage.tone === 'ok' ? (
+                      <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    ) : (
+                      <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    )}
+                    <span>{recheckMessage.text}</span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -574,7 +618,15 @@ export default function TransactionDetailPage() {
                       </span>
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {format(parseISO(r.created_at), 'MMM dd, yyyy · h:mm a')}
+                          {formatWat(r.created_at, {
+                            year: 'numeric',
+                            month: 'short',
+                            day: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            hour12: true,
+                          })}{' '}
+                          WAT
                       {r.reason ? ` · ${r.reason.replace(/_/g, ' ')}` : ''}
                     </p>
                   </div>
@@ -625,7 +677,15 @@ export default function TransactionDetailPage() {
           )}
           <Identifier
             label="Created"
-            value={format(parseISO(order.created_at), 'MMM dd, yyyy · h:mm:ss a')}
+                value={`${formatWat(order.created_at, {
+                  year: 'numeric',
+                  month: 'short',
+                  day: '2-digit',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  second: '2-digit',
+                  hour12: true,
+                })} WAT`}
           />
           {order.paid_at && (
             <Identifier

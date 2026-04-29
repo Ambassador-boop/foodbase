@@ -14,12 +14,13 @@ import {
   RefreshCw,
   Search,
   Sparkles,
+  TimerReset,
   TrendingDown,
   TrendingUp,
   Undo2,
   Wallet,
 } from 'lucide-react';
-import { format, parseISO } from 'date-fns';
+import { formatWat } from '@/lib/wat';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -67,9 +68,19 @@ interface Refund {
   created_at: string;
 }
 
+interface SettlementRecord {
+  id: string;
+  kind: string;
+  amount: number;
+  bucket: string | null;
+  related_id: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
 type Unified = {
   key: string;
-  kind: 'income' | 'withdrawal' | 'refund';
+  kind: 'income' | 'withdrawal' | 'refund' | 'settlement';
   status: string;
   amount: number;
   title: string;
@@ -100,6 +111,7 @@ export default function FinancePage() {
   const [transactions, setTransactions] = useState<Txn[]>([]);
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   const [refunds, setRefunds] = useState<Refund[]>([]);
+  const [settlements, setSettlements] = useState<SettlementRecord[]>([]);
   const [bankNameMap, setBankNameMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -111,11 +123,12 @@ export default function FinancePage() {
   const fetchAll = useCallback(async (silent = false) => {
     if (!silent) setRefreshing(true);
     try {
-      const [bRes, tRes, wRes, rRes] = await Promise.all([
+      const [bRes, tRes, wRes, rRes, sRes] = await Promise.all([
         fetch('/api/business', { credentials: 'include' }),
         fetch('/api/business/transactions', { credentials: 'include' }),
         fetch('/api/business/withdrawals', { credentials: 'include' }),
         fetch('/api/business/refunds', { credentials: 'include' }),
+        fetch('/api/business/finance-records', { credentials: 'include' }),
       ]);
 
       if (bRes.ok) {
@@ -125,6 +138,7 @@ export default function FinancePage() {
       if (tRes.ok) setTransactions((await tRes.json()) || []);
       if (wRes.ok) setWithdrawals((await wRes.json()) || []);
       if (rRes.ok) setRefunds((await rRes.json()) || []);
+      if (sRes.ok) setSettlements((await sRes.json()) || []);
       setError('');
     } catch (err) {
       console.error('[v0] finance fetch error:', err);
@@ -227,11 +241,32 @@ export default function FinancePage() {
       });
     }
 
+    // Settlement events written by the 05:00 WAT cron — show them so
+    // the business owner can see which pending balances graduated to
+    // available, and when.
+    for (const s of settlements) {
+      list.push({
+        key: `set-${s.id}`,
+        kind: 'settlement',
+        status: 'completed',
+        amount: Number(s.amount || 0),
+        title: 'Settlement',
+        subtitle: 'Pending balance moved to available',
+        meta: s.related_id
+          ? `Order ${String(s.related_id).slice(0, 8)}`
+          : 'Cron run',
+        href: s.related_id
+          ? `/dashboard/finance/transaction/${s.related_id}`
+          : '/dashboard/finance',
+        created_at: s.created_at,
+      });
+    }
+
     return list.sort(
       (a, b) =>
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
     );
-  }, [transactions, withdrawals, refunds, bankNameMap]);
+  }, [transactions, withdrawals, refunds, settlements, bankNameMap]);
 
   const filtered = useMemo(() => {
     let list = unified;
@@ -445,7 +480,15 @@ export default function FinancePage() {
                     </p>
                     <p className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground/80">
                       <Clock className="h-3 w-3" />
-                      {format(parseISO(u.created_at), 'MMM dd, yyyy · h:mm a')}
+                      {formatWat(u.created_at, {
+                        year: 'numeric',
+                        month: 'short',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: true,
+                      })}{' '}
+                      WAT
                     </p>
                   </div>
                   <div className="shrink-0 text-right">

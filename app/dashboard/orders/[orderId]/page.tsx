@@ -271,6 +271,9 @@ export default function OrderDetailsPage() {
   const paymentStyle =
     PAYMENT_STYLES[paymentKey] || 'bg-slate-100 text-slate-700 border-slate-200';
   const isPaid = paymentKey === 'paid' || paymentKey === 'completed';
+  // Pending payments can also "View transaction" — that page hosts the
+  // Recheck transaction status flow that pulls the latest from Paystack.
+  const canViewTransaction = isPaid || paymentKey === 'pending';
 
   const statusIndex = STATUSES.findIndex((s) => s.value === statusKey);
 
@@ -313,11 +316,11 @@ export default function OrderDetailsPage() {
               </>
             )}
           </button>
-          {isPaid && (
+          {canViewTransaction && (
             <Link href={`/dashboard/finance/transaction/${orderData.order.id}`}>
               <Button className="h-9 gap-2 text-sm font-semibold">
                 <Receipt className="h-4 w-4" />
-                View transaction
+                {isPaid ? 'View transaction' : 'Recheck transaction'}
                 <ArrowRight className="h-4 w-4" />
               </Button>
             </Link>
@@ -600,13 +603,15 @@ export default function OrderDetailsPage() {
               </div>
             </dl>
 
-            {isPaid && (
+            {canViewTransaction && (
               <Link
                 href={`/dashboard/finance/transaction/${orderData.order.id}`}
                 className="mt-5 flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-primary/30 bg-primary/5 text-sm font-semibold text-primary transition-colors hover:bg-primary/10"
               >
                 <Receipt className="h-4 w-4" />
-                View transaction details
+                {isPaid
+                  ? 'View transaction details'
+                  : 'Recheck transaction status'}
                 <ArrowRight className="h-4 w-4" />
               </Link>
             )}
