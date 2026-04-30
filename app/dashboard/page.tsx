@@ -177,7 +177,7 @@ export default function DashboardPage() {
         <div className="min-w-0">
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Dashboard</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Live performance and balances at a glance
+            Sales & balances overview
           </p>
         </div>
         <div className="flex items-center gap-2">
