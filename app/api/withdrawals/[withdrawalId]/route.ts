@@ -1,119 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { verifyJWT } from '@/lib/auth';
-import { generateAlphanumericId } from '@/lib/utils';
-
-const PAYSTACK_API_KEY = process.env.PAYSTACK_SECRET_KEY;
-const PAYSTACK_BASE = 'https://api.paystack.co';
-
-const TERMINAL_FAILED = new Set([
-  'failed',
-  'reversed',
-  'abandoned',
-  'blocked',
-  'rejected',
-]);
-
-/* ------------------------------------------------------------------ */
-/*  Verify the live Paystack status and reconcile our DB row           */
-/* ------------------------------------------------------------------ */
-
-async function verifyAndSyncTransfer(reference: string, withdrawalId: string) {
-  if (!PAYSTACK_API_KEY || !reference) return null;
-  try {
-    const res = await fetch(
-      `${PAYSTACK_BASE}/transfer/verify/${encodeURIComponent(reference)}`,
-      {
-        headers: { Authorization: `Bearer ${PAYSTACK_API_KEY}` },
-      },
-    );
-    const json = await res.json();
-    if (!res.ok || !json.status) return null;
-
-    const data = json.data;
-    const newStatus = data.status as string; // pending|success|failed|reversed|otp|abandoned|blocked|rejected|received
-
-    await db.query(
-      `UPDATE withdrawals
-              SET status = $1::withdrawal_status,
-                        gateway_response = $2,
-                                  transfer_code = COALESCE($3, transfer_code),
-                                            processed_at = CASE
-                                                        WHEN $1::text IN ('success','failed','reversed','abandoned','blocked','rejected')
-                                                                      AND processed_at IS NULL
-                                                                                  THEN NOW()
-                                                                                              ELSE processed_at
-                                                                                                        END,
-                                                                                                                  updated_at = NOW()
-                                                                                                                      WHERE id = $4::text`,
-      [
-        newStatus,
-        data.gateway_response || data.failures || null,
-        data.transfer_code || null,
-        withdrawalId,
-      ],
-    );
-
-    return data;
-  } catch (err) {
-    console.error('[v0] verifyAndSyncTransfer error:', err);
-    return null;
-  }
-}
-
-/**
- * If a withdrawal has hit a terminal failure status AND we haven't yet
- * reversed the balance, return the gross amount to the business's
- * available_balance and write a 'withdrawal_reversed' finance_records row.
- *
- * Idempotent via the `balance_reversed` flag on withdrawals.
- */
-async function reverseFailedWithdrawalIfNeeded(row: any) {
-  const status = String(row.status || '').toLowerCase();
-  if (!TERMINAL_FAILED.has(status)) return;
-  if (row.balance_reversed === true) return;
-
-  const amount = Number(row.amount) || 0;
-  if (amount <= 0) return;
-
-  try {
-    await db.query(
-      `UPDATE businesses
-          SET available_balance = COALESCE(available_balance, 0) + $1,
-              updated_at = NOW()
-        WHERE id = $2`,
-      [amount, row.business_id],
-    );
-
-    await db.query(
-      `UPDATE withdrawals
-          SET balance_reversed = true,
-              updated_at = NOW()
-        WHERE id = $1`,
-      [row.id],
-    );
-
-    await db.query(
-      `INSERT INTO finance_records
-         (id, business_id, record_type, bucket, direction, amount,
-          related_id, reference, description, created_at)
-       VALUES ($1, $2, 'withdrawal_reversed', 'available', 'in', $3, $4, $5,
-               $6, NOW())`,
-      [
-        `fr_${generateAlphanumericId()}`,
-        row.business_id,
-        amount,
-        row.id,
-        row.reference || row.payment_reference || null,
-        `Withdrawal failed (${status}) — funds returned to available balance`,
-      ],
-    );
-
-    console.log('[v0] Withdrawal reversed:', row.id, 'amount:', amount);
-  } catch (err) {
-    console.error('[v0] Withdrawal reversal failed:', err);
-  }
-}
+import {
+  verifyAndSyncTransfer,
+  reverseFailedWithdrawalIfNeeded,
+} from '@/lib/withdrawals';
 
 /* ------------------------------------------------------------------ */
 /*  GET — single withdrawal with timeline data                         */
@@ -173,7 +64,9 @@ export async function GET(
     }
 
     // After possibly refreshing, if it's now in a failed state and we
-    // haven't already restored the funds, do it now.
+    // haven't already restored the funds, do it now. This is also run
+    // from the listing endpoint so balances reconcile without the user
+    // having to click into the detail page.
     await reverseFailedWithdrawalIfNeeded(row);
 
     return NextResponse.json({

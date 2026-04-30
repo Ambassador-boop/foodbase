@@ -39,6 +39,8 @@ import PeakHours from '@/components/dashboard/peak-hours';
 import CustomerMetrics from '@/components/dashboard/customer-metrics';
 import RecentOrders from '@/components/dashboard/recent-orders';
 import ComparativeMetrics from '@/components/dashboard/comparative-metrics';
+import OrderStatusMix from '@/components/dashboard/order-status-mix';
+import WeekdayBreakdown from '@/components/dashboard/weekday-breakdown';
 
 interface DashboardMetrics {
   todayOrders: number;
@@ -384,17 +386,37 @@ export default function DashboardPage() {
       </section>
 
       {/* Revenue chart */}
-      <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-        <div className="flex items-center justify-between mb-3">
+      <section className="rounded-2xl border border-border bg-card p-4 sm:p-5 overflow-hidden">
+        <div className="flex items-start justify-between mb-4 gap-3 flex-wrap">
           <div>
             <h2 className="text-base font-semibold">Revenue, last 7 days</h2>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Daily totals from paid orders
+              Daily totals from paid orders · West Africa Time
             </p>
           </div>
-          <div className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted text-xs font-medium text-muted-foreground">
-            <span className="w-2 h-2 rounded-full bg-primary" />
-            Revenue
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 text-[11px] font-semibold">
+              <Activity className="w-3 h-3" />7-day total{' '}
+              <span className="tabular-nums">
+                {mask(formatCurrency(insights.sumRevenue))}
+              </span>
+            </div>
+            {chartData.length > 1 && (
+              <div
+                className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-semibold border ${
+                  insights.weekTrend >= 0
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                    : 'bg-rose-50 text-rose-700 border-rose-100'
+                }`}
+              >
+                {insights.weekTrend >= 0 ? (
+                  <TrendingUp className="w-3 h-3" />
+                ) : (
+                  <TrendingDown className="w-3 h-3" />
+                )}
+                {Math.abs(insights.weekTrend).toFixed(0)}% trend
+              </div>
+            )}
           </div>
         </div>
 
@@ -406,7 +428,7 @@ export default function DashboardPage() {
             >
               <defs>
                 <linearGradient id="revAreaFull" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.35} />
+                  <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.4} />
                   <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
                 </linearGradient>
               </defs>
@@ -443,8 +465,10 @@ export default function DashboardPage() {
                 dataKey="revenue"
                 stroke="hsl(var(--primary))"
                 fill="url(#revAreaFull)"
-                strokeWidth={2.2}
+                strokeWidth={2.4}
                 name="Revenue"
+                dot={{ r: 0 }}
+                activeDot={{ r: 5 }}
               />
             </AreaChart>
           </ResponsiveContainer>
@@ -456,17 +480,51 @@ export default function DashboardPage() {
             </p>
           </div>
         )}
+
+        {chartData.length > 1 && (
+          <div className="mt-4 pt-4 border-t border-border/60 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            <ChartStat
+              label="Avg / day"
+              value={mask(formatCurrency(Math.round(insights.avgPerDay)))}
+            />
+            <ChartStat
+              label="Best day"
+              value={
+                insights.bestDay
+                  ? mask(formatCurrency(Math.round(insights.bestDay.revenue)))
+                  : '—'
+              }
+              sub={insights.bestDay?.date}
+            />
+            <ChartStat
+              label="Orders (7d)"
+              value={mask(insights.sumOrders.toLocaleString())}
+            />
+            <ChartStat
+              label="Today"
+              value={mask(formatCurrency(metrics?.todayRevenue || 0))}
+            />
+          </div>
+        )}
       </section>
 
-      {/* Time range selector for sub-modules */}
+      {/* Comparative metrics — Today vs Yesterday */}
+      <ComparativeMetrics />
+
+      {/* Insights — time range selector controls Top sellers + Peak hours */}
       <section className="flex items-center justify-between gap-3 flex-wrap">
-        <h2 className="text-base font-semibold">Insights</h2>
+        <div>
+          <h2 className="text-base font-semibold">Insights</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Filter top sellers and peak hours
+          </p>
+        </div>
         <div className="flex items-center gap-1 p-1 rounded-full bg-muted">
           {(['today', 'week', 'month', 'last30'] as TimeRange[]).map((r) => (
             <button
               key={r}
               onClick={() => setTimeRange(r)}
-              className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
+              className={`px-3 py-1 text-xs font-semibold rounded-full transition-colors ${
                 timeRange === r
                   ? 'bg-background text-foreground shadow-sm'
                   : 'text-muted-foreground hover:text-foreground'
@@ -475,25 +533,28 @@ export default function DashboardPage() {
               {r === 'today'
                 ? 'Today'
                 : r === 'week'
-                ? 'This Week'
-                : r === 'month'
-                ? 'This Month'
-                : 'Last 30 days'}
+                  ? 'Week'
+                  : r === 'month'
+                    ? 'Month'
+                    : '30d'}
             </button>
           ))}
         </div>
       </section>
 
-      {/* Comparative metrics */}
-      <ComparativeMetrics />
-
-      {/* Customer metrics */}
-      <CustomerMetrics />
-
-      {/* Two-up: Top selling + Peak hours */}
+      {/* Two-up: Top sellers + Peak hours */}
       <section className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <TopSellingItems timeRange={timeRange} />
         <PeakHours timeRange={timeRange} />
+      </section>
+
+      {/* Customer insights */}
+      <CustomerMetrics />
+
+      {/* Two-up: Best weekdays + Order status mix */}
+      <section className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <WeekdayBreakdown range="30d" />
+        <OrderStatusMix range="30d" />
       </section>
 
       {/* Recent orders */}
@@ -529,6 +590,26 @@ export default function DashboardPage() {
           />
         </div>
       </section>
+    </div>
+  );
+}
+
+function ChartStat({
+  label,
+  value,
+  sub,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+}) {
+  return (
+    <div className="rounded-lg border border-border bg-background p-2.5">
+      <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
+        {label}
+      </p>
+      <p className="text-sm font-bold tabular-nums mt-1 leading-tight">{value}</p>
+      {sub ? <p className="text-[10px] text-muted-foreground mt-0.5">{sub}</p> : null}
     </div>
   );
 }

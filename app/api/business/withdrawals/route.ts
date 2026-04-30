@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
 import { verifyJWT } from '@/lib/auth';
+import { db } from '@/lib/db';
 import { getActiveBusinessForUser } from '@/lib/active-business';
 import { nanoid } from 'nanoid';
+import { reconcileBusinessWithdrawals } from '@/lib/withdrawals';
 
 const PAYSTACK_API_KEY = process.env.PAYSTACK_SECRET_KEY;
 const PAYSTACK_BASE = 'https://api.paystack.co';
@@ -95,6 +96,15 @@ export async function GET(req: NextRequest) {
     const business = await getActiveBusinessForUser(userId);
     if (!business) {
       return NextResponse.json({ error: 'Business not found' }, { status: 404 });
+    }
+
+    // Self-heal: refresh any pending Paystack transfers AND restore
+    // funds for terminal-failed withdrawals that haven't been reversed
+    // yet. Idempotent — won't double-credit on repeat calls.
+    try {
+      await reconcileBusinessWithdrawals(business.id);
+    } catch (err) {
+      console.error('[v0] withdrawals list: reconcile failed:', err);
     }
 
     const rows: any = await db.query(

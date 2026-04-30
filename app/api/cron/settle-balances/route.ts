@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { generateAlphanumericId } from '@/lib/utils';
+import { reconcileBusinessWithdrawals } from '@/lib/withdrawals';
 
 /**
  * Daily settlement cron — runs at 04:00 UTC == 05:00 WAT.
@@ -111,15 +112,55 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // ---------------------------------------------------------------
+    // Phase 2: sweep every business that had activity recently and
+    // reconcile any pending or terminally-failed withdrawals so failed
+    // transfers credit back to available_balance even if no one
+    // visited /dashboard/finance today.
+    // ---------------------------------------------------------------
+    const activeBizRows: any = await db.query(
+      `SELECT DISTINCT b.id
+         FROM businesses b
+         JOIN withdrawals w ON w.business_id = b.id
+        WHERE w.created_at >= NOW() - INTERVAL '60 days'
+           OR (w.balance_reversed = false
+               AND LOWER(w.status::text) IN
+                   ('failed','reversed','abandoned','blocked','rejected',
+                    'pending','otp','received','queued'))`,
+      [],
+    );
+    const activeBiz = Array.isArray(activeBizRows)
+      ? activeBizRows
+      : activeBizRows?.rows ?? [];
+    let withdrawalsReversed = 0;
+    let withdrawalsReversedAmount = 0;
+    for (const biz of activeBiz) {
+      try {
+        const r = await reconcileBusinessWithdrawals(biz.id);
+        withdrawalsReversed += r.reversed;
+        withdrawalsReversedAmount += r.reversedAmount;
+      } catch (err) {
+        console.error(
+          '[v0] settle-balances: withdrawal reconcile failed for',
+          biz.id,
+          err,
+        );
+      }
+    }
+
     console.log('[v0] settle-balances: completed', {
       settledCount,
       businesses: perBusiness.size,
+      withdrawalsReversed,
+      withdrawalsReversedAmount,
     });
 
     return NextResponse.json({
       ok: true,
       settled: settledCount,
       businesses: perBusiness.size,
+      withdrawalsReversed,
+      withdrawalsReversedAmount,
     });
   } catch (err) {
     console.error('[v0] settle-balances: fatal error', err);

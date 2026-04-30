@@ -3,10 +3,14 @@ import { db } from '@/lib/db';
 import { verifyJWT } from '@/lib/auth';
 
 /**
- * Returns the audit-trail rows from `finance_records` for the
- * authenticated business owner. Used by /dashboard/finance to render
- * settlement events (pending → available) alongside payments,
- * withdrawals, and refunds.
+ * Returns settlement-style audit rows from `finance_records` for the
+ * authenticated business owner. The `record_type` column was named
+ * differently from the API's external "kind" alias on purpose — we
+ * keep the public field as `kind` so the dashboard code stays stable
+ * if we ever reshape the table.
+ *
+ * Used by /dashboard/finance to render settlement events
+ * (pending → available) alongside payments / withdrawals / refunds.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -22,16 +26,22 @@ export async function GET(request: NextRequest) {
     }
     const userId = (payload as any).userId || (payload as any).id;
 
-    // Only return settlement-style entries — payments / withdrawals /
-    // refunds already arrive via their own dedicated endpoints, and we
+    // Settlement entries only — payments / withdrawals / refunds are
+    // already streamed in via their own dedicated endpoints, and we
     // don't want to double-render them on the finance page.
     const rows: any = await db.query(
-      `SELECT fr.id, fr.business_id, fr.kind, fr.amount, fr.bucket,
-              fr.related_id, fr.notes, fr.created_at
+      `SELECT fr.id,
+              fr.business_id,
+              fr.record_type AS kind,
+              fr.amount,
+              fr.bucket,
+              fr.related_id,
+              fr.description AS notes,
+              fr.created_at
          FROM finance_records fr
          JOIN businesses b ON fr.business_id = b.id
         WHERE b.owner_id = $1
-          AND fr.kind = 'settlement'
+          AND fr.record_type = 'settlement'
         ORDER BY fr.created_at DESC
         LIMIT 200`,
       [userId],
