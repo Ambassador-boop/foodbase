@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { verifyJWT } from '@/lib/auth';
-import {
-  verifyAndSyncTransfer,
-  reverseFailedWithdrawalIfNeeded,
-} from '@/lib/withdrawals';
+import { verifyAndSyncTransfer } from '@/lib/withdrawals';
 
 /* ------------------------------------------------------------------ */
 /*  GET — single withdrawal with timeline data                         */
