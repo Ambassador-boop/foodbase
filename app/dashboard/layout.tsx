@@ -91,6 +91,47 @@ export default function DashboardLayout({
     };
   }, []);
 
+  useEffect(() => {
+      const userAgent = navigator.userAgent || '';
+
+        const isWebView =
+            userAgent.includes('wv') &&
+                userAgent.toLowerCase().includes('median');
+
+                  if (!isWebView) return;
+
+                    // ❌ Disable right click
+                      const handleContextMenu = (e: MouseEvent) => e.preventDefault();
+
+                        // ❌ Disable copy shortcuts
+                          const handleKeyDown = (e: KeyboardEvent) => {
+                              if (
+                                    (e.ctrlKey || e.metaKey) &&
+                                          ['c', 'x', 'u', 's', 'a'].includes(e.key.toLowerCase())
+                                              ) {
+                                                    e.preventDefault();
+                                                        }
+                                                          };
+
+                                                            // ❌ Disable text selection via CSS
+                                                              const style = document.createElement('style');
+                                                                style.innerHTML = `
+                                                                    * {
+                                                                          user-select: none !important;
+                                                                                -webkit-user-select: none !important;
+                                                                                    }
+                                                                                      `;
+                                                                                        document.head.appendChild(style);
+
+                                                                                          document.addEventListener('contextmenu', handleContextMenu);
+                                                                                            document.addEventListener('keydown', handleKeyDown);
+
+                                                                                              return () => {
+                                                                                                  document.removeEventListener('contextmenu', handleContextMenu);
+                                                                                                      document.removeEventListener('keydown', handleKeyDown);
+                                                                                                        };
+                                                                                                        }, []);
+
   // Click-outside to close dropdown
   useEffect(() => {
     function onClick(e: MouseEvent) {

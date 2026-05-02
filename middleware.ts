@@ -39,7 +39,19 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
-  return NextResponse.next();
+  const response = NextResponse.next();
+
+  // Detect WebView (median)
+  const isWebView =
+    userAgent.includes('wv') &&
+      userAgent.toLowerCase().includes('median');
+
+      // Apply protection ONLY on dashboard routes
+      if (pathname.startsWith('/dashboard') && isWebView) {
+        response.headers.set('x-dashboard-protect', 'true');
+        }
+
+        return response;
 }
 
 export const config = {
