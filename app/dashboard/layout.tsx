@@ -27,16 +27,16 @@ import BusinessSwitchOverlay from '@/components/dashboard/business-switch-overla
 import { switchBusiness } from '@/lib/business-switch';
 
 const navigationItems = [
-  { label: 'Dashboard', href: '/dashboard', icon: BarChart3 },
-  { label: 'Menu Items', href: '/dashboard/menu', icon: Utensils },
-  { label: 'Add-ons', href: '/dashboard/addons', icon: Plus },
-  { label: 'Drinks', href: '/dashboard/drinks', icon: Droplet },
-  { label: 'Categories', href: '/dashboard/categories', icon: FolderOpen },
-  { label: 'Popular Dishes', href: '/dashboard/popular', icon: Zap },
-  { label: 'Orders', href: '/dashboard/orders', icon: ShoppingCart },
-  { label: 'Finance', href: '/dashboard/finance', icon: DollarSign },
-  { label: 'Share Business', href: '/dashboard/share', icon: Share2 },
-  { label: 'Profile', href: '/dashboard/profile', icon: User },
+{ label: 'Dashboard', href: '/dashboard', icon: BarChart3 },
+{ label: 'Orders', href: '/dashboard/orders', icon: ShoppingCart },
+{ label: 'Finance', href: '/dashboard/finance', icon: DollarSign },
+{ label: 'Menu Items', href: '/dashboard/menu', icon: Utensils },
+{ label: 'Categories', href: '/dashboard/categories', icon: FolderOpen },
+{ label: 'Add-ons', href: '/dashboard/addons', icon: Plus },
+{ label: 'Drinks', href: '/dashboard/drinks', icon: Droplet },
+{ label: 'Popular Dishes', href: '/dashboard/popular', icon: Zap },
+{ label: 'Share Business', href: '/dashboard/share', icon: Share2 },
+{ label: 'Profile', href: '/dashboard/profile', icon: User },
 ];
 
 interface Business {
