@@ -116,10 +116,18 @@
 }
 
 @layer base {
-  * {
-    @apply border-border outline-ring/50;
-  }
-  body {
-    @apply bg-background text-foreground;
-  }
+    * {
+        @apply border-border;
+            -webkit-tap-highlight-color: transparent;
+              }
+
+                *:focus-visible {
+                    outline: 2px solid transparent;
+                        box-shadow: 0 0 0 2px rgba(0,0,0,0.05);
+                          }
+
+                            body {
+                                @apply bg-background text-foreground;
+                                  }
+                                  }
 }
