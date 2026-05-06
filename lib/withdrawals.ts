@@ -99,6 +99,10 @@ export async function reverseFailedWithdrawalIfNeeded(row: any): Promise<{
   if (!TERMINAL_FAILED_STATUSES.has(status))
     return { reversed: false, amount: 0 };
   if (row.balance_reversed === true) return { reversed: false, amount: 0 };
+  // Only reverse if the balance was actually deducted. Withdrawals that fail
+  // during creation (status='failed' from the start) never had their balance
+  // deducted in the first place, so they should not be reversed.
+  if (row.balance_deducted !== true) return { reversed: false, amount: 0 };
 
   const grossAmount =
     Number(row.amount || 0) + Number(row.withdrawal_fee || 0);

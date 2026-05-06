@@ -276,13 +276,15 @@ export async function POST(req: NextRequest) {
     } catch (err: any) {
       console.error('[v0] Initiate transfer failed:', err);
       // Record the failed attempt so the user sees it on the timeline
+      // Note: balance_deducted is false because this withdrawal failed before
+      // the balance was ever deducted
       await db.query(
         `INSERT INTO withdrawals
           (id, business_id, amount, net_amount, withdrawal_fee, service_fee,
            bank_code, bank_account_number, bank_account_holder,
            transfer_recipient_id, reference, payment_reference, status,
-           failure_reason, notes, requested_at, created_at, updated_at)
-         VALUES ($1,$2,$3,$3,$4,0,$5,$6,$7,$8,$9,$9,'failed',$10,$11,NOW(),NOW(),NOW())`,
+           failure_reason, notes, balance_deducted, requested_at, created_at, updated_at)
+         VALUES ($1,$2,$3,$3,$4,0,$5,$6,$7,$8,$9,$9,'failed',$10,$11,false,NOW(),NOW(),NOW())`,
         [
           withdrawalId,
           business.id,
@@ -306,14 +308,25 @@ export async function POST(req: NextRequest) {
     /* ------------- Persist withdrawal ----------------------------- */
     const initialStatus = transferData.status || 'pending';
     
+    /* ------------- Only deduct balance if initial status is not terminal failure --- */
+    const terminalFailureStatuses = new Set([
+      'failed',
+      'reversed',
+      'abandoned',
+      'blocked',
+      'rejected',
+    ]);
+    
+    const shouldDeductBalance = !terminalFailureStatuses.has(String(initialStatus).toLowerCase());
+    
     await db.query(
       `INSERT INTO withdrawals
         (id, business_id, amount, net_amount, withdrawal_fee, service_fee,
          bank_code, bank_account_number, bank_account_holder,
          transfer_recipient_id, paystack_transfer_id, transfer_code,
-         reference, payment_reference, status, notes,
+         reference, payment_reference, status, notes, balance_deducted,
          requested_at, created_at, updated_at)
-       VALUES ($1,$2,$3,$3,$4,0,$5,$6,$7,$8,$9,$9,$10,$10,$11,$12,NOW(),NOW(),NOW())`,
+       VALUES ($1,$2,$3,$3,$4,0,$5,$6,$7,$8,$9,$9,$10,$10,$11,$12,$13,NOW(),NOW(),NOW())`,
       [
         withdrawalId,
         business.id,
@@ -327,19 +340,11 @@ export async function POST(req: NextRequest) {
         reference,
         initialStatus,
         notes || null,
+        shouldDeductBalance,
       ],
     );
-
-    /* ------------- Only deduct balance if initial status is not terminal failure --- */
-    const terminalFailureStatuses = new Set([
-      'failed',
-      'reversed',
-      'abandoned',
-      'blocked',
-      'rejected',
-    ]);
     
-    if (!terminalFailureStatuses.has(String(initialStatus).toLowerCase())) {
+    if (shouldDeductBalance) {
       await db.query(
         `UPDATE businesses
             SET available_balance = available_balance - $1,
