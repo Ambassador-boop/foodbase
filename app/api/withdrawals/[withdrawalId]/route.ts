@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { verifyJWT } from '@/lib/auth';
-import { verifyAndSyncTransfer } from '@/lib/withdrawals';
+import { verifyAndSyncTransfer, reverseFailedWithdrawalIfNeeded } from '@/lib/withdrawals';
 
 /* ------------------------------------------------------------------ */
 /*  GET — single withdrawal with timeline data                         */
@@ -60,9 +60,13 @@ export async function GET(
       }
     }
 
-    // Balance reconciliation happens at the listing endpoint
-    // (/api/business/withdrawals) via reconcileBusinessWithdrawals().
-    // This detail page is read-only and does not modify balances.
+    // If the withdrawal has reached a terminal failed state and we haven't
+    // yet reversed the balance, do so now. This ensures the balance is
+    // corrected as soon as the user views the detail page, instead of
+    // waiting for the next list endpoint call.
+    await reverseFailedWithdrawalIfNeeded(row).catch((err) => {
+      console.error('[v0] Failed to reverse withdrawal balance:', err);
+    });
 
     return NextResponse.json({
       id: row.id,
