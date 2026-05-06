@@ -60,11 +60,9 @@ export async function GET(
       }
     }
 
-    // After possibly refreshing, if it's now in a failed state and we
-    // haven't already restored the funds, do it now. This is also run
-    // from the listing endpoint so balances reconcile without the user
-    // having to click into the detail page.
-    await reverseFailedWithdrawalIfNeeded(row);
+    // Balance reconciliation happens at the listing endpoint
+    // (/api/business/withdrawals) via reconcileBusinessWithdrawals().
+    // This detail page is read-only and does not modify balances.
 
     return NextResponse.json({
       id: row.id,

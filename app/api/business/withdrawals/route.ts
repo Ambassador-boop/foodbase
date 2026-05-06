@@ -304,6 +304,8 @@ export async function POST(req: NextRequest) {
     }
 
     /* ------------- Persist withdrawal ----------------------------- */
+    const initialStatus = transferData.status || 'pending';
+    
     await db.query(
       `INSERT INTO withdrawals
         (id, business_id, amount, net_amount, withdrawal_fee, service_fee,
@@ -323,19 +325,29 @@ export async function POST(req: NextRequest) {
         transferRecipientRowId,
         transferData.transfer_code,
         reference,
-        transferData.status || 'pending',
+        initialStatus,
         notes || null,
       ],
     );
 
-    /* ------------- Deduct from business balance ------------------- */
-    await db.query(
-      `UPDATE businesses
-          SET available_balance = available_balance - $1,
-              updated_at = NOW()
-        WHERE id = $2`,
-      [totalDeduction, business.id],
-    );
+    /* ------------- Only deduct balance if initial status is not terminal failure --- */
+    const terminalFailureStatuses = new Set([
+      'failed',
+      'reversed',
+      'abandoned',
+      'blocked',
+      'rejected',
+    ]);
+    
+    if (!terminalFailureStatuses.has(String(initialStatus).toLowerCase())) {
+      await db.query(
+        `UPDATE businesses
+            SET available_balance = available_balance - $1,
+                updated_at = NOW()
+          WHERE id = $2`,
+        [totalDeduction, business.id],
+      );
+    }
 
     return NextResponse.json(
       {
