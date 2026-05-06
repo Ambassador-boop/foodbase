@@ -160,6 +160,16 @@ export default function WithdrawalDetailsPage() {
       const data = await res.json();
       setW(data);
       setError('');
+      
+      // Trigger reconciliation if withdrawal has a terminal failed status
+      if (['failed', 'reversed', 'abandoned', 'blocked', 'rejected'].includes(
+        String(data.status).toLowerCase()
+      )) {
+        fetch('/api/business/reconcile-withdrawals', {
+          method: 'POST',
+          credentials: 'include',
+        }).catch(() => {});
+      }
     } catch (err: any) {
       console.error('[v0] withdrawal detail error:', err);
       setError(err?.message || 'Failed to load withdrawal');

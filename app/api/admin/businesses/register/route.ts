@@ -1,19 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { jwtVerify } from 'jose';
+import { getTokenFromRequest, verifyToken } from '@/lib/auth';
 import { sql } from '@/lib/db';
-
-const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'secret');
 
 export async function POST(request: NextRequest) {
   try {
-    const token = request.cookies.get('auth_token')?.value;
+    const token = await getTokenFromRequest(request);
 
     if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const verified = await jwtVerify(token, secret);
-    const role = verified.payload.role as string;
+    const verified = await verifyToken(token);
+    const role = verified?.role as string;
 
     if (role !== 'admin') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });

@@ -1,6 +1,6 @@
 import { sql } from '@vercel/postgres';
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyToken } from '@/lib/auth';
+import { getTokenFromRequest, verifyToken } from '@/lib/auth';
 
 export async function GET(req: NextRequest) {
   try {
@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const token = req.headers.get('authorization')?.replace('Bearer ', '');
+    const token = await getTokenFromRequest(req);
     if (!token) {
       console.error('[v0] No token provided to service-fee POST');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

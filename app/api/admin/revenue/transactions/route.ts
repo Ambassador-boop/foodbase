@@ -1,10 +1,10 @@
 import { sql } from '@vercel/postgres';
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyToken } from '@/lib/auth';
+import { getTokenFromRequest, verifyToken } from '@/lib/auth';
 
 export async function GET(req: NextRequest) {
   try {
-    const token = req.headers.get('authorization')?.replace('Bearer ', '');
+    const token = await getTokenFromRequest(req);
     if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const user = await verifyToken(token);
@@ -18,21 +18,27 @@ export async function GET(req: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '20');
     const offset = (page - 1) * limit;
 
-    // Get total count
-    const countResult = await sql`
-      SELECT COUNT(*) as total
-      FROM order_service_fees osf
+    // Get service fees count
+    const serviceFeeCount = await sql`
+      SELECT COUNT(*) as count FROM order_service_fees
     `;
 
-    const total = parseInt(countResult.rows[0].total);
+    // Get withdrawal fees count
+    const withdrawalFeeCount = await sql`
+      SELECT COUNT(*) as count FROM withdrawals 
+      WHERE withdrawal_fee > 0 AND status NOT IN ('failed', 'rejected', 'abandoned', 'blocked')
+    `;
 
-    // Get paginated transactions with order and business details
-    const result = await sql`
+    const total = parseInt(serviceFeeCount.rows[0].count) + parseInt(withdrawalFeeCount.rows[0].count);
+
+    // Get service fees transactions
+    const serviceFees = await sql`
       SELECT 
         osf.id,
         osf.order_id,
-        osf.service_fee_amount,
-        osf.service_fee_type,
+        osf.service_fee_amount as amount,
+        'service_fee' as transaction_type,
+        osf.service_fee_type as fee_type,
         osf.created_at,
         o.total_amount,
         o.customer_name,
@@ -44,11 +50,41 @@ export async function GET(req: NextRequest) {
       JOIN orders o ON osf.order_id = o.id
       JOIN businesses b ON o.business_id = b.id
       ORDER BY osf.created_at DESC
-      LIMIT ${limit} OFFSET ${offset}
+      LIMIT ${Math.floor(limit / 2)} OFFSET ${Math.floor(offset / 2)}
     `;
 
+    // Get withdrawal fees transactions
+    const withdrawalFees = await sql`
+      SELECT 
+        w.id,
+        NULL as order_id,
+        w.withdrawal_fee as amount,
+        'withdrawal_fee' as transaction_type,
+        NULL as fee_type,
+        w.created_at,
+        NULL as total_amount,
+        NULL as customer_name,
+        NULL as customer_email,
+        w.status as order_status,
+        b.id as business_id,
+        b.name as business_name
+      FROM withdrawals w
+      JOIN businesses b ON w.business_id = b.id
+      WHERE w.withdrawal_fee > 0 AND w.status NOT IN ('failed', 'rejected', 'abandoned', 'blocked')
+      ORDER BY w.created_at DESC
+      LIMIT ${Math.floor(limit / 2)} OFFSET ${Math.floor(offset / 2)}
+    `;
+
+    // Combine and sort
+    const combinedTransactions = [
+      ...serviceFees.rows,
+      ...withdrawalFees.rows,
+    ].sort((a: any, b: any) => 
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    ).slice(0, limit);
+
     return NextResponse.json({
-      transactions: result.rows,
+      transactions: combinedTransactions,
       pagination: {
         page,
         limit,

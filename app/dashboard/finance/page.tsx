@@ -136,7 +136,17 @@ export default function FinancePage() {
         setBusiness(d.business);
       }
       if (tRes.ok) setTransactions((await tRes.json()) || []);
-      if (wRes.ok) setWithdrawals((await wRes.json()) || []);
+      if (wRes.ok) {
+        const w = (await wRes.json()) || [];
+        setWithdrawals(w);
+        // Trigger reconciliation for pending withdrawals
+        const hasPending = w.some((wd: Withdrawal) => 
+          ['pending', 'queued', 'otp', 'received'].includes(String(wd.status).toLowerCase())
+        );
+        if (hasPending) {
+          fetch('/api/business/reconcile-withdrawals', { credentials: 'include' }).catch(() => {});
+        }
+      }
       if (rRes.ok) setRefunds((await rRes.json()) || []);
       if (sRes.ok) setSettlements((await sRes.json()) || []);
       setError('');

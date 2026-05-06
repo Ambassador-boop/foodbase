@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const token = req.headers.get('authorization')?.replace('Bearer ', '');
+    const token = await getTokenFromRequest(req);
     if (!token) {
       console.error('[v0] No token provided to admin bank-details POST');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
