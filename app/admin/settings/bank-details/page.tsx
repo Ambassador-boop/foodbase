@@ -47,9 +47,7 @@ export default function AdminBankDetailsPage() {
       const [banksRes, detailsRes] = await Promise.all([
         fetch('/api/paystack/banks'),
         fetch('/api/admin/bank-details', {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('authToken')}`,
-          },
+          credentials: 'include',
         }),
       ]);
 
@@ -133,8 +131,8 @@ export default function AdminBankDetailsPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('authToken')}`,
         },
+        credentials: 'include',
         body: JSON.stringify({
           bank_code: formData.bankCode,
           account_number: formData.accountNumber,

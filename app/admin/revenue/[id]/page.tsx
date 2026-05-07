@@ -46,11 +46,8 @@ export default function TransactionDetailsPage() {
 
   const fetchTransactionDetails = async () => {
     try {
-      const token = localStorage.getItem('authToken');
       const response = await fetch(`/api/admin/revenue/${id}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        credentials: 'include',
       });
 
       const data = await response.json();

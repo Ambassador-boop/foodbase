@@ -48,11 +48,8 @@ function TransactionsContent() {
   const fetchTransactions = async (page: number) => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('authToken');
       const response = await fetch(`/api/admin/revenue/transactions?page=${page}&limit=20`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        credentials: 'include',
       });
 
       const data = await response.json();

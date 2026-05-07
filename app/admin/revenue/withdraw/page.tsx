@@ -37,14 +37,12 @@ export default function AdminWithdrawalPage() {
 
   const fetchInitialData = async () => {
     try {
-      const token = localStorage.getItem('authToken');
-
       const [bankRes, revenueRes] = await Promise.all([
         fetch('/api/admin/bank-details', {
-          headers: { Authorization: `Bearer ${token}` },
+          credentials: 'include',
         }),
         fetch('/api/admin/revenue', {
-          headers: { Authorization: `Bearer ${token}` },
+          credentials: 'include',
         }),
       ]);
 
@@ -90,13 +88,12 @@ export default function AdminWithdrawalPage() {
     setError('');
 
     try {
-      const token = localStorage.getItem('authToken');
       const response = await fetch('/api/admin/withdrawals', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
         },
+        credentials: 'include',
         body: JSON.stringify({
           amount,
           bank_code: bankDetails.bank_code,

@@ -50,11 +50,8 @@ export default function RevenuePage() {
 
   const fetchRevenueData = async () => {
     try {
-      const token = localStorage.getItem('authToken');
       const response = await fetch('/api/admin/revenue', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        credentials: 'include',
       });
 
       const data = await response.json();

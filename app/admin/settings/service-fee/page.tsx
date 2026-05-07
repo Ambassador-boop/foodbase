@@ -87,13 +87,12 @@ export default function ServiceFeeConfigPage() {
     setSuccess('');
 
     try {
-      const token = localStorage.getItem('authToken');
       const response = await fetch('/api/admin/service-fee', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
         },
+        credentials: 'include',
         body: JSON.stringify({ tiers }),
       });
 

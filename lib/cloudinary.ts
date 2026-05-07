@@ -24,7 +24,10 @@ export async function uploadImage(
   fileName?: string
 ): Promise<string> {
   try {
-    validateCloudinaryConfig();
+    // Validate only the client-side required config
+    if (!process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME) {
+      throw new Error('NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME is not set');
+    }
 
     const formData = new FormData();
     
@@ -73,7 +76,16 @@ export function getImageUrl(publicId: string, width = 400, height = 400): string
 // Delete image from Cloudinary (requires admin API token)
 export async function deleteImage(publicId: string): Promise<void> {
   try {
-    validateCloudinaryConfig();
+    // Validate all required configs for deletion
+    if (!process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME) {
+      throw new Error('NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME is not set');
+    }
+    if (!process.env.CLOUDINARY_API_KEY) {
+      throw new Error('CLOUDINARY_API_KEY is not set');
+    }
+    if (!process.env.CLOUDINARY_API_SECRET) {
+      throw new Error('CLOUDINARY_API_SECRET is not set');
+    }
 
     const response = await fetch(
       `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/resources/image/upload`,
