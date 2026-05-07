@@ -92,10 +92,7 @@ export default function RecentOrders() {
         );
         if (response.ok) {
           const data = await response.json();
-          console.log('[v0] Recent orders data received:', data);
           if (!cancelled) setOrders(data.orders || []);
-        } else {
-          console.error('[v0] Orders API error:', response.status);
         }
       } catch (error) {
         console.error('[v0] Failed to fetch orders:', error);

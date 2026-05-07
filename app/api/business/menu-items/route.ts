@@ -18,9 +18,11 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const sort = searchParams.get('sort') || 'display_order';
+    const sort = searchParams.get('sort');
     const limit = parseInt(searchParams.get('limit') || '50');
-    const timeRange = searchParams.get('timeRange') || 'today';
+    const timeRange = searchParams.get('timeRange');
+    // Check if this is a metric component request (has sort and/or timeRange)
+    const isMetricRequest = sort !== null || timeRange !== null;
 
     // Get all menu items for this business
     const menuItems = await getAll(
@@ -32,7 +34,29 @@ export async function GET(request: NextRequest) {
       [business.id],
     );
 
-    // Calculate order counts and total revenue for each menu item based on timeRange
+    // PAGE REQUEST - Return snake_case without stats calculation
+    if (!isMetricRequest) {
+      return NextResponse.json({ 
+        success: true, 
+        menuItems: menuItems.map((item: any) => ({
+          id: item.id,
+          name: item.name,
+          description: item.description,
+          price: Number(item.price),
+          original_price: Number(item.original_price) || null,
+          category_id: item.category_id,
+          category_name: item.category_name,
+          image_url: item.image_url,
+          is_available: item.is_available,
+          order_count: item.order_count || 0,
+          discount_type: item.discount_type,
+          discount_value: item.discount_value,
+          discounted_price: item.discounted_price,
+        }))
+      });
+    }
+
+    // METRIC COMPONENT REQUEST - Calculate order counts and total revenue
     const itemsWithStats = await Promise.all(
       menuItems.map(async (item: any) => {
         let dateFilter = '';
@@ -106,6 +130,9 @@ export async function GET(request: NextRequest) {
       sortedItems.sort((a, b) => b.totalRevenue - a.totalRevenue);
     } else if (sort === 'name') {
       sortedItems.sort((a, b) => a.name.localeCompare(b.name));
+    } else {
+      // Default sorting by display order for metrics
+      sortedItems = itemsWithStats;
     }
 
     // Apply limit

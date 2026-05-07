@@ -59,10 +59,7 @@ export default function TopSellingItems({
         );
         if (response.ok) {
           const data = await response.json();
-          console.log('[v0] Top sellers data received:', data);
           if (!cancelled) setItems(data.items || []);
-        } else {
-          console.error('[v0] Menu items API error:', response.status);
         }
       } catch (error) {
         console.error('[v0] Failed to fetch top items:', error);
