@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTokenFromRequest, verifyToken } from '@/lib/auth';
 import { sql } from '@/lib/db';
+import { nanoid } from 'nanoid';
 
 export async function GET(request: NextRequest) {
   try {
@@ -55,7 +56,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const userId = `user_${Date.now()}`;
+    const userId = `usr_${nanoid(14)}`;
 
     await sql.query(
       'INSERT INTO users (id, first_name, last_name, email, phone, role, password_hash, is_active, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())',

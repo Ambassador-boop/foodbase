@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTokenFromRequest, verifyToken } from '@/lib/auth';
 import { sql } from '@/lib/db';
+import { nanoid } from 'nanoid';
 
 export async function POST(request: NextRequest) {
   try {
@@ -39,7 +40,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const businessId = `business_${Date.now()}`;
+    const businessId = `bus_${nanoid(14)}`;
 
     await sql.query(
       `INSERT INTO businesses 
