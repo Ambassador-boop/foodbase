@@ -26,12 +26,8 @@ export default function NotificationsPage() {
 
   const fetchNotifications = async () => {
     try {
-      const businessId = localStorage.getItem('currentBusinessId');
-      const url = businessId
-        ? `/api/business/notifications?businessId=${businessId}`
-        : '/api/business/notifications';
-
-      const response = await fetch(url);
+      // Always use the server-side cookie resolution (no businessId param)
+      const response = await fetch('/api/business/notifications');
       if (response.ok) {
         const data = await response.json();
         setNotifications(data.notifications || []);

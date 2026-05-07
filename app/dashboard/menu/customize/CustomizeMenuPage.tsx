@@ -59,30 +59,24 @@ export default function CustomizeMenuPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  // Get businessId from URL or localStorage (set by dashboard layout)
+  // Get businessId from server-side resolution
   useEffect(() => {
     const urlBusinessId = searchParams.get('businessId');
     if (urlBusinessId) {
       setBusinessId(urlBusinessId);
     } else {
-      const savedBusinessId = localStorage.getItem('currentBusinessId');
-      if (savedBusinessId) {
-        setBusinessId(savedBusinessId);
-      } else {
-        // Fetch from API if not in storage
-        fetchCurrentBusiness();
-      }
+      // Fetch current active business from server
+      fetchCurrentBusiness();
     }
   }, [searchParams]);
 
   const fetchCurrentBusiness = async () => {
     try {
-      const response = await fetch('/api/user/businesses', { credentials: 'include' });
+      const response = await fetch('/api/user/current-business', { credentials: 'include' });
       if (response.ok) {
         const data = await response.json();
-        if (data.businesses && data.businesses.length > 0) {
-          setBusinessId(data.businesses[0].id);
-          localStorage.setItem('currentBusinessId', data.businesses[0].id);
+        if (data.businessId) {
+          setBusinessId(data.businessId);
         }
       }
     } catch (err) {

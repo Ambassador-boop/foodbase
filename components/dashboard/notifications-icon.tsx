@@ -10,12 +10,8 @@ export default function NotificationsIcon() {
   useEffect(() => {
     const fetchUnreadCount = async () => {
       try {
-        const businessId = localStorage.getItem('currentBusinessId');
-        const url = businessId
-          ? `/api/business/notifications/count?businessId=${businessId}`
-          : '/api/business/notifications/count';
-
-        const response = await fetch(url);
+        // Always use the server-side cookie resolution (no businessId param)
+        const response = await fetch('/api/business/notifications/count');
         if (response.ok) {
           const data = await response.json();
           setUnreadCount(data.unreadCount || 0);
