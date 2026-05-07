@@ -4,8 +4,8 @@ import { getCurrentUser } from '@/lib/auth';
 import { getActiveBusiness } from '@/lib/active-business';
 import { generateId } from '@/lib/utils-extended';
 
-// GET - List all menu items for the active business
-export async function GET(_request: NextRequest) {
+// GET - List all menu items for the active business with filtering and sorting
+export async function GET(request: NextRequest) {
   try {
     const currentUser = await getCurrentUser();
     if (!currentUser || currentUser.role !== 'business_owner') {
@@ -17,6 +17,12 @@ export async function GET(_request: NextRequest) {
       return NextResponse.json({ error: 'Business not found' }, { status: 404 });
     }
 
+    const { searchParams } = new URL(request.url);
+    const sort = searchParams.get('sort') || 'display_order';
+    const limit = parseInt(searchParams.get('limit') || '50');
+    const timeRange = searchParams.get('timeRange') || 'today';
+
+    // Get all menu items for this business
     const menuItems = await getAll(
       `SELECT m.*, c.name as category_name
          FROM menu_items m
@@ -26,7 +32,86 @@ export async function GET(_request: NextRequest) {
       [business.id],
     );
 
-    return NextResponse.json({ success: true, menuItems });
+    // Calculate order counts and total revenue for each menu item based on timeRange
+    const itemsWithStats = await Promise.all(
+      menuItems.map(async (item: any) => {
+        let dateFilter = '';
+        const dateParams: any[] = [item.id, business.id];
+        
+        if (timeRange === 'today') {
+          dateFilter = ` AND DATE(oi.created_at) = CURRENT_DATE`;
+        } else if (timeRange === 'week') {
+          dateFilter = ` AND oi.created_at >= CURRENT_DATE - INTERVAL '7 days'`;
+        } else if (timeRange === 'month') {
+          dateFilter = ` AND oi.created_at >= CURRENT_DATE - INTERVAL '30 days'`;
+        } else if (timeRange === 'last30') {
+          dateFilter = ` AND oi.created_at >= CURRENT_DATE - INTERVAL '30 days'`;
+        }
+
+        try {
+          const statsRow = await getOne(
+            `SELECT 
+               COUNT(oi.id) as order_count,
+               COALESCE(SUM(oi.item_price * oi.quantity), 0) as total_revenue
+             FROM order_items oi
+             WHERE oi.menu_item_id = $1
+             AND oi.id IN (
+               SELECT oi2.id FROM order_items oi2
+               JOIN orders o ON oi2.order_id = o.id
+               WHERE o.business_id = $2
+               ${dateFilter}
+             )`,
+            dateParams,
+          );
+
+          const stats = statsRow || { order_count: 0, total_revenue: 0 };
+
+          return {
+            id: item.id,
+            name: item.name,
+            imageUrl: item.image_url,
+            orderCount: parseInt(stats.order_count || '0'),
+            price: Number(item.price),
+            totalRevenue: Number(stats.total_revenue) || 0,
+            categoryName: item.category_name,
+            description: item.description,
+            isAvailable: item.is_available,
+            discountType: item.discount_type,
+            discountValue: item.discount_value,
+          };
+        } catch (err) {
+          console.error('Error calculating stats for menu item:', item.id, err);
+          return {
+            id: item.id,
+            name: item.name,
+            imageUrl: item.image_url,
+            orderCount: 0,
+            price: Number(item.price),
+            totalRevenue: 0,
+            categoryName: item.category_name,
+            description: item.description,
+            isAvailable: item.is_available,
+            discountType: item.discount_type,
+            discountValue: item.discount_value,
+          };
+        }
+      }),
+    );
+
+    // Sort the items based on the sort parameter
+    let sortedItems = [...itemsWithStats];
+    if (sort === 'order_count') {
+      sortedItems.sort((a, b) => b.orderCount - a.orderCount);
+    } else if (sort === 'revenue') {
+      sortedItems.sort((a, b) => b.totalRevenue - a.totalRevenue);
+    } else if (sort === 'name') {
+      sortedItems.sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    // Apply limit
+    const items = sortedItems.slice(0, limit);
+
+    return NextResponse.json({ success: true, items });
   } catch (error) {
     console.error('[v0] Get menu items error:', error);
     return NextResponse.json(
