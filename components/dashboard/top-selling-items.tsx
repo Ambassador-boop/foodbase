@@ -46,16 +46,12 @@ export default function TopSellingItems({
     const fetchTopItems = async () => {
       setLoading(true);
       try {
-        const businessId =
-          typeof window !== 'undefined'
-            ? localStorage.getItem('currentBusinessId')
-            : null;
+        // Always use the server-side cookie resolution (no businessId param)
         const params = new URLSearchParams({
           sort: 'order_count',
           limit: '6',
           timeRange,
         });
-        if (businessId) params.append('businessId', businessId);
 
         const response = await fetch(
           `/api/business/menu-items?${params.toString()}`,

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { cookies } from 'next/server';
 import { getOne } from '@/lib/db';
 import { verifyPassword, createJWT, setAuthCookie } from '@/lib/auth';
+import { ACTIVE_BUSINESS_COOKIE } from '@/lib/active-business';
 
 export async function POST(request: NextRequest) {
   try {
@@ -60,6 +62,18 @@ export async function POST(request: NextRequest) {
 
     // Set authentication cookie
     await setAuthCookie(token);
+
+    // Set the active business cookie for business owners
+    if (user.role === 'business_owner' && businessId) {
+      const cookieStore = await cookies();
+      cookieStore.set(ACTIVE_BUSINESS_COOKIE, businessId, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 60 * 60 * 24 * 365, // 1 year
+      });
+    }
 
     return NextResponse.json({
       success: true,

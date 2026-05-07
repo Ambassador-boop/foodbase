@@ -19,15 +19,8 @@ export default function CustomerMetrics() {
     let cancelled = false;
     const fetchMetrics = async () => {
       try {
-        const businessId =
-          typeof window !== 'undefined'
-            ? localStorage.getItem('currentBusinessId')
-            : null;
-        const url = businessId
-          ? `/api/business/dashboard/customer-metrics?businessId=${businessId}`
-          : '/api/business/dashboard/customer-metrics';
-
-        const response = await fetch(url, { cache: 'no-store' });
+        // Always use the server-side cookie resolution (no businessId param)
+        const response = await fetch('/api/business/dashboard/customer-metrics', { cache: 'no-store' });
         if (response.ok) {
           const data = await response.json();
           if (!cancelled) setMetrics(data.metrics);

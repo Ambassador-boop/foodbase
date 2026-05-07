@@ -83,13 +83,8 @@ export default function OrderStatusMix({
     const fetchData = async () => {
       setLoading(true);
       try {
-        const businessId =
-          typeof window !== 'undefined'
-            ? localStorage.getItem('currentBusinessId')
-            : null;
-        const params = new URLSearchParams({ range });
-        if (businessId) params.append('businessId', businessId);
-        const url = `/api/business/dashboard/order-status?${params.toString()}`;
+        // Always use the server-side cookie resolution (no businessId param)
+        const url = `/api/business/dashboard/order-status?range=${range}`;
         const response = await fetch(url, { cache: 'no-store' });
         if (response.ok) {
           const data: ApiResponse = await response.json();

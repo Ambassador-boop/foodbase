@@ -83,12 +83,8 @@ export default function RecentOrders() {
     let cancelled = false;
     const fetchOrders = async () => {
       try {
-        const businessId =
-          typeof window !== 'undefined'
-            ? localStorage.getItem('currentBusinessId')
-            : null;
+        // Always use the server-side cookie resolution (no businessId param)
         const params = new URLSearchParams({ limit: '8', sort: 'latest' });
-        if (businessId) params.append('businessId', businessId);
 
         const response = await fetch(
           `/api/business/orders?${params.toString()}`,

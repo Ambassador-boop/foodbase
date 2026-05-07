@@ -38,15 +38,8 @@ export default function PeakHours({
     const fetchHourlyData = async () => {
       setLoading(true);
       try {
-        const businessId =
-          typeof window !== 'undefined'
-            ? localStorage.getItem('currentBusinessId')
-            : null;
-        const url = businessId
-          ? `/api/business/dashboard/hourly?timeRange=${timeRange}&businessId=${businessId}`
-          : `/api/business/dashboard/hourly?timeRange=${timeRange}`;
-
-        const response = await fetch(url, { cache: 'no-store' });
+        // Always use the server-side cookie resolution (no businessId param)
+        const response = await fetch(`/api/business/dashboard/hourly?timeRange=${timeRange}`, { cache: 'no-store' });
         if (response.ok) {
           const result: ApiResponse = await response.json();
           if (!cancelled) {

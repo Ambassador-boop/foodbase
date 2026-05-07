@@ -73,13 +73,9 @@ export default function DashboardPage() {
   const fetchMetrics = useCallback(async (silent = false) => {
     try {
       if (!silent) setRefreshing(true);
-      const businessId =
-        typeof window !== 'undefined'
-          ? localStorage.getItem('currentBusinessId')
-          : null;
-      const url = businessId
-        ? `/api/business/dashboard?businessId=${businessId}`
-        : '/api/business/dashboard';
+      // Always use the server-side cookie resolution (no businessId param)
+      // This ensures users always get their own active business, not stale localStorage data
+      const url = '/api/business/dashboard';
 
       const response = await fetch(url, { cache: 'no-store' });
       if (!response.ok) throw new Error('Failed to fetch metrics');

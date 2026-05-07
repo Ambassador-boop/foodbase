@@ -35,15 +35,8 @@ export default function ComparativeMetrics() {
     let cancelled = false;
     const fetchComparisons = async () => {
       try {
-        const businessId =
-          typeof window !== 'undefined'
-            ? localStorage.getItem('currentBusinessId')
-            : null;
-        const url = businessId
-          ? `/api/business/dashboard/comparisons?businessId=${businessId}`
-          : '/api/business/dashboard/comparisons';
-
-        const response = await fetch(url, { cache: 'no-store' });
+        // Always use the server-side cookie resolution (no businessId param)
+        const response = await fetch('/api/business/dashboard/comparisons', { cache: 'no-store' });
         if (response.ok) {
           const data = await response.json();
           if (!cancelled) setComparisons(data.comparisons || []);
