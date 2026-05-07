@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/server';
+import { cookies } from 'next/headers';
 import { getOne } from '@/lib/db';
 import { verifyPassword, createJWT, setAuthCookie } from '@/lib/auth';
 import { ACTIVE_BUSINESS_COOKIE } from '@/lib/active-business';
