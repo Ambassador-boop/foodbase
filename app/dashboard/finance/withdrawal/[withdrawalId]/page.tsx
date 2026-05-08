@@ -20,6 +20,7 @@ import {
   Loader2,
   RefreshCw,
   ShieldCheck,
+  Undo2,
   XCircle,
 } from 'lucide-react';
 import { formatWat } from '@/lib/wat';
@@ -45,6 +46,7 @@ interface Withdrawal {
   processed_at?: string;
   created_at: string;
   updated_at: string;
+  balance_reversed?: boolean;
 }
 
 const NGN = (n: number) =>
@@ -383,6 +385,19 @@ export default function WithdrawalDetailsPage() {
           </div>
         </div>
       </div>
+
+      {/* Balance reversed notification */}
+      {w.balance_reversed && (
+        <div className="flex items-start gap-3 rounded-lg border border-emerald-200/60 bg-emerald-50/60 p-4">
+          <Undo2 className="h-4 w-4 shrink-0 text-emerald-600 mt-0.5" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-emerald-700">Balance reversed</p>
+            <p className="mt-1 text-xs text-emerald-700/80">
+              The withdrawal amount plus fee ({NGN(Number(w.amount) + Number(w.withdrawal_fee || 0))}) has been returned to your available balance.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Amount summary card */}
       <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">

@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'No business found' }, { status: 404 });
     }
 
-    const businesses = rows.map((b: any) => ({
+    let businesses = rows.map((b: any) => ({
       ...b,
       total_orders: Number(b.total_orders ?? 0),
       available_balance: Number(b.available_balance ?? 0),
@@ -52,8 +52,26 @@ export async function GET(request: NextRequest) {
 
     // The "primary" business reflects the active selection from the cookie.
     const active = await getActiveBusinessForUser(userId);
-    const primary =
+    let primary =
       businesses.find((b: any) => b.id === active?.id) || businesses[0];
+
+    // If primary business exists, trigger withdrawal reconciliation in background
+    // to ensure any failed withdrawals are immediately reversed
+    if (primary?.id) {
+      // Import here to avoid circular dependencies
+      const { reconcileBusinessWithdrawals } = await import('@/lib/withdrawals');
+      reconcileBusinessWithdrawals(primary.id)
+        .then((result) => {
+          if (result.reversed > 0) {
+            console.log('[v0] GET /business: Auto-reconciled withdrawals. Reversed:', result.reversed, 'Amount:', result.reversedAmount);
+            // Note: We could refetch the business here to get fresh balance,
+            // but for now the frontend will catch it on next refresh (8s interval)
+          }
+        })
+        .catch((err) => {
+          console.error('[v0] GET /business: Reconciliation background task failed:', err);
+        });
+    }
 
     return NextResponse.json({
       success: true,
