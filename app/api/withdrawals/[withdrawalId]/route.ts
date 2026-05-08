@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { verifyJWT } from '@/lib/auth';
-import { verifyAndSyncTransfer } from '@/lib/withdrawals';
+import { verifyAndSyncTransfer, reverseFailedWithdrawalIfNeeded } from '@/lib/withdrawals';
 
 /* ------------------------------------------------------------------ */
 /*  GET — single withdrawal with timeline data                         */
@@ -60,7 +60,30 @@ export async function GET(
       }
     }
 
-
+    // After syncing status, check if it's now in a terminal failed state
+    // and reverse the balance if it hasn't been reversed yet
+    const terminalFailedStatuses = new Set([
+      'failed',
+      'reversed',
+      'abandoned',
+      'blocked',
+      'rejected',
+    ]);
+    if (terminalFailedStatuses.has(String(row.status).toLowerCase())) {
+      const reversalResult = await reverseFailedWithdrawalIfNeeded(row);
+      if (reversalResult.reversed) {
+        console.log('[v0] GET /withdrawals/[id]: Auto-reversed failed withdrawal:', withdrawalId);
+        // Refresh the row to get the updated balance_reversed flag
+        const refreshResult: any = await db.query(
+          `SELECT w.* FROM withdrawals w WHERE w.id = $1`,
+          [withdrawalId],
+        );
+        const refreshList = Array.isArray(refreshResult) ? refreshResult : refreshResult?.rows ?? [];
+        if (refreshList.length > 0) {
+          row = refreshList[0];
+        }
+      }
+    }
 
     return NextResponse.json({
       id: row.id,

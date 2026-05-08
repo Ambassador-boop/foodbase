@@ -3,7 +3,7 @@ import { verifyJWT } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { getActiveBusinessForUser } from '@/lib/active-business';
 import { nanoid } from 'nanoid';
-import { reconcileBusinessWithdrawals } from '@/lib/withdrawals';
+import { reconcileBusinessWithdrawals, reverseFailedWithdrawalIfNeeded, TERMINAL_FAILED_STATUSES } from '@/lib/withdrawals';
 
 const PAYSTACK_API_KEY = process.env.PAYSTACK_SECRET_KEY;
 const PAYSTACK_BASE = 'https://api.paystack.co';
@@ -136,7 +136,29 @@ export async function GET(req: NextRequest) {
       [business.id],
     );
 
-    const list = Array.isArray(rows) ? rows : rows?.rows ?? [];
+    let list = Array.isArray(rows) ? rows : rows?.rows ?? [];
+    
+    // Ensure any terminal-failed withdrawals with balance_deducted=true
+    // and balance_reversed=false are immediately reversed (idempotent)
+    for (const w of list) {
+      if (
+        TERMINAL_FAILED_STATUSES.has(String(w.status || '').toLowerCase()) &&
+        w.balance_deducted === true &&
+        w.balance_reversed !== true
+      ) {
+        try {
+          const result = await reverseFailedWithdrawalIfNeeded(w);
+          if (result.reversed) {
+            console.log('[v0] GET /business/withdrawals: Auto-reversed failed withdrawal:', w.id);
+            // Update the cached row with the new balance_reversed flag
+            w.balance_reversed = true;
+          }
+        } catch (err) {
+          console.error('[v0] GET /business/withdrawals: Failed to reverse withdrawal:', w.id, err);
+        }
+      }
+    }
+    
     return NextResponse.json(
       list.map((r: any) => ({
         ...r,
