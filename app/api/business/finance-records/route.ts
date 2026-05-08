@@ -1,16 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { verifyJWT } from '@/lib/auth';
+import { getActiveBusinessForUser } from '@/lib/active-business';
 
 /**
  * Returns settlement-style audit rows from `finance_records` for the
- * authenticated business owner. The `record_type` column was named
- * differently from the API's external "kind" alias on purpose — we
- * keep the public field as `kind` so the dashboard code stays stable
- * if we ever reshape the table.
+ * authenticated business owner's ACTIVE business only. The `record_type`
+ * column was named differently from the API's external "kind" alias on
+ * purpose — we keep the public field as `kind` so the dashboard code stays
+ * stable if we ever reshape the table.
  *
  * Used by /dashboard/finance to render settlement events
  * (pending → available) alongside payments / withdrawals / refunds.
+ *
+ * IMPORTANT: This endpoint filters by active business_id to prevent
+ * cross-business visibility. Each business owner only sees their
+ * currently active business's finance records.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -26,6 +31,15 @@ export async function GET(request: NextRequest) {
     }
     const userId = (payload as any).userId || (payload as any).id;
 
+    // Get the active business to ensure we only show that business's records
+    const activeBusiness = await getActiveBusinessForUser(userId);
+    if (!activeBusiness) {
+      return NextResponse.json(
+        { error: 'No active business found' },
+        { status: 404 },
+      );
+    }
+
     // Settlement entries only — payments / withdrawals / refunds are
     // already streamed in via their own dedicated endpoints, and we
     // don't want to double-render them on the finance page.
@@ -39,12 +53,11 @@ export async function GET(request: NextRequest) {
               fr.description AS notes,
               fr.created_at
          FROM finance_records fr
-         JOIN businesses b ON fr.business_id = b.id
-        WHERE b.owner_id = $1
+        WHERE fr.business_id = $1
           AND fr.record_type = 'settlement'
         ORDER BY fr.created_at DESC
         LIMIT 200`,
-      [userId],
+      [activeBusiness.id],
     );
     const list = (Array.isArray(rows) ? rows : rows?.rows ?? []).map(
       (r: any) => ({

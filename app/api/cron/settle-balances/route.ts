@@ -52,19 +52,46 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: true, settled: 0 });
     }
 
-    // Aggregate per business so we do one balance update per business.
+    // For each transaction, calculate the net amount after refunds
+    const transactionAdjustments = new Map<string, { netAmount: number; refundedAmount: number }>();
+    
+    for (const txn of dueRows) {
+      // Query total refunded amount for this transaction (exclude failed/rejected refunds)
+      const refundResult: any = await db.query(
+        `SELECT COALESCE(SUM(refund_amount), 0) as total_refunded
+           FROM refunds
+          WHERE transaction_id = $1
+            AND status NOT IN ('failed', 'rejected')`,
+        [txn.id],
+      );
+      
+      const refundRow = Array.isArray(refundResult) ? refundResult[0] : refundResult?.rows?.[0];
+      const refundedAmount = Number(refundRow?.total_refunded || 0);
+      const originalAmount = Number(txn.amount) || 0;
+      const netAmount = originalAmount - refundedAmount;
+      
+      transactionAdjustments.set(txn.id, {
+        netAmount: Math.max(0, netAmount),
+        refundedAmount,
+      });
+    }
+
+    // Aggregate per business so we do one balance update per business,
+    // accounting for refunds
     const perBusiness = new Map<string, number>();
     for (const r of dueRows) {
       const bid = r.business_id as string;
-      const amt = Number(r.amount) || 0;
-      perBusiness.set(bid, (perBusiness.get(bid) || 0) + amt);
+      const adjustment = transactionAdjustments.get(r.id)!;
+      const netAmount = adjustment.netAmount;
+      perBusiness.set(bid, (perBusiness.get(bid) || 0) + netAmount);
     }
 
     let settledCount = 0;
+    let fullyRefundedCount = 0;
 
     for (const [businessId, total] of perBusiness.entries()) {
       try {
-        // Move money: pending -> available
+        // Move money: pending -> available (only net amounts after refunds)
         await db.query(
           `UPDATE businesses
               SET pending_balance   = GREATEST(0, COALESCE(pending_balance, 0) - $1),
@@ -81,6 +108,11 @@ export async function GET(req: NextRequest) {
       // Per-row updates + finance_records
       for (const r of dueRows.filter((x: any) => x.business_id === businessId)) {
         try {
+          const adjustment = transactionAdjustments.get(r.id)!;
+          const netAmount = adjustment.netAmount;
+          const refundedAmount = adjustment.refundedAmount;
+          const isFullyRefunded = netAmount <= 0;
+
           await db.query(
             `UPDATE transactions
                 SET settlement_status = 'settled',
@@ -90,22 +122,48 @@ export async function GET(req: NextRequest) {
             [r.id],
           );
 
-          await db.query(
-            `INSERT INTO finance_records
-               (id, business_id, record_type, bucket, direction, amount,
-                related_id, reference, description, created_at)
-             VALUES ($1, $2, 'settlement', 'available', 'in', $3, $4, $5,
-                     'Pending balance settled into available balance', NOW())`,
-            [
-              `fr_${generateAlphanumericId()}`,
-              businessId,
-              Number(r.amount) || 0,
-              r.order_id || r.id,
-              r.payment_reference || null,
-            ],
-          );
+          // Only create finance record if there's a net amount to settle
+          if (netAmount > 0) {
+            let description = 'Pending balance settled into available balance';
+            if (refundedAmount > 0) {
+              description += ` (refunded: ${refundedAmount})`;
+            }
 
-          settledCount++;
+            await db.query(
+              `INSERT INTO finance_records
+                 (id, business_id, record_type, bucket, direction, amount,
+                  related_id, reference, description, created_at)
+               VALUES ($1, $2, 'settlement', 'available', 'in', $3, $4, $5, $6, NOW())`,
+              [
+                `fr_${generateAlphanumericId()}`,
+                businessId,
+                netAmount,
+                r.order_id || r.id,
+                r.payment_reference || null,
+                description,
+              ],
+            );
+
+            settledCount++;
+          } else {
+            // Fully refunded transaction - still mark as settled but don't move funds
+            fullyRefundedCount++;
+            
+            // Record this as a fully refunded settlement for audit purposes
+            await db.query(
+              `INSERT INTO finance_records
+                 (id, business_id, record_type, bucket, direction, amount,
+                  related_id, reference, description, created_at)
+               VALUES ($1, $2, 'settlement', 'pending', 'none', 0, $3, $4, $5, NOW())`,
+              [
+                `fr_${generateAlphanumericId()}`,
+                businessId,
+                r.order_id || r.id,
+                r.payment_reference || null,
+                'Transaction fully refunded - no settlement',
+              ],
+            );
+          }
         } catch (err) {
           console.error('[v0] settle-balances: per-row settle failed for', r.id, err);
         }
@@ -150,6 +208,7 @@ export async function GET(req: NextRequest) {
 
     console.log('[v0] settle-balances: completed', {
       settledCount,
+      fullyRefundedCount,
       businesses: perBusiness.size,
       withdrawalsReversed,
       withdrawalsReversedAmount,
@@ -158,6 +217,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       settled: settledCount,
+      fullyRefundedCount,
       businesses: perBusiness.size,
       withdrawalsReversed,
       withdrawalsReversedAmount,

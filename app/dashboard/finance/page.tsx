@@ -78,6 +78,14 @@ interface SettlementRecord {
   created_at: string;
 }
 
+interface AggregatedSettlement {
+  settlement_date: string;
+  transaction_count: number;
+  total_amount: number;
+  first_settlement_time: string;
+  last_settlement_time: string;
+}
+
 type Unified = {
   key: string;
   kind: 'income' | 'withdrawal' | 'refund' | 'settlement';
@@ -111,7 +119,7 @@ export default function FinancePage() {
   const [transactions, setTransactions] = useState<Txn[]>([]);
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   const [refunds, setRefunds] = useState<Refund[]>([]);
-  const [settlements, setSettlements] = useState<SettlementRecord[]>([]);
+  const [settlements, setSettlements] = useState<AggregatedSettlement[]>([]);
   const [bankNameMap, setBankNameMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -128,7 +136,7 @@ export default function FinancePage() {
         fetch('/api/business/transactions', { credentials: 'include' }),
         fetch('/api/business/withdrawals', { credentials: 'include' }),
         fetch('/api/business/refunds', { credentials: 'include' }),
-        fetch('/api/business/finance-records', { credentials: 'include' }),
+        fetch('/api/business/settlements', { credentials: 'include' }),
       ]);
 
       if (bRes.ok) {
@@ -251,24 +259,21 @@ export default function FinancePage() {
       });
     }
 
-    // Settlement events written by the 05:00 WAT cron — show them so
-    // the business owner can see which pending balances graduated to
-    // available, and when.
+    // Aggregated settlement events — one per settlement date.
+    // Shows total amount settled and transaction count.
+    // Clicking leads to the settlement details page.
     for (const s of settlements) {
+      const settlementDate = s.settlement_date;
       list.push({
-        key: `set-${s.id}`,
+        key: `set-${settlementDate}`,
         kind: 'settlement',
         status: 'completed',
-        amount: Number(s.amount || 0),
+        amount: Number(s.total_amount || 0),
         title: 'Settlement',
-        subtitle: 'Pending balance moved to available',
-        meta: s.related_id
-          ? `Order ${String(s.related_id).slice(0, 8)}`
-          : 'Cron run',
-        href: s.related_id
-          ? `/dashboard/finance/transaction/${s.related_id}`
-          : '/dashboard/finance',
-        created_at: s.created_at,
+        subtitle: `${s.transaction_count} transaction${s.transaction_count !== 1 ? 's' : ''} settled`,
+        meta: `Total: ${NGN(Number(s.total_amount || 0))}`,
+        href: `/dashboard/finance/settlement/${settlementDate}`,
+        created_at: s.first_settlement_time,
       });
     }
 
