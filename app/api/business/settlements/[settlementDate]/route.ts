@@ -121,7 +121,7 @@ export async function GET(
           description: record.description,
           related_id: record.related_id,
           transaction_id: record.transaction_id,
-          order_id: record.order_id,
+          order_id: record.order_id || record.related_id,
           reference: record.reference,
           payment_method: record.payment_method,
           original_amount: Number(record.transaction_amount || 0),

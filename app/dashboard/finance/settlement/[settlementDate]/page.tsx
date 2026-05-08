@@ -224,7 +224,7 @@ export default function SettlementDetailsPage() {
             {settlements.map((settlement) => (
               <li key={settlement.id} className="py-3">
                 <Link
-                  href={`/dashboard/finance/transaction/${settlement.order_id}`}
+                  href={`/dashboard/finance/transaction/${settlement.order_id || settlement.related_id}`}
                   className="flex items-start gap-3 -mx-2 rounded-lg px-2 py-1 hover:bg-muted/40"
                 >
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700 mt-0.5">
