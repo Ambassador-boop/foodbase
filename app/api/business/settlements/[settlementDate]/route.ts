@@ -61,11 +61,12 @@ export async function GET(
               fr.related_id,
               fr.reference,
               fr.created_at,
+              t.id as transaction_id,
               t.order_id,
-              t.payment_method,
-              t.currency
+              t.amount as transaction_amount,
+              t.payment_method
          FROM finance_records fr
-         LEFT JOIN transactions t ON fr.related_id = t.order_id OR fr.related_id = t.id
+         LEFT JOIN transactions t ON fr.related_id = t.id
         WHERE fr.business_id = $1
           AND fr.record_type = 'settlement'
           AND DATE(fr.created_at) = $2::date
@@ -119,10 +120,11 @@ export async function GET(
           amount: Number(record.amount || 0),
           description: record.description,
           related_id: record.related_id,
+          transaction_id: record.transaction_id,
           order_id: record.order_id,
           reference: record.reference,
           payment_method: record.payment_method,
-          currency: record.currency || 'NGN',
+          original_amount: Number(record.transaction_amount || 0),
           created_at: record.created_at,
           refund_info: refundInfo,
           is_fully_refunded: Number(record.amount || 0) <= 0,
@@ -131,17 +133,16 @@ export async function GET(
     );
 
     // Calculate settlement summary
-    const totalGross = await db.query(
-      `SELECT COALESCE(SUM(t.amount), 0) as total
+    const totalGrossResult: any = await db.query(
+      `SELECT COALESCE(SUM(fr.amount), 0) as total
          FROM finance_records fr
-         LEFT JOIN transactions t ON fr.related_id = t.order_id OR fr.related_id = t.id
         WHERE fr.business_id = $1
           AND fr.record_type = 'settlement'
           AND DATE(fr.created_at) = $2::date`,
       [activeBusiness.id, settlementDate],
     );
 
-    const totalGrossRow = Array.isArray(totalGross) ? totalGross[0] : totalGross?.rows?.[0];
+    const totalGrossRow = Array.isArray(totalGrossResult) ? totalGrossResult[0] : totalGrossResult?.rows?.[0];
     const summaryTotal = Number(totalGrossRow?.total || 0);
     const totalRefunded = enrichedRecords.reduce((sum: number, r: any) => {
       return sum + (r.refund_info?.total_refunded || 0);
