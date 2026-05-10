@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const status = searchParams.get('status');
-    const limit = parseInt(searchParams.get('limit') || '20');
+    const limit = parseInt(searchParams.get('limit') || '0');
     const offset = parseInt(searchParams.get('offset') || '0');
     const sort = searchParams.get('sort');
     // Check if this is a metric component request (has sort parameter)
@@ -47,8 +47,10 @@ export async function GET(req: NextRequest) {
       queryStr += ` ORDER BY o.created_at DESC`;
     }
 
-    queryStr += ` LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
-    params.push(limit, offset);
+    if (limit > 0) {
+  queryStr += ` LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+  params.push(limit, offset);
+}
 
     const rows = await getAll(queryStr, params);
 
