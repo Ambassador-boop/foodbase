@@ -129,4 +129,13 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /* Hide v0 badge and related elements */
+  [class*="v0"],
+  [id*="v0"],
+  a[href*="v0.app"] {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+  }
 }
