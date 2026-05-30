@@ -209,7 +209,7 @@ export default function DashboardLayout({
         {businesses.length > 0 && currentBusiness && (
           <div className="px-3 py-3 border-b border-border flex-shrink-0">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 px-1">
-              Workspace
+              Restaurants
             </p>
             <div className="relative" ref={dropdownRef}>
               <button
