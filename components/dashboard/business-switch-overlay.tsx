@@ -78,9 +78,9 @@ export default function BusinessSwitchOverlay() {
         </div>
 
         <div className="text-center space-y-1">
-          <p className="text-sm font-semibold text-foreground">Switching workspace</p>
+          <p className="text-sm font-semibold text-foreground">Switching Restaurant</p>
           <p className="text-xs text-muted-foreground">
-            Loading {active.to.name}...
+            Preparing {active.to.name} dashboard...
           </p>
         </div>
 
