@@ -449,10 +449,10 @@ export default function RestaurantPage() {
               registerSectionRef={registerSectionRef}
             />
           )}
-
-          {/* Footer (inside content column so desktop sidebar offset is preserved) */}
-          <StorefrontFooter colors={colors} inContentColumn />
         </main>
+
+        {/* Full-width Footer */}
+        <StorefrontFooter colors={colors} inContentColumn={false} />
       </div>
 
       {/* Floating cart pill */}
@@ -925,9 +925,8 @@ function DesktopCategorySidebar({
                   />
                   {open && (
                     <span
-                      className={`text-sm truncate ${
-                        active ? 'font-semibold' : 'font-medium'
-                      }`}
+                      className={`text-sm truncate ${active ? 'font-semibold' : 'font-medium'
+                        }`}
                     >
                       {cat.name}
                     </span>
@@ -1027,9 +1026,9 @@ function MenuSection({
         const hotSlice =
           hotPicks.length > 0
             ? hotPicks.slice(
-                (idx * 2) % hotPicks.length,
-                ((idx * 2) % hotPicks.length) + 2,
-              )
+              (idx * 2) % hotPicks.length,
+              ((idx * 2) % hotPicks.length) + 2,
+            )
             : [];
         // If wrap-around needed, fill the gap.
         if (hotPicks.length > 0 && hotSlice.length < 2) {
@@ -1478,9 +1477,9 @@ function MenuRow({
       style={
         isHot
           ? {
-              borderLeft: '3px solid #ef4444',
-              paddingLeft: 12,
-            }
+            borderLeft: '3px solid #ef4444',
+            paddingLeft: 12,
+          }
           : undefined
       }
       aria-label={`View details for ${item.name}`}
