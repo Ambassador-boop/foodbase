@@ -328,7 +328,7 @@ export default function RestaurantPage() {
 
   return (
     <div
-      className="min-h-screen pb-24"
+      className="min-h-screen"
       style={{ backgroundColor: colors.backgroundColor }}
     >
       {/* Hero */}
@@ -425,7 +425,7 @@ export default function RestaurantPage() {
           />
         )}
 
-        <main className="flex-1 min-w-0 px-4 py-5 md:px-0">
+        <main className="flex-1 min-w-0 px-4 py-5 md:px-0 pb-28 md:pb-8">
           {showDrinks ? (
             <DrinksSection
               drinks={drinks}
@@ -450,10 +450,10 @@ export default function RestaurantPage() {
             />
           )}
         </main>
-
-        {/* Full-width Footer */}
-        <StorefrontFooter colors={colors} inContentColumn={false} />
       </div>
+
+      {/* Full-width Footer */}
+      <StorefrontFooter colors={colors} inContentColumn={false} />
 
       {/* Floating cart pill */}
       {cartItems.length > 0 && (
