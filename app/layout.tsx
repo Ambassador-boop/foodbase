@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   generator: 'v0.app',
   applicationName: 'FoodBase',
   authors: [{ name: 'Wisdom Technologies' }],
-  keywords: ['restaurant', 'ordering', 'food', 'saas', 'payments'],
+  keywords: ['restaurant', 'food ordering', 'order food online', 'food delivery Nigeria', 'restaurant management', 'menu management', 'payments', 'Abuja food', 'Lagos food', 'Nigeria food'],
   alternates: {
     canonical: 'https://foodbase.ng',
   },
