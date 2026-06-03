@@ -70,6 +70,17 @@ export default function RootLayout({
             });
           `
         }} />
+        <script
+  type="application/ld+json"
+  dangerouslySetInnerHTML={{
+    __html: JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "FoodBase",
+      "url": "https://foodbase.ng"
+    })
+  }}
+/>
       </head>
       <body className="font-sans antialiased bg-background text-foreground">
         <HideV0Badge />
