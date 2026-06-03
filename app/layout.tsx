@@ -10,7 +10,7 @@ const geistMono = Geist_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: 'FoodBase',
-  description: 'Seamless restaurant ordering and payment platform for modern food businesses',
+  description: 'FoodBase helps restaurants and food lovers connect — order food, manage menus, track orders, and process payments all in one place.',
   generator: 'v0.app',
   applicationName: 'FoodBase',
   authors: [{ name: 'Wisdom Technologies' }],
