@@ -40,7 +40,7 @@ export const metadata: Metadata = {
     locale: 'en_NG',
     url: 'https://foodbase.ng',
     siteName: 'FoodBase',
-    description: 'Seamless restaurant ordering and payment platform',
+    description: 'FoodBase connects restaurants and food lovers — order food, manage menus, and process payments seamlessly.',
   },
 }
 
