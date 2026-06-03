@@ -15,6 +15,9 @@ export const metadata: Metadata = {
   applicationName: 'FoodBase',
   authors: [{ name: 'Wisdom Technologies' }],
   keywords: ['restaurant', 'ordering', 'food', 'saas', 'payments'],
+  alternates: {
+    canonical: 'https://foodbase.ng',
+  },
   icons: {
     icon: [
       {
@@ -71,16 +74,16 @@ export default function RootLayout({
           `
         }} />
         <script
-  type="application/ld+json"
-  dangerouslySetInnerHTML={{
-    __html: JSON.stringify({
-      "@context": "https://schema.org",
-      "@type": "WebSite",
-      "name": "FoodBase",
-      "url": "https://foodbase.ng"
-    })
-  }}
-/>
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "WebSite",
+              "name": "FoodBase",
+              "url": "https://foodbase.ng"
+            })
+          }}
+        />
       </head>
       <body className="font-sans antialiased bg-background text-foreground">
         <HideV0Badge />
