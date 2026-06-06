@@ -47,6 +47,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Normalize numeric values from database (they come back as strings)
+    const totalAmount = Number(order.total_amount) || 0;
+
     // Determine notification title and body based on type
     let notificationTitle = 'Order Notification';
     let notificationBody = `Order #${orderId.slice(0, 8)}`;
@@ -66,7 +69,7 @@ export async function POST(request: NextRequest) {
       notificationBody = `Order #${orderId.slice(0, 8)} - ${order.status} (${order.payment_status})`;
     } else {
       notificationTitle = 'Manual Notification';
-      notificationBody = `Order #${orderId.slice(0, 8)} - Total: $${order.total_amount.toFixed(2)}`;
+      notificationBody = `Order #${orderId.slice(0, 8)} - Total: $${totalAmount.toFixed(2)}`;
     }
 
     console.log('[v0] Sending manual notification:', {

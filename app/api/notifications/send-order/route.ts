@@ -41,7 +41,7 @@ async function getOrderDetails(orderId: string): Promise<{ order: Order; items: 
     }
 
     // Get order items with menu item details
-    const items = await db.query(
+    const itemsResult = await db.query(
       `SELECT 
         oi.id, 
         mi.name, 
@@ -54,9 +54,24 @@ async function getOrderDetails(orderId: string): Promise<{ order: Order; items: 
       [orderId]
     );
 
+    // db.query returns rows directly as an array
+    const items = Array.isArray(itemsResult) ? itemsResult : (itemsResult?.rows || []);
+
+    // Normalize numeric values from database (they come back as strings)
+    const normalizedOrder = {
+      ...order,
+      total_amount: Number(order.total_amount) || 0,
+    };
+
+    const normalizedItems = items.map((item: any) => ({
+      ...item,
+      quantity: Number(item.quantity) || 0,
+      item_price: Number(item.item_price) || 0,
+    }));
+
     return {
-      order: order as Order,
-      items: items.rows as OrderItem[],
+      order: normalizedOrder as Order,
+      items: normalizedItems as OrderItem[],
     };
   } catch (error) {
     console.error('[v0] Error fetching order details:', error);
@@ -68,6 +83,9 @@ async function getOrderDetails(orderId: string): Promise<{ order: Order; items: 
  * Format order items for notification display
  */
 function formatOrderItems(items: OrderItem[]): string {
+  if (!items || items.length === 0) {
+    return 'Order items';
+  }
   return items
     .map((item) => `${item.name} x${item.quantity} ($${(item.item_price * item.quantity).toFixed(2)})`)
     .join('; ');
@@ -104,11 +122,14 @@ export async function POST(request: NextRequest) {
 
     const { order, items } = orderData;
 
+    // Ensure total_amount is a number for formatting
+    const totalAmount = Number(order.total_amount) || 0;
+
     // Build rich notification content
     const itemsSummary = formatOrderItems(items);
     const notificationTitle = `New Order from ${order.customer_name}`;
     const notificationBody = `Order #${orderId.slice(0, 8)} - ${itemsSummary}`;
-    const shortBody = `Order #${orderId.slice(0, 8)} - $${order.total_amount.toFixed(2)} - ${order.payment_status}`;
+    const shortBody = `Order #${orderId.slice(0, 8)} - $${totalAmount.toFixed(2)} - ${order.payment_status}`;
 
     console.log('[v0] Building notification:', {
       orderId,

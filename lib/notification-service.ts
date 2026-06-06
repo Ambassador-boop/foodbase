@@ -57,9 +57,21 @@ async function getOrderDetails(orderId: string): Promise<{ order: Order; items: 
     // db.query returns rows directly as an array
     const items = Array.isArray(itemsResult) ? itemsResult : (itemsResult?.rows || []);
 
+    // Convert numeric string values to numbers (database returns strings)
+    const normalizedOrder = {
+      ...order,
+      total_amount: Number(order.total_amount) || 0,
+    };
+
+    const normalizedItems = items.map((item: any) => ({
+      ...item,
+      quantity: Number(item.quantity) || 0,
+      item_price: Number(item.item_price) || 0,
+    }));
+
     return {
-      order: order as Order,
-      items: items as OrderItem[],
+      order: normalizedOrder as Order,
+      items: normalizedItems as OrderItem[],
     };
   } catch (error) {
     console.error('[v0] Error fetching order details:', error);
