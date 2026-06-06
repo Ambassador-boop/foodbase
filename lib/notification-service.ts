@@ -41,7 +41,7 @@ async function getOrderDetails(orderId: string): Promise<{ order: Order; items: 
     }
 
     // Get order items with menu item details
-    const items = await db.query(
+    const itemsResult = await db.query(
       `SELECT 
         oi.id, 
         mi.name, 
@@ -54,9 +54,12 @@ async function getOrderDetails(orderId: string): Promise<{ order: Order; items: 
       [orderId]
     );
 
+    // db.query returns rows directly as an array
+    const items = Array.isArray(itemsResult) ? itemsResult : (itemsResult?.rows || []);
+
     return {
       order: order as Order,
-      items: items.rows as OrderItem[],
+      items: items as OrderItem[],
     };
   } catch (error) {
     console.error('[v0] Error fetching order details:', error);
@@ -68,6 +71,9 @@ async function getOrderDetails(orderId: string): Promise<{ order: Order; items: 
  * Format order items for notification display
  */
 function formatOrderItems(items: OrderItem[]): string {
+  if (!items || items.length === 0) {
+    return 'Order items';
+  }
   return items
     .map((item) => `${item.name} x${item.quantity} ($${(item.item_price * item.quantity).toFixed(2)})`)
     .join('; ');
