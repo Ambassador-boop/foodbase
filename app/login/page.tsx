@@ -20,6 +20,10 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
 
+    // TEMP DEBUG - remove after testing
+    alert('UA: ' + navigator.userAgent);
+    alert('median object: ' + JSON.stringify((window as any).median));
+
     try {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
