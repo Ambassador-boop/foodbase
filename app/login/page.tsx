@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Median from 'median-js-bridge';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -35,15 +36,14 @@ export default function LoginPage() {
       }
 
       // Register device with OneSignal via Median bridge
-      if (typeof window !== 'undefined' && navigator.userAgent.includes('median')) {
-        try {
-          (window as any).median.onesignal.login(data.user.email);
-          (window as any).median.onesignal.tags.setTags({
-            tags: { business_id: data.user.businessId }
+      if (navigator.userAgent.includes('median')) {
+        Median.onReady(() => {
+          Median.onesignal.login(data.user.email).then(() => {
+            Median.onesignal.tags.setTags({
+              tags: { business_id: data.user.businessId }
+            });
           });
-        } catch (medianErr) {
-          console.error('Median OneSignal error:', medianErr);
-        }
+        });
       }
 
       // Redirect based on role
