@@ -24,7 +24,6 @@ export default function LoginPage() {
               console.log('UA:', navigator.userAgent);
                 console.log('median object:', (window as any).median);
                   console.log('isMedianEnvironment:', navigator.userAgent.includes('median'));
-  }
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
