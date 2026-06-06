@@ -16,6 +16,17 @@ export default function LoginPage() {
   const [error, setError] = useState('');
 
   const handleLogin = async (e: React.FormEvent) => {
+      e.preventDefault();
+        setError('');
+          setLoading(true);
+
+            // TEMP DEBUG - remove after testing
+              console.log('UA:', navigator.userAgent);
+                console.log('median object:', (window as any).median);
+                  console.log('isMedianEnvironment:', navigator.userAgent.includes('median'));
+  }
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
