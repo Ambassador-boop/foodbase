@@ -37,11 +37,12 @@ export default function LoginPage() {
       // Register device with OneSignal via Median bridge
       if (typeof window !== 'undefined' && navigator.userAgent.includes('median')) {
         try {
-          (window as any).median.onesignal.externalUserId.set(data.user.email);
-          (window as any).median.onesignal.tags.setTags({ business_id: data.user.businessId });
-          alert('OneSignal calls fired: ' + data.user.email + ' / ' + data.user.businessId);
+          (window as any).median.onesignal.run(function () {
+            OneSignal.login(data.user.email);
+            OneSignal.User.addTags({ business_id: data.user.businessId });
+          });
         } catch (medianErr) {
-          alert('Error: ' + medianErr);
+          console.error('Median OneSignal error:', medianErr);
         }
       }
 
