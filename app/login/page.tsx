@@ -37,10 +37,11 @@ export default function LoginPage() {
       // Register device with OneSignal via Median bridge
       if (typeof window !== 'undefined' && navigator.userAgent.includes('median')) {
         try {
-          await (window as any).median.onesignal.externalUserId.set(data.user.email);
+          (window as any).median.onesignal.externalUserId.set(data.user.email);
           (window as any).median.onesignal.tags.setTags({ business_id: data.user.businessId });
+          alert('OneSignal calls fired: ' + data.user.email + ' / ' + data.user.businessId);
         } catch (medianErr) {
-          console.error('Median OneSignal error:', medianErr);
+          alert('Error: ' + medianErr);
         }
       }
 
