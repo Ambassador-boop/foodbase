@@ -112,7 +112,6 @@ export async function POST(request: NextRequest) {
       filters: [
         { field: 'tag', key: 'business_id', value: order.business_id },
       ],
-      android_channel_id: 'order_status_updates',
       priority: 10,
     };
 

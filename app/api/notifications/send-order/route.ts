@@ -166,7 +166,6 @@ export async function POST(request: NextRequest) {
         { field: 'tag', key: 'business_id', value: businessId },
       ],
       // Add Android-specific options
-      android_channel_id: 'order_notifications',
       priority: 10, // High priority for order notifications
     };
 

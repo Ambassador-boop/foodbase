@@ -151,7 +151,6 @@ export async function sendNewOrderNotification(
       filters: [
         { field: 'tag', key: 'business_id', value: businessId },
       ],
-      android_channel_id: 'order_notifications',
       priority: 10,
     };
 
@@ -274,7 +273,6 @@ export async function sendOrderStatusNotification(
       filters: [
         { field: 'tag', key: 'business_id', value: order.business_id },
       ],
-      android_channel_id: 'order_status_updates',
       priority: 10,
     };
 
