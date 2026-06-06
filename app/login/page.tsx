@@ -35,7 +35,7 @@ export default function LoginPage() {
       }
 
       // Register device with OneSignal via Median bridge
-      if (typeof window !== 'undefined' && (window as any).median?.isNativeApp) {
+      if (typeof window !== 'undefined' && navigator.userAgent.includes('median')) {
         try {
           await (window as any).median.onesignal.login(data.user.email);
           (window as any).median.onesignal.sendTags({ business_id: data.user.businessId });
