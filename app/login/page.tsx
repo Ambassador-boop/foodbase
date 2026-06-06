@@ -20,10 +20,6 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
 
-    // TEMP DEBUG - remove after testing
-    alert('UA: ' + navigator.userAgent);
-    alert('median object: ' + JSON.stringify((window as any).median));
-
     try {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
@@ -41,8 +37,8 @@ export default function LoginPage() {
       // Register device with OneSignal via Median bridge
       if (typeof window !== 'undefined' && navigator.userAgent.includes('median')) {
         try {
-          await (window as any).median.onesignal.login(data.user.email);
-          (window as any).median.onesignal.sendTags({ business_id: data.user.businessId });
+          await (window as any).median.onesignal.externalUserId.set(data.user.email);
+          (window as any).median.onesignal.tags.setTags({ business_id: data.user.businessId });
         } catch (medianErr) {
           console.error('Median OneSignal error:', medianErr);
         }
