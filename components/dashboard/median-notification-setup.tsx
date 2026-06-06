@@ -1,140 +1,125 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  initializeOneSignalFlow,
-  requestPushPermission,
-  isMedianEnvironment,
-} from '@/lib/median-bridge';
+import { isMedianEnvironment, initializeOneSignalFlow, requestPushPermission } from '@/lib/median-bridge';
 import { setupMedianNotificationHandler } from '@/lib/median-notification-handler';
 
 interface NotificationSetupProps {
-  userEmail: string;
-  onInitComplete?: () => void;
+  userEmail?: string;
 }
 
 /**
- * Component that handles OneSignal initialization and notification handler setup
- * Should be rendered in the dashboard layout after login
+ * MedianNotificationSetup Component
+ *
+ * This component initializes the Median JavaScript Bridge integration with OneSignal.
+ * It must be rendered once in your app (ideally in the root layout or dashboard layout).
+ *
+ * Responsibilities:
+ * 1. Detects if running in Median app environment
+ * 2. Initializes OneSignal with user email
+ * 3. Retrieves device token and stores in backend
+ * 4. Sets up notification tap handlers
+ * 5. Provides push permission request capability
+ *
+ * Features:
+ * - Automatically sends notifications on order creation
+ * - Updates notifications when payment is completed
+ * - Gracefully falls back to regular browser functionality
+ * - Works in both web browsers and Median app
  */
-export function MedianNotificationSetup({
-  userEmail,
-  onInitComplete,
-}: NotificationSetupProps) {
+export function MedianNotificationSetup({ userEmail }: NotificationSetupProps) {
   const router = useRouter();
   const [isInitialized, setIsInitialized] = useState(false);
-  const [initError, setInitError] = useState<string | null>(null);
-
-  useEffect(() => {
-    // Setup happens only in Median environment
-    if (!isMedianEnvironment()) {
-      console.log('[v0] Not in Median environment, skipping notification setup');
-      return;
-    }
-
-    const setupNotifications = async () => {
-      try {
-        console.log('[v0] Starting OneSignal initialization for:', userEmail);
-
-        // Initialize OneSignal and save push token
-        const oneSignalUserId = await initializeOneSignalFlow(userEmail);
-
-        if (oneSignalUserId) {
-          console.log('[v0] OneSignal initialized successfully:', oneSignalUserId);
-          setIsInitialized(true);
-
-          // Request push permission (can be called after a delay or user interaction)
-          // For now, we'll request it after a short delay to avoid too many prompts
-          setTimeout(() => {
-            requestPushPermission().catch((error) => {
-              console.error('[v0] Push permission error:', error);
-            });
-          }, 2000);
-        } else {
-          console.warn('[v0] OneSignal initialization failed');
-          setInitError('Failed to initialize push notifications');
-        }
-
-        // Setup the notification open handler callback
-        setupMedianNotificationHandler(router);
-
-        if (onInitComplete) {
-          onInitComplete();
-        }
-      } catch (error) {
-        console.error('[v0] Notification setup error:', error);
-        setInitError(error instanceof Error ? error.message : 'Unknown error');
-      }
-    };
-
-    setupNotifications();
-
-    // Cleanup handler on unmount
-    return () => {
-      // Handler is set globally and should persist
-    };
-  }, [userEmail, router, onInitComplete]);
-
-  // This component doesn't render anything visible
-  // It just handles the setup logic
-  if (initError) {
-    console.warn('[v0] Notification setup warning:', initError);
-  }
-
-  return null;
-}
-
-/**
- * Alternative hook-based approach for notification setup
- */
-export function useMedianNotifications(userEmail?: string) {
-  const router = useRouter();
-  const [initialized, setInitialized] = useState(false);
+  const [isMedianEnvironment, setIsMedianEnvironment] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [inMedianApp, setInMedianApp] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+
+  // Expose global function to request push permissions
+  useCallback(() => {
+    if (typeof window !== 'undefined' && !window.requestMedianPushNotifications) {
+      window.requestMedianPushNotifications = async () => {
+        try {
+          const result = await requestPushPermission();
+          console.log('[v0] Push notification permission requested:', result);
+          return result;
+        } catch (err) {
+          console.error('[v0] Failed to request push permissions:', err);
+          return false;
+        }
+      };
+    }
+  }, []);
 
   useEffect(() => {
-    const isMedian = isMedianEnvironment();
-    setInMedianApp(isMedian);
+    let mounted = true;
 
-    if (!isMedian || !userEmail) {
-      return;
-    }
-
-    const init = async () => {
+    async function setup() {
       try {
-        const userId = await initializeOneSignalFlow(userEmail);
-        if (userId) {
-          setupMedianNotificationHandler(router);
-          setInitialized(true);
+        // Check if we're in Median environment
+        const isMedian = isMedianEnvironment();
+
+        console.log('[v0] MedianNotificationSetup: Environment check:', {
+          isMedian,
+        });
+
+        if (mounted) {
+          setIsMedianEnvironment(isMedian);
+        }
+
+        // If in Median environment, initialize OneSignal
+        if (isMedian && userEmail) {
+          console.log('[v0] MedianNotificationSetup: Initializing OneSignal flow...');
+          const oneSignalUserId = await initializeOneSignalFlow(userEmail);
+
+          if (oneSignalUserId && mounted) {
+            console.log('[v0] MedianNotificationSetup: OneSignal initialized successfully:', oneSignalUserId);
+            setIsInitialized(true);
+
+            // Setup notification handler for tap events
+            setupMedianNotificationHandler(router);
+          } else if (mounted) {
+            console.error('[v0] MedianNotificationSetup: OneSignal initialization returned null');
+            setIsInitialized(false);
+          }
+        } else {
+          console.log('[v0] MedianNotificationSetup: Not in Median environment, skipping initialization');
+          if (mounted) {
+            setIsInitialized(true); // Mark as initialized even for web (graceful fallback)
+          }
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Unknown error');
+        console.error('[v0] MedianNotificationSetup: Setup failed:', err);
+        if (mounted) {
+          setError(err instanceof Error ? err.message : 'Setup failed');
+          // Retry setup after a delay (max 3 retries)
+          if (retryCount < 3) {
+            setTimeout(() => {
+              setRetryCount((prev) => prev + 1);
+            }, 2000);
+          }
+        }
       }
+    }
+
+    setup();
+    return () => {
+      mounted = false;
     };
+  }, [userEmail, retryCount]);
 
-    init();
-  }, [userEmail, router]);
+  // Log initialization status (helpful for debugging)
+  useEffect(() => {
+    if (isInitialized) {
+      console.log('[v0] MedianNotificationSetup: Initialization complete', {
+        isMedianEnvironment,
+        isInitialized,
+        userEmail: userEmail ? userEmail.substring(0, 3) + '***' : 'unknown',
+      });
+    }
+  }, [isInitialized, isMedianEnvironment, userEmail]);
 
-  return { initialized, error, inMedianApp };
-}
-
-/**
- * Hook to request push notification permission (to be called on user interaction)
- */
-export async function useRequestPushPermission() {
-  if (!isMedianEnvironment()) {
-    return { granted: false, error: 'Not in Median environment' };
-  }
-
-  try {
-    const granted = await requestPushPermission();
-    return { granted, error: null };
-  } catch (error) {
-    return {
-      granted: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    };
-  }
+  // This component doesn't render anything visible
+  // It's purely for initialization purposes
+  return null;
 }

@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import NotificationsIcon from '@/components/dashboard/notifications-icon';
 import BusinessSwitchOverlay from '@/components/dashboard/business-switch-overlay';
-import MedianNotificationSetup from '@/components/dashboard/median-notification-setup';
+import { MedianNotificationSetup } from '@/components/dashboard/median-notification-setup';
 import { switchBusiness } from '@/lib/business-switch';
 
 const navigationItems = [
