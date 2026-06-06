@@ -75,6 +75,14 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Log successful login
+    console.log('[v0] User logged in:', {
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+      businessId,
+    });
+
     return NextResponse.json({
       success: true,
       user: {

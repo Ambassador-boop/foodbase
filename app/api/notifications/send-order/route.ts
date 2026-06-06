@@ -1,19 +1,86 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { getOne } from '@/lib/db';
 import { generateAlphanumericId } from '@/lib/utils';
 
 const ONESIGNAL_API_URL = 'https://onesignal.com/api/v1/notifications';
 const ONESIGNAL_APP_ID = process.env.NEXT_PUBLIC_ONESIGNAL_APP_ID;
 const ONESIGNAL_API_KEY = process.env.ONESIGNAL_REST_API_KEY;
 
+interface OrderItem {
+  id: string;
+  name: string;
+  quantity: number;
+  item_price: number;
+}
+
+interface Order {
+  id: string;
+  customer_name: string;
+  customer_email: string;
+  customer_phone: string;
+  payment_status: string;
+  address: string;
+  notes: string;
+  total_amount: number;
+  created_at: string;
+}
+
+/**
+ * Fetch complete order details with menu items and prices
+ */
+async function getOrderDetails(orderId: string): Promise<{ order: Order; items: OrderItem[] } | null> {
+  try {
+    const order = await getOne(
+      'SELECT id, customer_name, customer_email, customer_phone, payment_status, address, notes, total_amount, created_at FROM orders WHERE id = $1',
+      [orderId]
+    );
+
+    if (!order) {
+      return null;
+    }
+
+    // Get order items with menu item details
+    const items = await db.query(
+      `SELECT 
+        oi.id, 
+        mi.name, 
+        oi.quantity, 
+        oi.item_price
+      FROM order_items oi
+      JOIN menu_items mi ON oi.menu_item_id = mi.id
+      WHERE oi.order_id = $1
+      ORDER BY oi.created_at ASC`,
+      [orderId]
+    );
+
+    return {
+      order: order as Order,
+      items: items.rows as OrderItem[],
+    };
+  } catch (error) {
+    console.error('[v0] Error fetching order details:', error);
+    return null;
+  }
+}
+
+/**
+ * Format order items for notification display
+ */
+function formatOrderItems(items: OrderItem[]): string {
+  return items
+    .map((item) => `${item.name} x${item.quantity} ($${(item.item_price * item.quantity).toFixed(2)})`)
+    .join('; ');
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { orderId, customerId, customerName, businessId, paymentStatus } = body;
+    const { orderId, businessId } = body;
 
-    if (!orderId || !customerName || !businessId) {
+    if (!orderId || !businessId) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: 'Missing required fields: orderId, businessId' },
         { status: 400 }
       );
     }
@@ -26,24 +93,63 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Send OneSignal notification
+    // Fetch complete order details
+    const orderData = await getOrderDetails(orderId);
+    if (!orderData) {
+      return NextResponse.json(
+        { error: 'Order not found' },
+        { status: 404 }
+      );
+    }
+
+    const { order, items } = orderData;
+
+    // Build rich notification content
+    const itemsSummary = formatOrderItems(items);
+    const notificationTitle = `New Order from ${order.customer_name}`;
+    const notificationBody = `Order #${orderId.slice(0, 8)} - ${itemsSummary}`;
+    const shortBody = `Order #${orderId.slice(0, 8)} - $${order.total_amount.toFixed(2)} - ${order.payment_status}`;
+
+    console.log('[v0] Building notification:', {
+      orderId,
+      customerName: order.customer_name,
+      itemCount: items.length,
+      totalAmount: order.total_amount,
+      paymentStatus: order.payment_status,
+    });
+
+    // Build notification data payload for navigation
+    const notificationData = {
+      orderId,
+      type: 'new_order',
+      targetUrl: `/dashboard/orders/${orderId}`,
+      customerName: order.customer_name,
+      paymentStatus: order.payment_status,
+      totalAmount: order.total_amount.toString(),
+      itemCount: items.length.toString(),
+    };
+
+    // Send OneSignal notification via REST API
+    // Using segments instead of filters for better targeting
     const notificationPayload = {
       app_id: ONESIGNAL_APP_ID,
-      headings: { en: 'New Order' },
+      headings: { en: notificationTitle },
       contents: {
-        en: `New order from ${customerName} - Payment Status: ${paymentStatus || 'pending'}`,
+        en: shortBody,
       },
-      data: {
-        orderId,
-        customerId: customerId || '',
-        type: 'order_notification',
-      },
-      // Send to business owner (you might want to use filters or segments)
+      big_picture: undefined, // Optional: can add order image
+      large_icon: undefined, // Optional: can add restaurant logo
+      data: notificationData,
+      // Target business owner by business_id tag
       filters: [
         { field: 'tag', key: 'business_id', value: businessId },
       ],
+      // Add Android-specific options
+      android_channel_id: 'order_notifications',
+      priority: 10, // High priority for order notifications
     };
 
+    console.log('[v0] Sending OneSignal notification...');
     const onesignalResponse = await fetch(ONESIGNAL_API_URL, {
       method: 'POST',
       headers: {
@@ -68,17 +174,17 @@ export async function POST(request: NextRequest) {
     try {
       await db.query(
         `INSERT INTO notifications 
-        (id, order_id, business_id, notification_title, notification_body, onesignal_notification_id, payment_status, customer_name, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
+        (id, order_id, business_id, notification_title, notification_body, onesignal_notification_id, payment_status, customer_name, created_at, updated_at, is_read)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW(), false)`,
         [
           notificationId,
           orderId,
           businessId,
-          'New Order Received',
-          `New order from ${customerName} - Payment Status: ${paymentStatus || 'pending'}`,
-          onesignalData.id,
-          paymentStatus || 'pending',
-          customerName,
+          notificationTitle,
+          notificationBody,
+          onesignalData.id || onesignalData.body?.notification_id,
+          order.payment_status,
+          order.customer_name,
         ]
       );
 
@@ -90,7 +196,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      notificationId: onesignalData.id,
+      notificationId: onesignalData.id || onesignalData.body?.notification_id,
+      orderId,
+      message: 'Order notification sent successfully',
     });
   } catch (error) {
     console.error('[v0] Send notification error:', error);
