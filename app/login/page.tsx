@@ -34,6 +34,16 @@ export default function LoginPage() {
         return;
       }
 
+      // Register device with OneSignal via Median bridge
+      if (typeof window !== 'undefined' && (window as any).median?.isNativeApp) {
+        try {
+          await (window as any).median.onesignal.login(data.user.email);
+          (window as any).median.onesignal.sendTags({ business_id: data.user.businessId });
+        } catch (medianErr) {
+          console.error('Median OneSignal error:', medianErr);
+        }
+      }
+
       // Redirect based on role
       router.push(data.redirectUrl);
     } catch (err) {
