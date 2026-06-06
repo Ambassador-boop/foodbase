@@ -35,7 +35,8 @@ export function isMedianEnvironment(): boolean {
     return false;
   }
 
-  return !!(window.median && window.median.isNativeApp);
+  return !!(window.median && window.median.isNativeApp) ||
+    navigator.userAgent.includes('median');
 }
 
 /**
