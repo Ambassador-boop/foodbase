@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import NotificationsIcon from '@/components/dashboard/notifications-icon';
 import BusinessSwitchOverlay from '@/components/dashboard/business-switch-overlay';
+import MedianNotificationSetup from '@/components/dashboard/median-notification-setup';
 import { switchBusiness } from '@/lib/business-switch';
 
 const navigationItems = [
@@ -55,6 +56,7 @@ export default function DashboardLayout({
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [currentBusiness, setCurrentBusiness] = useState<Business | null>(null);
   const [businessDropdownOpen, setBusinessDropdownOpen] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement | null>(null);
   const router = useRouter();
   const pathname = usePathname();
@@ -63,6 +65,16 @@ export default function DashboardLayout({
     let cancelled = false;
     const load = async () => {
       try {
+        // Fetch user profile to get email
+        const userRes = await fetch('/api/user/profile', { credentials: 'include' });
+        if (userRes.ok) {
+          const userData = await userRes.json();
+          if (!cancelled && userData.user?.email) {
+            setUserEmail(userData.user.email);
+            console.log('[v0] Dashboard: User email loaded for notifications');
+          }
+        }
+
         // List of all businesses owned by this user (with logos for animation)
         const allRes = await fetch('/api/user/businesses', { credentials: 'include' });
         const allData = await allRes.json();
@@ -390,6 +402,9 @@ export default function DashboardLayout({
 
       {/* Global animated overlay for business switching */}
       <BusinessSwitchOverlay />
+
+      {/* Median + OneSignal notification setup - Initialize with user email */}
+      {userEmail && <MedianNotificationSetup userEmail={userEmail} />}
     </div>
   );
 }

@@ -71,6 +71,26 @@ async function settleOrder(reference: string, paystackAmount: number) {
     console.error('[v0] Webhook: Failed to insert transaction:', err);
   }
 
+  // Send payment completed notification to business owner
+  console.log('[v0] Webhook: Triggering payment completed notification for order:', order.id);
+  try {
+    await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/notifications/update-order-status`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: order.id,
+          status: 'confirmed',
+          paymentStatus: 'paid',
+        }),
+      }
+    );
+  } catch (notificationError) {
+    console.error('[v0] Webhook: Payment notification dispatch failed:', notificationError);
+    // Don't fail the settlement if notification fails
+  }
+
   try {
     await db.query(
       `UPDATE businesses

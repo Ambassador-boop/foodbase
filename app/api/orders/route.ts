@@ -169,6 +169,37 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Send immediate notification to business owner about new order
+    // This happens regardless of payment status
+    console.log('[v0] Order API: Triggering immediate notification for order:', orderId);
+    try {
+      const notificationResponse = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/notifications/send-order`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            orderId,
+            businessId,
+            customerName,
+          }),
+        }
+      );
+
+      if (!notificationResponse.ok) {
+        const errorData = await notificationResponse.json();
+        console.error('[v0] Order API: Failed to send notification:', errorData);
+      } else {
+        const notificationData = await notificationResponse.json();
+        console.log('[v0] Order API: Notification sent successfully:', notificationData);
+      }
+    } catch (notificationError) {
+      console.error('[v0] Order API: Error triggering notification:', notificationError);
+      // Don't fail order creation if notification fails
+    }
+
     return NextResponse.json({
       success: true,
       orderId,

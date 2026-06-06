@@ -203,23 +203,24 @@ export async function POST(request: NextRequest) {
       console.error('[v0] Verify: Failed to insert finance_records:', err);
     }
 
-    // 7) Fire-and-forget notification (existing behaviour)
+    // 7) Send status update notification about payment completion
+    console.log('[v0] Verify: Triggering payment completed notification');
     try {
       await fetch(
-        `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/notifications/send-order`,
+        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/notifications/update-order-status`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             orderId: order.id,
-            customerName: order.customer_name,
-            businessId: order.business_id,
-            paymentStatus: 'completed',
+            status: 'confirmed',
+            paymentStatus: 'paid',
           }),
         }
       );
     } catch (notificationError) {
-      console.error('[v0] Verify: Notification dispatch failed:', notificationError);
+      console.error('[v0] Verify: Status update notification dispatch failed:', notificationError);
+      // Don't fail payment verification if notification fails
     }
 
     console.log('[v0] Verify: Settlement complete', {
