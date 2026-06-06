@@ -75,7 +75,7 @@ async function settleOrder(reference: string, paystackAmount: number) {
   console.log('[v0] Webhook: Triggering payment completed notification for order:', order.id);
   try {
     await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/notifications/update-order-status`,
+      '/api/notifications/update-order-status',
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

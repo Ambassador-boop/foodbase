@@ -174,7 +174,7 @@ export async function POST(request: NextRequest) {
     console.log('[v0] Order API: Triggering immediate notification for order:', orderId);
     try {
       const notificationResponse = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/notifications/send-order`,
+        '/api/notifications/send-order',
         {
           method: 'POST',
           headers: {

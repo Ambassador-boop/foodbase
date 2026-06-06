@@ -207,7 +207,7 @@ export async function POST(request: NextRequest) {
     console.log('[v0] Verify: Triggering payment completed notification');
     try {
       await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/notifications/update-order-status`,
+        '/api/notifications/update-order-status',
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
