@@ -3,6 +3,7 @@ import { verifyPayment } from '@/lib/paystack';
 import { db, query, getOne } from '@/lib/db';
 import { generateAlphanumericId } from '@/lib/utils';
 import { computeAvailableAt } from '@/lib/wat';
+import { sendOrderStatusNotification } from '@/lib/notification-service';
 
 /**
  * Verifies a Paystack payment, then atomically settles the order:
@@ -206,18 +207,12 @@ export async function POST(request: NextRequest) {
     // 7) Send status update notification about payment completion
     console.log('[v0] Verify: Triggering payment completed notification');
     try {
-      await fetch(
-        '/api/notifications/update-order-status',
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            orderId: order.id,
-            status: 'confirmed',
-            paymentStatus: 'paid',
-          }),
-        }
-      );
+      const notificationSent = await sendOrderStatusNotification(order.id, 'confirmed', 'paid');
+      if (notificationSent) {
+        console.log('[v0] Verify: Payment notification sent successfully');
+      } else {
+        console.warn('[v0] Verify: Payment notification failed, but continuing with payment verification');
+      }
     } catch (notificationError) {
       console.error('[v0] Verify: Status update notification dispatch failed:', notificationError);
       // Don't fail payment verification if notification fails

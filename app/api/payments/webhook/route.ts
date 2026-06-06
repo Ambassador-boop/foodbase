@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db, query, getOne } from '@/lib/db';
 import { generateAlphanumericId } from '@/lib/utils';
 import { computeAvailableAt } from '@/lib/wat';
+import { sendOrderStatusNotification } from '@/lib/notification-service';
 import crypto from 'crypto';
 
 /**
@@ -74,18 +75,12 @@ async function settleOrder(reference: string, paystackAmount: number) {
   // Send payment completed notification to business owner
   console.log('[v0] Webhook: Triggering payment completed notification for order:', order.id);
   try {
-    await fetch(
-      '/api/notifications/update-order-status',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orderId: order.id,
-          status: 'confirmed',
-          paymentStatus: 'paid',
-        }),
-      }
-    );
+    const notificationSent = await sendOrderStatusNotification(order.id, 'confirmed', 'paid');
+    if (notificationSent) {
+      console.log('[v0] Webhook: Payment notification sent successfully');
+    } else {
+      console.warn('[v0] Webhook: Payment notification failed, but continuing with settlement');
+    }
   } catch (notificationError) {
     console.error('[v0] Webhook: Payment notification dispatch failed:', notificationError);
     // Don't fail the settlement if notification fails

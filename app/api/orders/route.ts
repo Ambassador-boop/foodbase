@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { getOne } from '@/lib/db';
 import { generateAlphanumericId } from '@/lib/utils';
+import { sendNewOrderNotification } from '@/lib/notification-service';
 import { saveOrderServiceFee } from '@/lib/service-fee';
 
 export async function POST(request: NextRequest) {
@@ -173,27 +175,11 @@ export async function POST(request: NextRequest) {
     // This happens regardless of payment status
     console.log('[v0] Order API: Triggering immediate notification for order:', orderId);
     try {
-      const notificationResponse = await fetch(
-        '/api/notifications/send-order',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            orderId,
-            businessId,
-            customerName,
-          }),
-        }
-      );
-
-      if (!notificationResponse.ok) {
-        const errorData = await notificationResponse.json();
-        console.error('[v0] Order API: Failed to send notification:', errorData);
+      const notificationSent = await sendNewOrderNotification(orderId, businessId, customerName);
+      if (notificationSent) {
+        console.log('[v0] Order API: Notification sent successfully');
       } else {
-        const notificationData = await notificationResponse.json();
-        console.log('[v0] Order API: Notification sent successfully:', notificationData);
+        console.warn('[v0] Order API: Notification failed to send, but continuing with order creation');
       }
     } catch (notificationError) {
       console.error('[v0] Order API: Error triggering notification:', notificationError);
