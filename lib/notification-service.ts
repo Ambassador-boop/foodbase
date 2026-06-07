@@ -119,7 +119,7 @@ export async function sendNewOrderNotification(
     const itemsSummary = formatOrderItems(items);
     const notificationTitle = `New Order from ${order.customer_name}`;
     const notificationBody = `Order #${orderId.slice(0, 8)} - ${itemsSummary}`;
-    const shortBody = `Order #${orderId.slice(0, 8)} - $${order.total_amount.toFixed(2)} - ${order.payment_status}`;
+    const shortBody = `Order #${orderId.slice(0, 8)} - ₦${order.total_amount.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} - ${order.payment_status}`;
 
     console.log('[v0] Building new order notification:', {
       orderId,
