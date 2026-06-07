@@ -143,12 +143,12 @@ export async function POST(request: NextRequest) {
             configuration.item_type = 'drink'; // Mark this as a drink for retrieval
           }
 
-          console.log('[v0] Inserting item with ID:', menuItemId, 'type:', itemType);
+          console.log('[v0] Processing order item - ID:', menuItemId, 'type:', itemType, 'quantity:', item.quantity);
 
           const itemResult = await db.query(
             `INSERT INTO order_items
-      (id, order_id, menu_item_id, quantity, item_price, configuration, created_at)
-      VALUES ($1, $2, $3, $4, $5, $6, NOW())
+      (id, order_id, menu_item_id, quantity, item_price, item_type, configuration, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
       RETURNING id`,
             [
               itemId,
@@ -156,18 +156,24 @@ export async function POST(request: NextRequest) {
               menuItemId,
               item.quantity || 1,
               item.item_price,
+              itemType,
               Object.keys(configuration).length > 0 ? JSON.stringify(configuration) : null
             ]
           );
 
           if (itemResult && itemResult.length > 0) {
-            console.log('[v0] Item inserted successfully:', itemResult[0].id);
+            console.log('[v0] ✓ Order item inserted:', {
+              id: itemResult[0].id,
+              type: itemType,
+              menu_item_id: menuItemId,
+              quantity: item.quantity || 1
+            });
           } else {
-            console.error('[v0] Item insert returned no rows');
+            console.error('[v0] ✗ Item insert returned no rows for:', menuItemId);
           }
         }
       } catch (err) {
-        console.error('[v0] Order items insert FAILED:', err);
+        console.error('[v0] ✗ Order items insert FAILED:', err);
         // Don't fail the entire order creation, just log the error
       }
     }
