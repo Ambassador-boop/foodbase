@@ -37,7 +37,15 @@ export default function LoginPage() {
       // Register device with OneSignal via Median bridge
       if (navigator.userAgent.includes('median')) {
         setTimeout(() => {
-          (window as any).median.onesignal.login(data.user.email);
+          (window as any).median.onesignal.login(data.user.email)
+            .then((result: any) => {
+              console.log('[v0] OneSignal login result:', result);
+              alert(`OneSignal Login Result: ${JSON.stringify(result)}`);
+            })
+            .catch((err: any) => {
+              console.error('[v0] OneSignal login error:', err);
+              alert(`OneSignal Login Error: ${JSON.stringify(err)}`);
+            });
           (window as any).median.onesignal.tags.setTags({
             tags: { business_id: data.user.businessId }
           });
