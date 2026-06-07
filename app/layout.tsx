@@ -62,15 +62,21 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${geist.variable} ${geistMono.variable}`}>
       <head>
-        <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
         <script dangerouslySetInnerHTML={{
           __html: `
-            window.OneSignalDeferred = window.OneSignalDeferred || [];
-            OneSignalDeferred.push(async function(OneSignal) {
-              await OneSignal.init({
-                appId: "0977c693-6f5a-454d-b8e1-d44c7e6c0ed7",
+            if (!navigator.userAgent.includes('median')) {
+              var script = document.createElement('script');
+              script.src = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js';
+              script.defer = true;
+              document.head.appendChild(script);
+              
+              window.OneSignalDeferred = window.OneSignalDeferred || [];
+              OneSignalDeferred.push(async function(OneSignal) {
+                await OneSignal.init({
+                  appId: "0977c693-6f5a-454d-b8e1-d44c7e6c0ed7",
+                });
               });
-            });
+            }
           `
         }} />
         <script
