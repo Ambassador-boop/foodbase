@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { PinModal } from '@/components/pin-modal';
+import { usePinVerification } from '@/hooks/use-pin-verification';
 import {
   AlertCircle,
   ArrowLeft,
@@ -48,6 +50,9 @@ export default function WithdrawPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [pinRequired, setPinRequired] = useState(false);
+
+  const pinVerification = usePinVerification();
 
   const [amount, setAmount] = useState('');
   const [notes, setNotes] = useState('');
@@ -141,6 +146,27 @@ export default function WithdrawPage() {
       setError(validation);
       return;
     }
+
+    // Request PIN before processing withdrawal
+    setPinRequired(true);
+    setError('');
+    
+    try {
+      await pinVerification.requestPin('withdrawal', {
+        amount: withdrawNum,
+        bank_code: bankDetails.bank_code,
+        bank_account_holder: bankDetails.bank_account_holder,
+      });
+    } catch (err) {
+      console.error('[v0] PIN request error:', err);
+      setError('Failed to send verification PIN. Please try again.');
+      setPinRequired(false);
+    }
+  };
+
+  const handlePinVerified = async () => {
+    if (!bankDetails || !business) return;
+    
     setSubmitting(true);
     setError('');
     try {
@@ -158,6 +184,8 @@ export default function WithdrawPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Withdrawal failed');
+      setPinRequired(false);
+      pinVerification.closeModal();
       router.push(`/dashboard/finance/withdrawal/${data.withdrawalId}`);
     } catch (err: any) {
       console.error('[v0] withdraw submit error:', err);
@@ -211,6 +239,29 @@ export default function WithdrawPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-5 pb-10">
       <Header />
+
+      {/* PIN Verification Modal */}
+      {pinRequired && (
+        <PinModal
+          isOpen={pinVerification.isOpen}
+          onClose={() => {
+            setPinRequired(false);
+            pinVerification.closeModal();
+          }}
+          onSubmit={async (pin) => {
+            try {
+              await pinVerification.verifyPin(pin);
+              await handlePinVerified();
+            } catch (err) {
+              console.error('PIN verification error:', err);
+              setError('Invalid PIN. Please try again.');
+            }
+          }}
+          purpose="withdrawal"
+          pinId={pinVerification.pinId}
+          isLoading={submitting}
+        />
+      )}
 
       {error && (
         <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
