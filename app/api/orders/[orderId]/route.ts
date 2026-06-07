@@ -49,7 +49,7 @@ export async function GET(
 
     const order = orderResult[0];
 
-    // Fetch order items with menu item details
+    // Fetch order items with menu item or drink details
     const itemsResult = await query(
       `SELECT 
         oi.id,
@@ -57,11 +57,13 @@ export async function GET(
         oi.quantity,
         oi.item_price,
         oi.configuration,
-        mi.name as menu_item_name,
-        mi.description as menu_item_description,
-        mi.image_url as menu_item_image
+        COALESCE(mi.name, d.name) as menu_item_name,
+        COALESCE(mi.description, d.description) as menu_item_description,
+        COALESCE(mi.image_url, d.image_url) as menu_item_image,
+        CASE WHEN d.id IS NOT NULL THEN 'drink' ELSE 'menu' END as item_type
       FROM order_items oi
       LEFT JOIN menu_items mi ON oi.menu_item_id = mi.id
+      LEFT JOIN drinks d ON oi.menu_item_id = d.id
       WHERE oi.order_id = $1
       ORDER BY oi.created_at ASC`,
       [orderId]
@@ -70,9 +72,16 @@ export async function GET(
     // Process items and parse addon configuration
     const items = (itemsResult || []).map((item: any) => {
       let addons = [];
+      let isFromConfig = false;
       if (item.configuration) {
         try {
-          addons = Array.isArray(item.configuration) ? item.configuration : JSON.parse(item.configuration);
+          const parsedConfig = Array.isArray(item.configuration) ? item.configuration : JSON.parse(item.configuration);
+          if (Array.isArray(parsedConfig)) {
+            addons = parsedConfig;
+          } else if (typeof parsedConfig === 'object') {
+            // If it's an object with item_type, extract addons array
+            addons = parsedConfig.addons || parsedConfig || [];
+          }
         } catch {
           addons = [];
         }
@@ -93,7 +102,7 @@ export async function GET(
     // Use the stored service fee from the order, not a recomputed 7.5%.
     // item_price is the BASE per-unit price; add-ons live in `addons` and
     // are summed on top. subtotal = (base + per-unit addon sum) * qty.
-    const subtotal = items.reduce((total, item) => {
+    const subtotal = items.reduce((total: number, item: any) => {
       const addonsPerUnit = Array.isArray(item.addons)
         ? item.addons.reduce(
             (s: number, a: any) => s + (Number(a?.price) || 0),

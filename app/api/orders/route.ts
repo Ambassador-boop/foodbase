@@ -130,6 +130,20 @@ export async function POST(request: NextRequest) {
           console.log('[v0] Attempting to insert item:', item);
 
           const itemId = generateAlphanumericId();
+          
+          // Extract the actual ID: if it's a drink (format: drink_xxxxx), extract just xxxxx
+          // Otherwise use as-is for menu items
+          let menuItemId = item.menu_item_id;
+          let itemType = 'menu';
+          const configuration = item.configuration ? JSON.parse(JSON.stringify(item.configuration)) : {};
+          
+          if (menuItemId && menuItemId.startsWith('drink_')) {
+            menuItemId = menuItemId.substring(6); // Remove 'drink_' prefix
+            itemType = 'drink';
+            configuration.item_type = 'drink'; // Mark this as a drink for retrieval
+          }
+
+          console.log('[v0] Inserting item with ID:', menuItemId, 'type:', itemType);
 
           const itemResult = await db.query(
             `INSERT INTO order_items
@@ -139,10 +153,10 @@ export async function POST(request: NextRequest) {
             [
               itemId,
               orderId,
-              item.menu_item_id,
+              menuItemId,
               item.quantity || 1,
               item.item_price,
-              item.configuration ? JSON.stringify(item.configuration) : null
+              Object.keys(configuration).length > 0 ? JSON.stringify(configuration) : null
             ]
           );
 
