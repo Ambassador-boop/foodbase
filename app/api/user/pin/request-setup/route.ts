@@ -1,33 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getOne, query } from '@/lib/db';
-import { generateOTP } from '@/lib/auth';
+import { generateOTP, getTokenFromRequest, verifyToken } from '@/lib/auth';
 import { sendOTPEmail } from '@/lib/email';
 import { generateId } from '@/lib/utils-extended';
-import { headers } from 'next/headers';
 
 export async function POST(request: NextRequest) {
   try {
-    // Get user from session
-    const headersList = await headers();
-    const authHeader = headersList.get('authorization');
-    let userId: string | null = null;
-
-    if (authHeader) {
-      const token = authHeader.replace('Bearer ', '');
-      try {
-        const decoded = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
-        userId = decoded.sub || decoded.userId;
-      } catch {
-        // Token parsing failed
-      }
-    }
-
-    if (!userId) {
+    // Get and verify token
+    const token = await getTokenFromRequest(request);
+    if (!token) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       );
     }
+
+    const verified = await verifyToken(token);
+    if (!verified || !verified.userId) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    const userId = verified.userId as string;
 
     // Get user
     const user = await getOne('SELECT * FROM users WHERE id = $1', [userId]);

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getOne, query } from '@/lib/db';
-import { hashPassword } from '@/lib/auth';
-import { headers } from 'next/headers';
+import { hashPassword, getTokenFromRequest, verifyToken } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
   try {
@@ -28,22 +27,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get user from session
-    const headersList = await headers();
-    const authHeader = headersList.get('authorization');
-    let userId: string | null = null;
-
-    if (authHeader) {
-      const token = authHeader.replace('Bearer ', '');
-      try {
-        const decoded = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
-        userId = decoded.sub || decoded.userId;
-      } catch {
-        // Token parsing failed
-      }
+    // Get and verify token
+    const token = await getTokenFromRequest(request);
+    if (!token) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
     }
 
-    if (!userId) {
+    const verified = await verifyToken(token);
+    if (!verified || !verified.userId) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
