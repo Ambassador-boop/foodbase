@@ -1,0 +1,126 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getOne, query } from '@/lib/db';
+import { hashPin } from '@/lib/pin-utils';
+import { generateId } from '@/lib/utils-extended';
+import { headers } from 'next/headers';
+
+export async function POST(request: NextRequest) {
+  try {
+    const { otpId, otp, pin, confirmPin } = await request.json();
+
+    if (!otpId || !otp || !pin || !confirmPin) {
+      return NextResponse.json(
+        { error: 'Missing required fields' },
+        { status: 400 }
+      );
+    }
+
+    if (pin !== confirmPin) {
+      return NextResponse.json(
+        { error: 'PINs do not match' },
+        { status: 400 }
+      );
+    }
+
+    // Validate PIN format (4-6 digits)
+    if (!/^\d{4,6}$/.test(pin)) {
+      return NextResponse.json(
+        { error: 'PIN must be 4-6 digits' },
+        { status: 400 }
+      );
+    }
+
+    // Get user from session
+    const headersList = await headers();
+    const authHeader = headersList.get('authorization');
+    let userId: string | null = null;
+
+    if (authHeader) {
+      const token = authHeader.replace('Bearer ', '');
+      try {
+        const decoded = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+        userId = decoded.sub || decoded.userId;
+      } catch {
+        // Token parsing failed
+      }
+    }
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    // Get OTP record
+    const otpRecord = await getOne(
+      `SELECT * FROM password_reset_otps 
+       WHERE id = $1 AND user_id = $2 AND is_verified = false`,
+      [otpId, userId]
+    );
+
+    if (!otpRecord) {
+      return NextResponse.json(
+        { error: 'Invalid or already used OTP' },
+        { status: 400 }
+      );
+    }
+
+    // Check if OTP is expired
+    const expiresAt = new Date(otpRecord.expires_at);
+    if (new Date() > expiresAt) {
+      return NextResponse.json(
+        { error: 'OTP has expired' },
+        { status: 400 }
+      );
+    }
+
+    // Verify OTP code
+    if (otpRecord.otp_code !== otp) {
+      return NextResponse.json(
+        { error: 'Invalid OTP' },
+        { status: 400 }
+      );
+    }
+
+    // Hash PIN
+    const pinHash = await hashPin(pin);
+
+    // Create PIN record in users table (we'll store it as a field, not in pins table for user PINs)
+    // For now, we'll store it in the pins table but marked for user security
+    const pinId = generateId('pin');
+    const expiresAt2 = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000); // 1 year expiry for user PINs
+
+    await query(
+      `INSERT INTO pins (id, business_id, pin_hash, purpose, metadata, expires_at, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+      [pinId, userId, pinHash, 'user_security', JSON.stringify({ user_id: userId }), expiresAt2.toISOString()]
+    );
+
+    // Mark OTP as verified
+    await query(
+      'UPDATE password_reset_otps SET is_verified = true WHERE id = $1',
+      [otpId]
+    );
+
+    // Update user to set preferred auth mode to PIN if not already set
+    await query(
+      'UPDATE users SET preferred_auth_mode = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND preferred_auth_mode != $1',
+      ['pin', userId]
+    );
+
+    return NextResponse.json(
+      {
+        success: true,
+        message: 'PIN set successfully',
+      },
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error('[v0] PIN setup error:', error);
+    return NextResponse.json(
+      { error: 'Failed to set PIN' },
+      { status: 500 }
+    );
+  }
+}

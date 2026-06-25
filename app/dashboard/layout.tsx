@@ -19,7 +19,7 @@ import {
   DollarSign,
   Share2,
   ChevronDown,
-  User,
+  Settings,
   Check,
 } from 'lucide-react';
 import NotificationsIcon from '@/components/dashboard/notifications-icon';
@@ -37,7 +37,7 @@ const navigationItems = [
 { label: 'Drinks', href: '/dashboard/drinks', icon: Droplet },
 { label: 'Popular Dishes', href: '/dashboard/popular', icon: Zap },
 { label: 'Share Business', href: '/dashboard/share', icon: Share2 },
-{ label: 'Profile', href: '/dashboard/profile', icon: User },
+{ label: 'Settings', href: '/dashboard/settings', icon: Settings },
 ];
 
 interface Business {
