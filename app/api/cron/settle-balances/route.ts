@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-    try {
+  try {
     // === HEARTBEAT: Mark as running ===
     await fetch(HEARTBEAT_URL, { method: 'GET', cache: 'no-store' }).catch(() => {});
 
