@@ -44,6 +44,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const userId = verified.userId as string;
+
     // Get OTP record
     const otpRecord = await getOne(
       `SELECT * FROM password_reset_otps 

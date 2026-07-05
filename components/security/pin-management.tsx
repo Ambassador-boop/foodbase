@@ -1,399 +1,253 @@
 'use client';
 
-import { useState } from 'react';
-import { Lock, Loader2, AlertCircle, CheckCircle, Eye, EyeOff } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { Lock, Loader2, AlertCircle, CheckCircle, Trash2, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { PinSetupModal } from './pin-setup-modal';
 
 interface PINManagementProps {
   hasPinSet: boolean;
   onPinStatusChange: (isPinSet: boolean) => void;
 }
 
-type Step = 'status' | 'setup' | 'otp-setup' | 'remove' | 'otp-remove';
-
-interface SetupState {
-  otpId: string;
-}
-
 export default function PINManagementSection({
   hasPinSet,
   onPinStatusChange,
 }: PINManagementProps) {
-  const [step, setStep] = useState<Step>('status');
-  const [pin, setPin] = useState('');
-  const [confirmPin, setConfirmPin] = useState('');
-  const [otp, setOtp] = useState('');
-  const [showPin, setShowPin] = useState(false);
-  const [showConfirmPin, setShowConfirmPin] = useState(false);
+  const router = useRouter();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isPinSet, setIsPinSet] = useState(hasPinSet);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [setupState, setSetupState] = useState<SetupState | null>(null);
   const [removePinInput, setRemovePinInput] = useState('');
   const [showRemovePin, setShowRemovePin] = useState(false);
+  const [isRemoving, setIsRemoving] = useState(false);
 
-  const handleInitiatePinSetup = async () => {
-    setLoading(true);
-    setError(null);
+  // Check PIN status on mount
+  useEffect(() => {
+    checkPinStatus();
+  }, []);
 
+  const checkPinStatus = async () => {
     try {
-      const res = await fetch('/api/user/pin/request-setup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch('/api/user/pin/status', {
         credentials: 'include',
       });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error || 'Failed to request PIN setup');
-        setLoading(false);
-        return;
+      if (res.ok) {
+        const data = await res.json();
+        setIsPinSet(data.hasPinSet);
       }
-
-      setSetupState({ otpId: data.otpId });
-      setStep('otp-setup');
     } catch (err) {
-      setError('Failed to request PIN setup');
-      console.error('[v0] PIN setup error:', err);
-    } finally {
-      setLoading(false);
+      console.error('[v0] PIN status check error:', err);
     }
   };
 
-  const handleVerifyAndSavePin = async (e: React.FormEvent) => {
+  const handleSetupClick = () => {
+    setIsModalOpen(true);
+  };
+
+  const handleModalClose = () => {
+    setIsModalOpen(false);
+  };
+
+  const handleSetupComplete = (pin: string) => {
+    // User will be redirected to /dashboard/security/pin to complete OTP verification
+    router.push('/dashboard/security/pin');
+  };
+
+  const handleRemovePin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setSuccess(null);
 
-    if (!pin || !confirmPin || !otp) {
-      setError('All fields are required');
+    if (!removePinInput) {
+      setError('Please enter your PIN to remove it');
       return;
     }
 
-    if (pin !== confirmPin) {
-      setError('PINs do not match');
+    if (!/^\d{4,6}$/.test(removePinInput)) {
+      setError('Invalid PIN format');
       return;
     }
 
-    if (!/^\d{4,6}$/.test(pin)) {
-      setError('PIN must be 4-6 digits');
-      return;
-    }
+    setIsRemoving(true);
 
-    if (!setupState) {
-      setError('Invalid request state');
-      return;
-    }
-
-    setLoading(true);
     try {
-      const res = await fetch('/api/user/pin/verify-and-save', {
+      const res = await fetch('/api/user/pin/remove', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          otpId: setupState.otpId,
-          otp,
-          pin,
-          confirmPin,
+          pin: removePinInput,
         }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || 'Failed to set PIN');
-        setLoading(false);
-        return;
-      }
-
-      setSuccess('PIN set successfully!');
-      onPinStatusChange(true);
-      setPin('');
-      setConfirmPin('');
-      setOtp('');
-      setSetupState(null);
-      setStep('status');
-    } catch (err) {
-      setError('Failed to set PIN');
-      console.error('[v0] PIN save error:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleInitiateRemovePin = () => {
-    setStep('remove');
-    setError(null);
-    setSuccess(null);
-  };
-
-  const handleRemovePin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-
-    if (!removePinInput) {
-      setError('PIN is required');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const res = await fetch('/api/user/pin/remove', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ pin: removePinInput }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
         setError(data.error || 'Failed to remove PIN');
-        setLoading(false);
         return;
       }
 
-      setSuccess('PIN removed successfully!');
-      onPinStatusChange(false);
+      setSuccess('PIN removed successfully');
       setRemovePinInput('');
-      setStep('status');
+      setIsPinSet(false);
+      onPinStatusChange(false);
+
+      setTimeout(() => {
+        setSuccess(null);
+      }, 3000);
     } catch (err) {
       setError('Failed to remove PIN');
-      console.error('[v0] PIN remove error:', err);
+      console.error('[v0] PIN removal error:', err);
     } finally {
-      setLoading(false);
+      setIsRemoving(false);
     }
   };
 
   return (
-    <div className="p-6 rounded-lg border border-border bg-white">
-      <div className="flex items-start justify-between mb-2">
-        <div>
-          <h3 className="font-semibold text-foreground">PIN Management</h3>
-          <p className="text-sm text-muted-foreground mt-1">
-            Set up a personal PIN for additional security
-          </p>
+    <div className="space-y-6">
+      <PinSetupModal
+        isOpen={isModalOpen}
+        onClose={handleModalClose}
+        onSetupComplete={handleSetupComplete}
+      />
+
+      <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">PIN Security</h3>
+            <p className="text-sm text-gray-600 mt-1">
+              A PIN adds extra security for sensitive transactions
+            </p>
+          </div>
+          <div
+            className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+              isPinSet
+                ? 'bg-green-100 text-green-800'
+                : 'bg-gray-100 text-gray-800'
+            }`}
+          >
+            {isPinSet ? (
+              <>
+                <CheckCircle className="w-4 h-4 mr-2" />
+                Active
+              </>
+            ) : (
+              <>
+                <AlertCircle className="w-4 h-4 mr-2" />
+                Not Set
+              </>
+            )}
+          </div>
         </div>
-        {hasPinSet && (
-          <span className="px-2.5 py-1 rounded-full bg-green-100 text-green-700 text-xs font-medium">
-            PIN Set
-          </span>
-        )}
-      </div>
 
-      {error && (
-        <Alert variant="destructive" className="mb-4 mt-4">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      {success && (
-        <Alert className="mb-4 mt-4 border-green-200 bg-green-50">
-          <CheckCircle className="h-4 w-4 text-green-600" />
-          <AlertDescription className="text-green-700">{success}</AlertDescription>
-        </Alert>
-      )}
-
-      <div className="mt-6">
-        {step === 'status' && (
+        {!isPinSet ? (
           <div className="space-y-4">
-            <div className="p-4 rounded-lg bg-muted/50">
-              <div className="flex items-start gap-3">
-                <Lock className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-medium text-foreground">
-                    {hasPinSet ? 'PIN is Active' : 'No PIN Set'}
-                  </p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {hasPinSet
-                      ? 'Your PIN is used to verify sensitive actions'
-                      : 'Set up a PIN to use it for verifying sensitive actions'}
-                  </p>
+            <p className="text-sm text-gray-600">
+              Set up a PIN to protect your account when:
+            </p>
+            <ul className="space-y-2 text-sm text-gray-600">
+              <li className="flex items-start gap-2">
+                <span className="text-blue-600 mt-0.5">•</span>
+                Updating bank account details
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-blue-600 mt-0.5">•</span>
+                Processing withdrawal requests
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-blue-600 mt-0.5">•</span>
+                Changing security settings
+              </li>
+            </ul>
+
+            <button
+              onClick={handleSetupClick}
+              disabled={loading}
+              className="mt-4 w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+            >
+              <Lock className="w-4 h-4" />
+              Set Up PIN Now
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+              <p className="text-sm text-green-800">
+                ✓ Your PIN is active and protecting your account
+              </p>
+            </div>
+
+            <form onSubmit={handleRemovePin} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Enter PIN to Remove
+                </label>
+                <div className="relative">
+                  <input
+                    type={showRemovePin ? 'text' : 'password'}
+                    inputMode="numeric"
+                    placeholder="••••"
+                    value={removePinInput}
+                    onChange={(e) => {
+                      setRemovePinInput(e.target.value.replace(/\D/g, '').slice(0, 6));
+                      setError(null);
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent text-center tracking-widest"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowRemovePin(!showRemovePin)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                  >
+                    {showRemovePin ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
                 </div>
               </div>
-            </div>
 
-            <div className="flex gap-3">
-              {!hasPinSet ? (
-                <Button
-                  onClick={handleInitiatePinSetup}
-                  disabled={loading}
-                  className="w-full"
-                >
-                  {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                  Set PIN
-                </Button>
-              ) : (
-                <>
-                  <Button
-                    onClick={handleInitiateRemovePin}
-                    disabled={loading}
-                    variant="outline"
-                    className="w-full"
-                  >
-                    Remove PIN
-                  </Button>
-                </>
+              {error && (
+                <Alert className="bg-red-50 border-red-200">
+                  <AlertCircle className="h-4 w-4 text-red-600" />
+                  <AlertDescription className="text-red-700">{error}</AlertDescription>
+                </Alert>
               )}
-            </div>
-          </div>
-        )}
 
-        {step === 'otp-setup' && (
-          <form onSubmit={handleVerifyAndSavePin} className="space-y-4">
-            <div className="p-4 rounded-lg bg-muted/50">
-              <p className="text-sm text-muted-foreground">
-                A verification code has been sent to your email
-              </p>
-            </div>
+              {success && (
+                <Alert className="bg-green-50 border-green-200">
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                  <AlertDescription className="text-green-700">{success}</AlertDescription>
+                </Alert>
+              )}
 
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">
-                Verification Code
-              </label>
-              <Input
-                type="text"
-                value={otp}
-                onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                placeholder="Enter 6-digit code"
-                disabled={loading}
-                maxLength={6}
-                className="text-center tracking-widest text-lg"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">
-                New PIN (4-6 digits)
-              </label>
-              <div className="relative">
-                <Input
-                  type={showPin ? 'text' : 'password'}
-                  value={pin}
-                  onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  placeholder="Enter PIN"
-                  disabled={loading}
-                  inputMode="numeric"
-                  maxLength={6}
-                  className="pr-10 text-center tracking-widest text-lg font-mono"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPin(!showPin)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  {showPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">
-                Confirm PIN
-              </label>
-              <div className="relative">
-                <Input
-                  type={showConfirmPin ? 'text' : 'password'}
-                  value={confirmPin}
-                  onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  placeholder="Confirm PIN"
-                  disabled={loading}
-                  inputMode="numeric"
-                  maxLength={6}
-                  className="pr-10 text-center tracking-widest text-lg font-mono"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPin(!showConfirmPin)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  {showConfirmPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
-            <div className="flex gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setStep('status');
-                  setPin('');
-                  setConfirmPin('');
-                  setOtp('');
-                  setSetupState(null);
-                }}
-                disabled={loading}
-                className="flex-1"
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={loading} className="flex-1">
-                {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                {loading ? 'Setting PIN...' : 'Set PIN'}
-              </Button>
-            </div>
-          </form>
-        )}
-
-        {step === 'remove' && (
-          <form onSubmit={handleRemovePin} className="space-y-4">
-            <div className="p-4 rounded-lg bg-red-50 border border-red-200">
-              <p className="text-sm text-red-700">
-                <strong>Warning:</strong> Removing your PIN will disable PIN-based verification. You&apos;ll need to use email or SMS OTP instead.
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">
-                Enter PIN to Confirm Removal
-              </label>
-              <div className="relative">
-                <Input
-                  type={showRemovePin ? 'text' : 'password'}
-                  value={removePinInput}
-                  onChange={(e) => setRemovePinInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  placeholder="Enter PIN"
-                  disabled={loading}
-                  inputMode="numeric"
-                  maxLength={6}
-                  className="pr-10 text-center tracking-widest text-lg font-mono"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowRemovePin(!showRemovePin)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  {showRemovePin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
-            <div className="flex gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setStep('status')}
-                disabled={loading}
-                className="flex-1"
-              >
-                Cancel
-              </Button>
-              <Button
+              <button
                 type="submit"
-                disabled={loading}
-                variant="destructive"
-                className="flex-1"
+                disabled={isRemoving || !removePinInput}
+                className="w-full px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
               >
-                {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                {loading ? 'Removing...' : 'Remove PIN'}
-              </Button>
-            </div>
-          </form>
+                {isRemoving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Removing...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    Remove PIN
+                  </>
+                )}
+              </button>
+            </form>
+          </div>
         )}
       </div>
     </div>

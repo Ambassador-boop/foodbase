@@ -98,12 +98,10 @@ export default function SecurityPage() {
           />
 
           {/* PIN Management Section */}
-          {preferredAuthMode === 'pin' && (
-            <PINManagementSection
-              hasPinSet={hasPinSet}
-              onPinStatusChange={handlePinStatusChange}
-            />
-          )}
+          <PINManagementSection
+            hasPinSet={hasPinSet}
+            onPinStatusChange={handlePinStatusChange}
+          />
 
           {/* Active Sessions (Future) */}
           <div className="p-6 rounded-lg border border-border bg-white">
