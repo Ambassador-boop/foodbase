@@ -63,11 +63,11 @@ export async function sendOTPEmail(
 ): Promise<boolean> {
   const htmlContent = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2 style="color: #8B7500;">Password Reset Request</h2>
+      <h2 style="color: #8E3800;">Password Reset Request</h2>
       <p>Hi ${userName},</p>
       <p>You requested a password reset. Use the code below to reset your password. This code expires in 10 minutes.</p>
       <div style="background-color: #f5f5f5; padding: 20px; text-align: center; margin: 20px 0; border-radius: 5px;">
-        <h1 style="color: #8B7500; letter-spacing: 5px; margin: 0;">${otp}</h1>
+        <h1 style="color: #8E3800; letter-spacing: 5px; margin: 0;">${otp}</h1>
       </div>
       <p style="color: #666;">If you didn't request this, please ignore this email.</p>
       <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
@@ -138,7 +138,7 @@ export async function sendPaymentNotification(
 
   const htmlContent = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2 style="color: #8B7500;">New Order Received</h2>
+      <h2 style="color: #8E3800;">New Order Received</h2>
       <p>You have received a new order!</p>
       <div style="background-color: #f5f5f5; padding: 20px; border-radius: 5px; margin: 20px 0;">
         <p><strong>Order Number:</strong> ${orderNumber}</p>

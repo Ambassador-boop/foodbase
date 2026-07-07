@@ -145,12 +145,15 @@ export default function PinSetupPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-orange-100 py-8 px-4">
+    <div className="min-h-screen py-8 px-4" style={{ background: 'linear-gradient(to bottom right, #fef3e2, #fde4c8)' }}>
       <div className="max-w-2xl mx-auto">
         {/* Header */}
         <button
           onClick={() => router.back()}
-          className="flex items-center gap-2 text-amber-700 hover:text-amber-800 font-medium mb-8"
+          className="flex items-center gap-2 font-medium mb-8"
+          style={{ color: '#8E3800' }}
+          onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.8')}
+          onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
         >
           <ArrowLeft className="w-4 h-4" />
           Back to Security Settings
@@ -161,8 +164,8 @@ export default function PinSetupPage() {
           {step === 'pin-input' && (
             <>
               <div className="flex items-center gap-3 mb-6">
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-orange-100">
-                  <Lock className="w-6 h-6 text-orange-700" />
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full" style={{ backgroundColor: '#f5e6d3' }}>
+                  <Lock className="w-6 h-6" style={{ color: '#8E3800' }} />
                 </div>
                 <div>
                   <h1 className="text-3xl font-bold text-gray-900">Set Up Your PIN</h1>
@@ -172,7 +175,7 @@ export default function PinSetupPage() {
                 </div>
               </div>
 
-              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-6">
+              <div className="rounded-lg p-4 mb-6" style={{ backgroundColor: '#fef3e2', border: '1px solid #e5d4b8' }}>
                 <p className="text-sm text-gray-700">
                   <strong>Your PIN will be:</strong>
                 </p>
@@ -195,7 +198,17 @@ export default function PinSetupPage() {
                     placeholder="••••"
                     value={pin}
                     onChange={handlePinChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-center tracking-widest text-2xl"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-transparent text-center tracking-widest text-2xl"
+                    style={{
+                      borderColor: '#ccc',
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.outline = 'none';
+                      e.currentTarget.style.boxShadow = '0 0 0 3px rgba(142, 56, 0, 0.1), 0 0 0 2px #8E3800';
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.boxShadow = 'none';
+                    }}
                   />
                 </div>
 
@@ -209,7 +222,17 @@ export default function PinSetupPage() {
                     placeholder="••••"
                     value={confirmPin}
                     onChange={handleConfirmPinChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-center tracking-widest text-2xl"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-transparent text-center tracking-widest text-2xl"
+                    style={{
+                      borderColor: '#ccc',
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.outline = 'none';
+                      e.currentTarget.style.boxShadow = '0 0 0 3px rgba(142, 56, 0, 0.1), 0 0 0 2px #8E3800';
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.boxShadow = 'none';
+                    }}
                   />
                 </div>
 
@@ -230,7 +253,12 @@ export default function PinSetupPage() {
                 disabled={
                   isLoading || pin.length < 4 || confirmPin.length === 0
                 }
-                className="w-full px-4 py-3 bg-orange-700 hover:bg-orange-800 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="w-full px-4 py-3 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                style={{
+                  backgroundColor: '#8E3800',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#7a2e00')}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#8E3800')}
               >
                 {isLoading ? 'Sending OTP...' : 'Send Verification Code'}
               </button>
@@ -240,8 +268,8 @@ export default function PinSetupPage() {
           {step === 'otp-verify' && (
             <>
               <div className="flex items-center gap-3 mb-6">
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-orange-100">
-                  <Clock className="w-6 h-6 text-orange-700" />
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full" style={{ backgroundColor: '#f5e6d3' }}>
+                  <Clock className="w-6 h-6" style={{ color: '#8E3800' }} />
                 </div>
                 <div>
                   <h1 className="text-3xl font-bold text-gray-900">Verify OTP</h1>
@@ -251,7 +279,7 @@ export default function PinSetupPage() {
                 </div>
               </div>
 
-              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-6">
+              <div className="rounded-lg p-4 mb-6" style={{ backgroundColor: '#fef3e2', border: '1px solid #e5d4b8' }}>
                 <p className="text-sm text-gray-700">
                   We&apos;ve sent a 6-digit code to your email. Enter it below to complete PIN setup.
                 </p>
@@ -269,7 +297,17 @@ export default function PinSetupPage() {
                     value={otp}
                     onChange={handleOtpChange}
                     maxLength={6}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-center tracking-widest text-2xl"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-transparent text-center tracking-widest text-2xl"
+                    style={{
+                      borderColor: '#ccc',
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.outline = 'none';
+                      e.currentTarget.style.boxShadow = '0 0 0 3px rgba(142, 56, 0, 0.1), 0 0 0 2px #8E3800';
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.boxShadow = 'none';
+                    }}
                   />
                 </div>
 
@@ -307,7 +345,12 @@ export default function PinSetupPage() {
                 <button
                   onClick={handleVerifyOTP}
                   disabled={isLoading || otp.length !== 6}
-                  className="flex-1 px-4 py-3 bg-orange-700 hover:bg-orange-800 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="flex-1 px-4 py-3 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  style={{
+                    backgroundColor: '#8E3800',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#7a2e00')}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#8E3800')}
                 >
                   {isLoading ? 'Verifying...' : 'Verify & Save PIN'}
                 </button>
