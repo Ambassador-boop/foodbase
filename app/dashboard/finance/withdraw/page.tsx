@@ -51,6 +51,7 @@ export default function WithdrawPage() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [pinRequired, setPinRequired] = useState(false);
+  const [verificationInfo, setVerificationInfo] = useState<{ method?: string; message?: string } | null>(null);
 
   const pinVerification = usePinVerification();
 
@@ -152,11 +153,12 @@ export default function WithdrawPage() {
     setError('');
     
     try {
-      await pinVerification.requestPin('withdrawal', {
+      const result = await pinVerification.requestPin('withdrawal', {
         amount: withdrawNum,
         bank_code: bankDetails.bank_code,
         bank_account_holder: bankDetails.bank_account_holder,
       });
+      setVerificationInfo({ method: result.method, message: result.message });
     } catch (err) {
       console.error('[v0] PIN request error:', err);
       setError('Failed to send verification PIN. Please try again.');
@@ -247,6 +249,7 @@ export default function WithdrawPage() {
           onClose={() => {
             setPinRequired(false);
             pinVerification.closeModal();
+            setVerificationInfo(null);
           }}
           onSubmit={async (pin) => {
             try {
@@ -260,7 +263,17 @@ export default function WithdrawPage() {
           purpose="withdrawal"
           pinId={pinVerification.pinId}
           isLoading={submitting}
+          method={verificationInfo?.method as any}
+          message={verificationInfo?.message}
         />
+      )}
+
+      {/* Verification info message */}
+      {pinRequired && verificationInfo?.message && (
+        <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          {verificationInfo.message}
+        </div>
       )}
 
       {error && (

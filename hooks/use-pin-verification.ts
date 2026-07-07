@@ -6,6 +6,8 @@ interface PinVerificationState {
   purpose: 'bank_account' | 'withdrawal';
   isLoading: boolean;
   error: string | null;
+  method: 'sms' | 'email' | 'pin' | null;
+  message: string | null;
 }
 
 export function usePinVerification() {
@@ -15,6 +17,8 @@ export function usePinVerification() {
     purpose: 'bank_account',
     isLoading: false,
     error: null,
+    method: null,
+    message: null,
   });
 
   const requestPin = async (
@@ -41,15 +45,27 @@ export function usePinVerification() {
         throw new Error(data.error || 'Failed to request PIN');
       }
 
+      const method = data.method || 'sms';
+      let message = '';
+      if (method === 'sms') {
+        message = 'A verification code has been sent to your phone';
+      } else if (method === 'email') {
+        message = 'A verification code has been sent to your email';
+      } else if (method === 'pin') {
+        message = 'Enter your PIN to continue';
+      }
+
       setState((prev) => ({
         ...prev,
-        isOpen: true,
+        isOpen: method !== 'pin', // Only show modal if not PIN mode (PIN mode shows immediately)
         pinId: data.pinId,
         purpose,
+        method,
+        message,
         isLoading: false,
       }));
 
-      return { success: true, pinId: data.pinId };
+      return { success: true, pinId: data.pinId, method, message };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to request PIN';
       setState((prev) => ({
@@ -91,6 +107,8 @@ export function usePinVerification() {
         ...prev,
         isOpen: false,
         pinId: null,
+        method: null,
+        message: null,
         isLoading: false,
       }));
 
@@ -112,6 +130,8 @@ export function usePinVerification() {
       ...prev,
       isOpen: false,
       error: null,
+      method: null,
+      message: null,
     }));
   };
 
@@ -121,6 +141,8 @@ export function usePinVerification() {
     purpose: state.purpose,
     isLoading: state.isLoading,
     error: state.error,
+    method: state.method,
+    message: state.message,
     requestPin,
     verifyPin,
     closeModal,

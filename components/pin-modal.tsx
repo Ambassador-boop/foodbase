@@ -12,6 +12,8 @@ interface PinModalProps {
   purpose: 'bank_account' | 'withdrawal';
   pinId: string;
   isLoading?: boolean;
+  method?: 'sms' | 'email' | 'pin';
+  message?: string;
 }
 
 export function PinModal({
@@ -21,6 +23,8 @@ export function PinModal({
   purpose,
   pinId,
   isLoading = false,
+  method = 'sms',
+  message,
 }: PinModalProps) {
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
@@ -32,10 +36,16 @@ export function PinModal({
       ? 'Verify Bank Account'
       : 'Authorize Withdrawal';
 
-  const description =
-    purpose === 'bank_account'
-      ? 'Enter the 6-digit access PIN sent to your phone to save your bank account.'
-      : 'Enter the 6-digit access PIN sent to your phone to authorize this withdrawal.';
+  let description = '';
+  if (method === 'pin') {
+    description = 'Enter your 6-digit PIN to authorize this action.';
+  } else {
+    const deliveryMethod = method === 'email' ? 'email' : 'phone';
+    description =
+      purpose === 'bank_account'
+        ? `Enter the 6-digit access PIN sent to your ${deliveryMethod} to save your bank account.`
+        : `Enter the 6-digit access PIN sent to your ${deliveryMethod} to authorize this withdrawal.`;
+  }
 
   useEffect(() => {
     if (isOpen) {
@@ -91,6 +101,12 @@ export function PinModal({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {message && (
+            <div className="rounded-lg bg-blue-50 border border-blue-200 p-3">
+              <p className="text-sm text-blue-800">{message}</p>
+            </div>
+          )}
+
           <div className="space-y-3">
             <label className="text-sm font-medium">6-Digit Access PIN</label>
             <div className="flex gap-2 justify-center">

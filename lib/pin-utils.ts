@@ -201,3 +201,85 @@ export async function logKudiSMS(
     ]
   );
 }
+
+// Send PIN via Brevo email
+export async function sendBrevoPinEmail(
+  email: string,
+  pin: string,
+  purpose: 'bank_account' | 'withdrawal',
+  message: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const apiKey = process.env.BREVO_API_KEY;
+    const senderEmail = process.env.BREVO_EMAIL || 'auth@foodbase.ng';
+
+    if (!apiKey) {
+      console.error('[v0] BREVO_API_KEY not configured');
+      return {
+        success: false,
+        error: 'Email service not configured',
+      };
+    }
+
+    const purposeTitle = purpose === 'bank_account' ? 'Bank Account Verification' : 'Withdrawal Authorization';
+
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #8B7500;">FoodBase ${purposeTitle}</h2>
+        <p>Your verification code is required to proceed with this action.</p>
+        <div style="background-color: #f5f5f5; padding: 20px; text-align: center; margin: 20px 0; border-radius: 5px;">
+          <h1 style="color: #8B7500; letter-spacing: 5px; margin: 0;">${pin}</h1>
+        </div>
+        <p style="color: #666; font-size: 14px;">${message}</p>
+        <p style="color: #999; font-size: 12px;">This code expires in 10 minutes. If you didn't request this, please ignore this email.</p>
+        <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
+        <p style="color: #999; font-size: 12px; text-align: center;">
+          © ${new Date().getFullYear()} FoodBase. All rights reserved, in conjunction with Wisdom Technologies.
+        </p>
+      </div>
+    `;
+
+    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'api-key': apiKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        sender: {
+          name: 'FoodBase',
+          email: senderEmail,
+        },
+        to: [
+          {
+            email: email,
+          },
+        ],
+        subject: `FoodBase ${purposeTitle} - Your Verification Code`,
+        htmlContent: htmlContent,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      console.error('[v0] Brevo API error:', error);
+      return {
+        success: false,
+        error: 'Failed to send verification email',
+      };
+    }
+
+    const data = await response.json() as { messageId: string };
+    console.log('[v0] PIN email sent via Brevo:', data.messageId);
+    return {
+      success: true,
+    };
+  } catch (error) {
+    console.error('[v0] PIN email send error:', error);
+    return {
+      success: false,
+      error: 'Failed to send email',
+    };
+  }
+}

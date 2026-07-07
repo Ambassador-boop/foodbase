@@ -5,6 +5,7 @@ import {
   hashPin,
   createPin,
   sendKudiSMS,
+  sendBrevoPinEmail,
 } from '@/lib/pin-utils';
 import { verifyJWT } from '@/lib/auth';
 import { getActiveBusinessForUser } from '@/lib/active-business';
@@ -40,59 +41,92 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Get business phone number
+    // Get business auth mode preference and contact details
     const businessData = await getOne(
-      `SELECT phone FROM businesses WHERE id = $1`,
+      `SELECT phone, email, preferred_auth_mode FROM businesses WHERE id = $1`,
       [business.id]
     );
 
-    if (!businessData?.phone) {
+    if (!businessData) {
       return NextResponse.json(
-        { error: 'Business phone number not found' },
-        { status: 400 }
+        { error: 'Business not found' },
+        { status: 404 }
       );
     }
 
-    // Generate PIN
+    const authMode = businessData.preferred_auth_mode || 'sms';
+
+    // For PIN mode, don't send anything - just return immediately
+    if (authMode === 'pin') {
+      const pinId = await createPin(business.id, '', purpose, metadata);
+      return NextResponse.json({
+        success: true,
+        message: 'PIN verification ready',
+        method: 'pin',
+        pinId,
+      });
+    }
+
+    // Generate PIN for SMS or Email modes
     const pin = generateSixDigitPin();
     const pinHash = await hashPin(pin);
 
     // Create PIN record
     const pinId = await createPin(business.id, pinHash, purpose, metadata);
 
-    // Prepare SMS message based on purpose
-    let smsMessage: string;
+    // Prepare message based on purpose
+    let messageContent: string;
     if (purpose === 'bank_account') {
-      smsMessage = `Your FoodBase access PIN is ${pin}. Use this to save your bank account. Valid for 10 minutes. Do not share.`;
+      messageContent = `Your FoodBase access PIN is ${pin}. Use this to save your bank account. Valid for 10 minutes. Do not share.`;
     } else if (purpose === 'withdrawal') {
       const amount = metadata?.amount;
       const formattedAmount = amount
         ? `₦${Number(amount).toLocaleString('en-NG', { minimumFractionDigits: 2 })}`
         : 'your withdrawal';
-      smsMessage = `Your FoodBase access PIN is ${pin}. Use this to authorize your ${formattedAmount} withdrawal. Valid for 10 minutes. Do not share.`;
+      messageContent = `Your FoodBase access PIN is ${pin}. Use this to authorize your ${formattedAmount} withdrawal. Valid for 10 minutes. Do not share.`;
     } else {
-      smsMessage = `Your FoodBase access PIN is ${pin}. Valid for 10 minutes. Do not share.`;
+      messageContent = `Your FoodBase access PIN is ${pin}. Valid for 10 minutes. Do not share.`;
     }
 
-    // Send SMS
-    const smsResult = await sendKudiSMS(
-      businessData.phone,
-      smsMessage,
-      business.id,
-      purpose
-    );
+    // Send via preferred method
+    let deliveryResult: { success: boolean; error?: string };
 
-    if (!smsResult.success) {
+    if (authMode === 'email') {
+      if (!businessData.email) {
+        return NextResponse.json(
+          { error: 'Business email not found' },
+          { status: 400 }
+        );
+      }
+      deliveryResult = await sendBrevoPinEmail(businessData.email, pin, purpose, messageContent);
+    } else {
+      // Default to SMS
+      if (!businessData.phone) {
+        return NextResponse.json(
+          { error: 'Business phone number not found' },
+          { status: 400 }
+        );
+      }
+      deliveryResult = await sendKudiSMS(
+        businessData.phone,
+        messageContent,
+        business.id,
+        purpose
+      );
+    }
+
+    if (!deliveryResult.success) {
       return NextResponse.json(
-        { error: smsResult.error || 'Failed to send SMS' },
+        { error: deliveryResult.error || `Failed to send ${authMode}` },
         { status: 500 }
       );
     }
 
     return NextResponse.json({
       success: true,
-      message: 'PIN sent successfully',
-      pinId, // Return this to the frontend for verification
+      message: `PIN sent via ${authMode}`,
+      method: authMode,
+      pinId,
     });
   } catch (error) {
     console.error('[v0] Failed to request PIN:', error);

@@ -56,8 +56,29 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Compare PIN with hash
-    const isValid = await comparePin(pin, pinRecord.pin_hash);
+    // Get business auth mode
+    const businessAuthData = await getOne(
+      `SELECT preferred_auth_mode FROM businesses WHERE id = $1`,
+      [business.id]
+    );
+    const authMode = businessAuthData?.preferred_auth_mode || 'sms';
+
+    // Validate PIN based on auth mode
+    let isValid = false;
+    if (authMode === 'pin') {
+      // For PIN mode, verify against the merchant's saved PIN hash stored in businesses table
+      const savedPinHash = businessAuthData?.pin_hash;
+      if (!savedPinHash) {
+        return NextResponse.json(
+          { error: 'PIN authentication not set up' },
+          { status: 400 }
+        );
+      }
+      isValid = await comparePin(pin, savedPinHash);
+    } else {
+      // For SMS/Email modes, verify against the generated PIN hash
+      isValid = await comparePin(pin, pinRecord.pin_hash);
+    }
 
     if (!isValid) {
       return NextResponse.json(
