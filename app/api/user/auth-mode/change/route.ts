@@ -42,9 +42,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Update preferred auth mode
+    // Update preferred auth mode for user
     await query(
       'UPDATE users SET preferred_auth_mode = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+      [newMode, userId]
+    );
+
+    // Also update preferred auth mode for ALL businesses belonging to this user
+    await query(
+      'UPDATE businesses SET preferred_auth_mode = $1 WHERE user_id = $2',
       [newMode, userId]
     );
 

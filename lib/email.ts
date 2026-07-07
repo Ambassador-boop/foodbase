@@ -80,6 +80,51 @@ export async function sendOTPEmail(
   return sendBrevoEmail(email, 'FoodBase Password Reset Code', htmlContent);
 }
 
+export async function sendPINSetupEmail(
+  email: string,
+  otp: string,
+  userName: string
+): Promise<boolean> {
+  const htmlContent = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+      <div style="background-color: #8E3800; padding: 20px; text-align: center; border-radius: 5px 5px 0 0;">
+        <h1 style="color: #ffffff; margin: 0; font-size: 24px;">FoodBase PIN Setup</h1>
+      </div>
+      <div style="background-color: #f9f9f9; padding: 30px; border-radius: 0 0 5px 5px;">
+        <p>Hi ${userName},</p>
+        <p>You&apos;ve requested to set up a secure PIN for your FoodBase account. This PIN will protect sensitive operations like updating bank details and processing withdrawals.</p>
+        
+        <div style="background-color: #fff3e0; border-left: 4px solid #8E3800; padding: 15px; margin: 20px 0; border-radius: 3px;">
+          <p style="margin: 0; font-weight: bold; color: #8E3800;">⚠️ Security Notice:</p>
+          <ul style="margin: 10px 0 0 0; padding-left: 20px; font-size: 13px; line-height: 1.6;">
+            <li><strong>Never share this code</strong> with anyone, including FoodBase support</li>
+            <li><strong>FoodBase will never</strong> call or message you asking for this code</li>
+            <li><strong>Anyone who has this code</strong> can change your security PIN and access your account</li>
+            <li><strong>If you did not request this,</strong> secure your email account immediately and contact FoodBase support</li>
+          </ul>
+        </div>
+
+        <p style="margin-top: 20px; margin-bottom: 10px; font-weight: bold;">Your verification code:</p>
+        <div style="background-color: #fff; border: 2px solid #8E3800; padding: 20px; text-align: center; margin: 20px 0; border-radius: 5px;">
+          <h1 style="color: #8E3800; letter-spacing: 8px; margin: 0; font-size: 32px; font-weight: bold;">${otp}</h1>
+        </div>
+        
+        <p style="color: #666; font-size: 13px; margin: 20px 0 0 0;">
+          This code expires in <strong>10 minutes</strong>. If you didn't request this PIN setup, please ignore this email and contact our support team immediately.
+        </p>
+
+        <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
+        <p style="color: #999; font-size: 11px; text-align: center; line-height: 1.6;">
+          © ${new Date().getFullYear()} FoodBase. All rights reserved, in conjunction with Wisdom Technologies.<br>
+          <a href="https://foodbase.ng/support" style="color: #8E3800; text-decoration: none;">Contact Support</a>
+        </p>
+      </div>
+    </div>
+  `;
+
+  return sendBrevoEmail(email, 'FoodBase — Secure PIN Setup Verification', htmlContent);
+}
+
 export async function sendPaymentNotification(
   email: string,
   businessName: string,

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getOne, query } from '@/lib/db';
 import { generateOTP, getTokenFromRequest, verifyToken } from '@/lib/auth';
-import { sendOTPEmail } from '@/lib/email';
+import { sendPINSetupEmail } from '@/lib/email';
 import { generateId } from '@/lib/utils-extended';
 
 export async function POST(request: NextRequest) {
@@ -48,8 +48,8 @@ export async function POST(request: NextRequest) {
       [otpId, userId, user.email, otp, expiresAt.toISOString()]
     );
 
-    // Send OTP email via Brevo
-    const emailSent = await sendOTPEmail(
+    // Send PIN setup OTP email via Brevo using the dedicated PIN setup template
+    const emailSent = await sendPINSetupEmail(
       user.email,
       otp,
       user.first_name || 'User'

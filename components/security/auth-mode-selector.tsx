@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Mail, MessageSquare, Lock, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -37,6 +38,7 @@ export default function AuthModeSelectorSection({
   hasPinSet,
   onModeChange,
 }: AuthModeSelectorProps) {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -45,9 +47,9 @@ export default function AuthModeSelectorSection({
   const handleModeChange = async (newMode: 'email' | 'sms' | 'pin') => {
     if (newMode === currentMode) return;
 
-    // PIN requires PIN to be set
+    // PIN requires PIN to be set - redirect to setup if not set
     if (newMode === 'pin' && !hasPinSet) {
-      setError('Please set up a PIN first in the PIN Management section');
+      router.push('/dashboard/security/pin');
       return;
     }
 

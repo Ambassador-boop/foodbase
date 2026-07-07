@@ -6,7 +6,6 @@ import { Lock, Loader2, AlertCircle, CheckCircle, Trash2, Eye, EyeOff } from 'lu
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { PinSetupModal } from './pin-setup-modal';
 
 interface PINManagementProps {
   hasPinSet: boolean;
@@ -18,7 +17,6 @@ export default function PINManagementSection({
   onPinStatusChange,
 }: PINManagementProps) {
   const router = useRouter();
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [isPinSet, setIsPinSet] = useState(hasPinSet);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -48,15 +46,6 @@ export default function PINManagementSection({
   };
 
   const handleSetupClick = () => {
-    setIsModalOpen(true);
-  };
-
-  const handleModalClose = () => {
-    setIsModalOpen(false);
-  };
-
-  const handleSetupComplete = (pin: string) => {
-    // User will be redirected to /dashboard/security/pin to complete OTP verification
     router.push('/dashboard/security/pin');
   };
 
@@ -112,12 +101,6 @@ export default function PINManagementSection({
 
   return (
     <div className="space-y-6">
-      <PinSetupModal
-        isOpen={isModalOpen}
-        onClose={handleModalClose}
-        onSetupComplete={handleSetupComplete}
-      />
-
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <div className="flex items-start justify-between mb-4">
           <div>

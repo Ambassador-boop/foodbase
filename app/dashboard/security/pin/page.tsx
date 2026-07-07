@@ -145,12 +145,12 @@ export default function PinSetupPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-8 px-4">
+    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-orange-100 py-8 px-4">
       <div className="max-w-2xl mx-auto">
         {/* Header */}
         <button
           onClick={() => router.back()}
-          className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium mb-8"
+          className="flex items-center gap-2 text-amber-700 hover:text-amber-800 font-medium mb-8"
         >
           <ArrowLeft className="w-4 h-4" />
           Back to Security Settings
@@ -161,8 +161,8 @@ export default function PinSetupPage() {
           {step === 'pin-input' && (
             <>
               <div className="flex items-center gap-3 mb-6">
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-blue-100">
-                  <Lock className="w-6 h-6 text-blue-600" />
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-orange-100">
+                  <Lock className="w-6 h-6 text-orange-700" />
                 </div>
                 <div>
                   <h1 className="text-3xl font-bold text-gray-900">Set Up Your PIN</h1>
@@ -172,7 +172,7 @@ export default function PinSetupPage() {
                 </div>
               </div>
 
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-6">
                 <p className="text-sm text-gray-700">
                   <strong>Your PIN will be:</strong>
                 </p>
@@ -195,7 +195,7 @@ export default function PinSetupPage() {
                     placeholder="••••"
                     value={pin}
                     onChange={handlePinChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center tracking-widest text-2xl"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-center tracking-widest text-2xl"
                   />
                 </div>
 
@@ -209,7 +209,7 @@ export default function PinSetupPage() {
                     placeholder="••••"
                     value={confirmPin}
                     onChange={handleConfirmPinChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center tracking-widest text-2xl"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-center tracking-widest text-2xl"
                   />
                 </div>
 
@@ -230,7 +230,7 @@ export default function PinSetupPage() {
                 disabled={
                   isLoading || pin.length < 4 || confirmPin.length === 0
                 }
-                className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="w-full px-4 py-3 bg-orange-700 hover:bg-orange-800 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {isLoading ? 'Sending OTP...' : 'Send Verification Code'}
               </button>
@@ -240,8 +240,8 @@ export default function PinSetupPage() {
           {step === 'otp-verify' && (
             <>
               <div className="flex items-center gap-3 mb-6">
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-amber-100">
-                  <Clock className="w-6 h-6 text-amber-600" />
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-orange-100">
+                  <Clock className="w-6 h-6 text-orange-700" />
                 </div>
                 <div>
                   <h1 className="text-3xl font-bold text-gray-900">Verify OTP</h1>
@@ -251,7 +251,7 @@ export default function PinSetupPage() {
                 </div>
               </div>
 
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-6">
                 <p className="text-sm text-gray-700">
                   We&apos;ve sent a 6-digit code to your email. Enter it below to complete PIN setup.
                 </p>
@@ -269,7 +269,7 @@ export default function PinSetupPage() {
                     value={otp}
                     onChange={handleOtpChange}
                     maxLength={6}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center tracking-widest text-2xl"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-center tracking-widest text-2xl"
                   />
                 </div>
 
@@ -307,7 +307,7 @@ export default function PinSetupPage() {
                 <button
                   onClick={handleVerifyOTP}
                   disabled={isLoading || otp.length !== 6}
-                  className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="flex-1 px-4 py-3 bg-orange-700 hover:bg-orange-800 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   {isLoading ? 'Verifying...' : 'Verify & Save PIN'}
                 </button>

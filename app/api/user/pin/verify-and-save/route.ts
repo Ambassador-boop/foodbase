@@ -6,18 +6,11 @@ import { generateId } from '@/lib/utils-extended';
 
 export async function POST(request: NextRequest) {
   try {
-    const { otpId, otp, pin, confirmPin } = await request.json();
+    const { otpId, otp, pin } = await request.json();
 
-    if (!otpId || !otp || !pin || !confirmPin) {
+    if (!otpId || !otp || !pin) {
       return NextResponse.json(
         { error: 'Missing required fields' },
-        { status: 400 }
-      );
-    }
-
-    if (pin !== confirmPin) {
-      return NextResponse.json(
-        { error: 'PINs do not match' },
         { status: 400 }
       );
     }
@@ -92,6 +85,12 @@ export async function POST(request: NextRequest) {
       `INSERT INTO pins (id, business_id, pin_hash, purpose, metadata, expires_at, created_at)
        VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
       [pinId, userId, pinHash, 'user_security', JSON.stringify({ user_id: userId }), expiresAt2.toISOString()]
+    );
+
+    // Update ALL businesses under this user with the PIN hash for consistency
+    await query(
+      'UPDATE businesses SET pin_hash = $1 WHERE user_id = $2',
+      [pinHash, userId]
     );
 
     // Mark OTP as verified
