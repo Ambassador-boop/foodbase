@@ -225,10 +225,10 @@ export async function sendBrevoPinEmail(
 
     const htmlContent = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #8B7500;">FoodBase ${purposeTitle}</h2>
+        <h2 style="color: #8E3800;">FoodBase ${purposeTitle}</h2>
         <p>Your verification code is required to proceed with this action.</p>
         <div style="background-color: #f5f5f5; padding: 20px; text-align: center; margin: 20px 0; border-radius: 5px;">
-          <h1 style="color: #8B7500; letter-spacing: 5px; margin: 0;">${pin}</h1>
+          <h1 style="color: #8E3800; letter-spacing: 5px; margin: 0;">${pin}</h1>
         </div>
         <p style="color: #666; font-size: 14px;">${message}</p>
         <p style="color: #999; font-size: 12px;">This code expires in 10 minutes. If you didn't request this, please ignore this email.</p>
