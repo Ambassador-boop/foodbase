@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
 
     // Update ALL businesses under this user with the PIN hash for consistency
     await query(
-      'UPDATE businesses SET pin_hash = $1 WHERE user_id = $2',
+      'UPDATE businesses SET pin_hash = $1 WHERE owner_id = $2',
       [pinHash, userId]
     );
 
