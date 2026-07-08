@@ -10,28 +10,36 @@ import {
 import { verifyJWT } from '@/lib/auth';
 import { getActiveBusinessForUser } from '@/lib/active-business';
 
-async function getUserId(req: NextRequest) {
+async function getAuthContext(req: NextRequest) {
   let token = req.headers.get('authorization')?.replace('Bearer ', '');
   if (!token) token = req.cookies.get('auth_token')?.value;
   if (!token) return null;
   const payload = await verifyJWT(token);
   if (!payload) return null;
-  return (payload as any).userId || (payload as any).id;
+  return {
+    userId: (payload as any).userId || (payload as any).id,
+    businessId: (payload as any).businessId,
+  };
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
+    const authContext = await getAuthContext(req);
+    if (!authContext?.userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const business = await getActiveBusinessForUser(userId);
-    if (!business || !business.id) {
-      return NextResponse.json({ error: 'Business not found' }, { status: 404 });
-    }
+    const { userId, businessId: tokenBusinessId } = authContext;
 
-    const businessId = business.id;
+    // Use businessId from token if available, otherwise query for active business
+    let businessId = tokenBusinessId;
+    if (!businessId) {
+      const business = await getActiveBusinessForUser(userId);
+      if (!business || !business.id) {
+        return NextResponse.json({ error: 'Business not found' }, { status: 404 });
+      }
+      businessId = business.id;
+    }
     const { purpose, metadata } = await req.json();
 
     // Validate purpose
@@ -45,7 +53,7 @@ export async function POST(req: NextRequest) {
     // Get business auth mode preference and contact details
     const businessData = await getOne(
       `SELECT phone, email, preferred_auth_mode FROM businesses WHERE id = $1`,
-      [business.id]
+      [businessId]
     );
 
     if (!businessData) {
@@ -111,7 +119,7 @@ export async function POST(req: NextRequest) {
       deliveryResult = await sendKudiSMS(
         businessData.phone,
         messageContent,
-        business.id,
+        businessId,
         purpose
       );
     }
