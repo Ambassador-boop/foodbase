@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
 
     // Also update preferred auth mode for ALL businesses belonging to this user
     await query(
-      'UPDATE businesses SET preferred_auth_mode = $1 WHERE user_id = $2',
+      'UPDATE businesses SET preferred_auth_mode = $1 WHERE owner_id = $2',
       [newMode, userId]
     );
 
