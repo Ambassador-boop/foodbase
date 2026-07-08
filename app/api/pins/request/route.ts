@@ -27,10 +27,11 @@ export async function POST(req: NextRequest) {
     }
 
     const business = await getActiveBusinessForUser(userId);
-    if (!business) {
+    if (!business || !business.id) {
       return NextResponse.json({ error: 'Business not found' }, { status: 404 });
     }
 
+    const businessId = business.id;
     const { purpose, metadata } = await req.json();
 
     // Validate purpose
@@ -58,7 +59,7 @@ export async function POST(req: NextRequest) {
 
     // For PIN mode, don't send anything - just return immediately
     if (authMode === 'pin') {
-      const pinId = await createPin(business.id, '', purpose, metadata);
+      const pinId = await createPin(businessId, '', purpose, metadata);
       return NextResponse.json({
         success: true,
         message: 'PIN verification ready',
@@ -72,7 +73,7 @@ export async function POST(req: NextRequest) {
     const pinHash = await hashPin(pin);
 
     // Create PIN record
-    const pinId = await createPin(business.id, pinHash, purpose, metadata);
+    const pinId = await createPin(businessId, pinHash, purpose, metadata);
 
     // Prepare message based on purpose
     let messageContent: string;
