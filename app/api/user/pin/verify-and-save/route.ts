@@ -76,6 +76,21 @@ export async function POST(request: NextRequest) {
     // Hash PIN
     const pinHash = await hashPin(pin);
 
+    // Get the active business for this user to use as business_id
+    const business = await getOne(
+      `SELECT id FROM businesses WHERE owner_id = $1 ORDER BY created_at ASC LIMIT 1`,
+      [userId]
+    );
+
+    if (!business || !business.id) {
+      return NextResponse.json(
+        { error: 'No business found for this user' },
+        { status: 400 }
+      );
+    }
+
+    const businessId = business.id;
+
     // Create PIN record in users table (we'll store it as a field, not in pins table for user PINs)
     // For now, we'll store it in the pins table but marked for user security
     const pinId = generateId('pin');
@@ -84,7 +99,7 @@ export async function POST(request: NextRequest) {
     await query(
       `INSERT INTO pins (id, business_id, pin_hash, purpose, metadata, expires_at, created_at)
        VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
-      [pinId, userId, pinHash, 'user_security', JSON.stringify({ user_id: userId }), expiresAt2.toISOString()]
+      [pinId, businessId, pinHash, 'user_security', JSON.stringify({ user_id: userId }), expiresAt2.toISOString()]
     );
 
     // Update ALL businesses under this user with the PIN hash for consistency
