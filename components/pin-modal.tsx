@@ -94,7 +94,7 @@ export function PinModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[400px]">
+      <DialogContent className="sm:max-w-[400px] fixed bottom-0 left-0 right-0 top-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 w-full sm:w-auto rounded-t-2xl sm:rounded-lg shadow-2xl sm:shadow-lg p-4 sm:p-6 max-h-screen sm:max-h-none overflow-y-auto sm:overflow-visible">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
@@ -109,7 +109,7 @@ export function PinModal({
 
           <div className="space-y-3">
             <label className="text-sm font-medium">6-Digit Access PIN</label>
-            <div className="flex gap-2 justify-center">
+            <div className="flex gap-2 justify-center flex-wrap">
               {Array.from({ length: 6 }).map((_, index) => (
                 <input
                   key={index}
@@ -123,7 +123,7 @@ export function PinModal({
                   onChange={(e) => handlePinChange(pin.slice(0, index) + e.target.value + pin.slice(index + 1))}
                   onKeyDown={handleKeyDown}
                   disabled={isSubmitting || isLoading}
-                  className="w-12 h-12 text-center text-lg font-semibold border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                  className="w-10 h-10 sm:w-12 sm:h-12 text-center text-lg font-semibold border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
                 />
               ))}
             </div>

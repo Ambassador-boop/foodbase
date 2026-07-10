@@ -41,25 +41,54 @@ export async function sendKudiSMS(
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   const token = process.env.KUDISMS_TOKEN;
   if (!token) {
-    throw new Error('KUDISMS_TOKEN is not configured');
+    console.error('[v0] KUDISMS_TOKEN is not configured');
+    return {
+      success: false,
+      error: 'SMS service not configured',
+    };
+  }
+
+  // Validate phone number
+  if (!phoneNumber || phoneNumber.trim() === '') {
+    console.error('[v0] Invalid phone number provided');
+    return {
+      success: false,
+      error: 'Phone number is required',
+    };
   }
 
   const formattedPhone = formatNigerianPhone(phoneNumber);
+  console.log('[v0] SMS formatted phone:', formattedPhone, 'original:', phoneNumber);
 
   try {
+    const requestPayload = {
+      token,
+      senderID: 'FoodBase',
+      recipients: formattedPhone,
+      message,
+      gateway: '2',
+    };
+    
+    console.log('[v0] Sending SMS request:', {
+      senderID: requestPayload.senderID,
+      recipients: requestPayload.recipients,
+      messageLength: requestPayload.message.length,
+      gateway: requestPayload.gateway,
+    });
+
     const response = await fetch('https://my.kudisms.net/api/sms', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        token,
-        senderID: 'FoodBase',
-        recipients: formattedPhone,
-        message,
-        gateway: '2',
-      }),
+      body: JSON.stringify(requestPayload),
     });
 
     const data = await response.json();
+    
+    console.log('[v0] KudiSMS response:', {
+      status: response.status,
+      error_code: data.error_code,
+      msg: data.msg,
+    });
 
     // Log the SMS attempt
     await logKudiSMS(businessId, formattedPhone, message, purpose, data);
@@ -73,29 +102,38 @@ export async function sendKudiSMS(
         await updateKudiBalance(data.balance);
       }
 
+      console.log('[v0] SMS sent successfully:', messageId);
       return {
         success: true,
         messageId,
       };
     } else if (data.error_code === '109') {
+      console.warn('[v0] No SMS balance available');
       return {
         success: false,
         error: 'No SMS balance available',
       };
     } else {
+      const errorMsg = data.msg || `SMS sending failed with error code ${data.error_code}`;
+      console.error('[v0] SMS sending failed:', errorMsg);
       return {
         success: false,
-        error: data.msg || `SMS sending failed with error code ${data.error_code}`,
+        error: errorMsg,
       };
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[v0] SMS send exception:', errorMessage, error);
     
     // Log failed attempt
-    await logKudiSMS(businessId, formattedPhone, message, purpose, {
-      error_code: 'network_error',
-      msg: errorMessage,
-    });
+    try {
+      await logKudiSMS(businessId, formattedPhone, message, purpose, {
+        error_code: 'network_error',
+        msg: errorMessage,
+      });
+    } catch (logError) {
+      console.error('[v0] Failed to log SMS error:', logError);
+    }
 
     return {
       success: false,
@@ -109,15 +147,16 @@ export async function createPin(
   businessId: string,
   pinHash: string,
   purpose: 'bank_account' | 'withdrawal',
-  metadata: any
+  metadata: any,
+  authMode: 'pin' | 'sms' | 'email' = 'sms'
 ): Promise<string> {
   const pinId = generateAlphanumericId(12);
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
 
   await query(
-    `INSERT INTO pins (id, business_id, pin_hash, purpose, metadata, expires_at, created_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-    [pinId, businessId, pinHash, purpose, JSON.stringify(metadata), expiresAt, new Date()]
+    `INSERT INTO pins (id, business_id, pin_hash, purpose, metadata, auth_mode, expires_at, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [pinId, businessId, pinHash, purpose, JSON.stringify(metadata), authMode, expiresAt, new Date()]
   );
 
   return pinId;

@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
 
     // For PIN mode, don't send anything - just return immediately
     if (authMode === 'pin') {
-      const pinId = await createPin(businessId, '', purpose, metadata);
+      const pinId = await createPin(businessId, '', purpose, metadata, 'pin');
       return NextResponse.json({
         success: true,
         message: 'PIN verification ready',
@@ -81,8 +81,8 @@ export async function POST(req: NextRequest) {
     const pin = generateSixDigitPin();
     const pinHash = await hashPin(pin);
 
-    // Create PIN record
-    const pinId = await createPin(businessId, pinHash, purpose, metadata);
+    // Create PIN record with the auth mode used
+    const pinId = await createPin(businessId, pinHash, purpose, metadata, authMode as 'sms' | 'email');
 
     // Prepare message based on purpose
     let messageContent: string;
@@ -101,27 +101,36 @@ export async function POST(req: NextRequest) {
     // Send via preferred method
     let deliveryResult: { success: boolean; error?: string };
 
-    if (authMode === 'email') {
-      if (!businessData.email) {
-        return NextResponse.json(
-          { error: 'Business email not found' },
-          { status: 400 }
+    try {
+      if (authMode === 'email') {
+        if (!businessData.email) {
+          return NextResponse.json(
+            { error: 'Business email not found' },
+            { status: 400 }
+          );
+        }
+        deliveryResult = await sendBrevoPinEmail(businessData.email, pin, purpose, messageContent);
+      } else {
+        // Default to SMS
+        if (!businessData.phone) {
+          return NextResponse.json(
+            { error: 'Business phone number not found' },
+            { status: 400 }
+          );
+        }
+        console.log('[v0] Sending SMS to:', businessData.phone, 'authMode:', authMode);
+        deliveryResult = await sendKudiSMS(
+          businessData.phone,
+          messageContent,
+          businessId,
+          purpose
         );
       }
-      deliveryResult = await sendBrevoPinEmail(businessData.email, pin, purpose, messageContent);
-    } else {
-      // Default to SMS
-      if (!businessData.phone) {
-        return NextResponse.json(
-          { error: 'Business phone number not found' },
-          { status: 400 }
-        );
-      }
-      deliveryResult = await sendKudiSMS(
-        businessData.phone,
-        messageContent,
-        businessId,
-        purpose
+    } catch (sendError) {
+      console.error('[v0] Delivery error:', sendError);
+      return NextResponse.json(
+        { error: sendError instanceof Error ? sendError.message : `Failed to send ${authMode}` },
+        { status: 500 }
       );
     }
 

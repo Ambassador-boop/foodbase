@@ -56,25 +56,31 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Get business auth mode and pin_hash
-    const businessAuthData = await getOne(
-      `SELECT preferred_auth_mode, pin_hash FROM businesses WHERE id = $1`,
-      [business.id]
-    );
-    const authMode = businessAuthData?.preferred_auth_mode || 'sms';
+    // Use the auth mode stored in the PIN record (set at request time)
+    // This ensures we validate against the correct hash even if preferences changed
+    const authMode = pinRecord.auth_mode || 'sms';
+
+    // For PIN mode, get the saved PIN hash from businesses table
+    let businessPinHash: string | null = null;
+    if (authMode === 'pin') {
+      const businessAuthData = await getOne(
+        `SELECT pin_hash FROM businesses WHERE id = $1`,
+        [business.id]
+      );
+      businessPinHash = businessAuthData?.pin_hash;
+    }
 
     // Validate PIN/OTP based on auth mode
     let isValid = false;
     if (authMode === 'pin') {
       // For PIN mode, verify against the merchant's saved PIN hash stored in businesses table
-      const savedPinHash = businessAuthData?.pin_hash;
-      if (!savedPinHash) {
+      if (!businessPinHash) {
         return NextResponse.json(
           { error: 'PIN authentication not set up' },
           { status: 400 }
         );
       }
-      isValid = await comparePin(pin, savedPinHash);
+      isValid = await comparePin(pin, businessPinHash);
     } else if (authMode === 'email' || authMode === 'sms') {
       // For SMS/Email modes, verify against the generated OTP hash in the PIN record
       isValid = await comparePin(pin, pinRecord.pin_hash);
