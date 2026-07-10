@@ -58,7 +58,11 @@ export async function POST(req: NextRequest) {
 
     // Use the auth mode stored in the PIN record (set at request time)
     // This ensures we validate against the correct hash even if preferences changed
-    const authMode = pinRecord.auth_mode || 'sms';
+    const businessAuthData = await getOne(
+      `SELECT preferred_auth_mode FROM businesses WHERE id = $1`,
+      [business.id]
+    );
+    const authMode = pinRecord.auth_mode || businessAuthData?.preferred_auth_mode || 'sms';
 
     // For PIN mode, get the saved PIN hash from businesses table
     let businessPinHash: string | null = null;

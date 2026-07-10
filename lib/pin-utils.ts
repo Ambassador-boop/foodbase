@@ -82,7 +82,15 @@ export async function sendKudiSMS(
       body: JSON.stringify(requestPayload),
     });
 
-    const data = await response.json();
+    console.log('[v0] KudiSMS response status:', response.status, response.statusText);
+
+    let data;
+    try {
+      data = await response.json();
+    } catch (parseError) {
+      console.error('[v0] KudiSMS response was not valid JSON:', parseError);
+      return { success: false, error: 'KudiSMS returned an invalid response' };
+    }
     
     console.log('[v0] KudiSMS response:', {
       status: response.status,

@@ -57,7 +57,7 @@ export function usePinVerification() {
 
       setState((prev) => ({
         ...prev,
-        isOpen: method !== 'pin', // Only show modal if not PIN mode (PIN mode shows immediately)
+        isOpen: true,
         pinId: data.pinId,
         purpose,
         method,
