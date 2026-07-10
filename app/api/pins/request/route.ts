@@ -64,6 +64,7 @@ export async function POST(req: NextRequest) {
     }
 
     const authMode = businessData.preferred_auth_mode || 'sms';
+    console.log('[v0] authMode:', authMode, 'type:', typeof authMode);
 
     // For PIN mode, don't send anything - just return immediately
     if (authMode === 'pin') {
