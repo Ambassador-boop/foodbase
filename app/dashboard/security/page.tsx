@@ -46,6 +46,16 @@ export default function SecurityPage() {
     };
 
     loadSecuritySettings();
+
+    // Listen for visibility changes to refresh PIN status when returning to page
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        loadSecuritySettings();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, []);
 
   const handleAuthModeChange = (newMode: 'email' | 'sms' | 'pin') => {

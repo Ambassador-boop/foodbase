@@ -56,14 +56,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Get business auth mode
+    // Get business auth mode and pin_hash
     const businessAuthData = await getOne(
-      `SELECT preferred_auth_mode FROM businesses WHERE id = $1`,
+      `SELECT preferred_auth_mode, pin_hash FROM businesses WHERE id = $1`,
       [business.id]
     );
     const authMode = businessAuthData?.preferred_auth_mode || 'sms';
 
-    // Validate PIN based on auth mode
+    // Validate PIN/OTP based on auth mode
     let isValid = false;
     if (authMode === 'pin') {
       // For PIN mode, verify against the merchant's saved PIN hash stored in businesses table
@@ -75,8 +75,8 @@ export async function POST(req: NextRequest) {
         );
       }
       isValid = await comparePin(pin, savedPinHash);
-    } else {
-      // For SMS/Email modes, verify against the generated PIN hash
+    } else if (authMode === 'email' || authMode === 'sms') {
+      // For SMS/Email modes, verify against the generated OTP hash in the PIN record
       isValid = await comparePin(pin, pinRecord.pin_hash);
     }
 

@@ -39,6 +39,7 @@ export default function PINManagementSection({
       if (res.ok) {
         const data = await res.json();
         setIsPinSet(data.hasPinSet);
+        onPinStatusChange(data.hasPinSet);
       }
     } catch (err) {
       console.error('[v0] PIN status check error:', err);

@@ -23,17 +23,18 @@ export async function GET(request: NextRequest) {
 
     const userId = verified.userId as string;
 
-    // Check if user has a PIN set in businesses table
+    // Check if user has a PIN set by checking if pin_hash exists in businesses table
     const business = await getOne(
-      `SELECT pin_set_at FROM businesses 
-       WHERE owner_id = $1`,
+      `SELECT pin_hash FROM businesses 
+       WHERE owner_id = $1 LIMIT 1`,
       [userId]
     );
 
+    const hasPinSet = !!(business?.pin_hash && business.pin_hash.trim() !== '');
+
     return NextResponse.json(
       {
-        hasPinSet: !!business?.pin_set_at,
-        pinSetAt: business?.pin_set_at || null,
+        hasPinSet,
       },
       { status: 200 }
     );
