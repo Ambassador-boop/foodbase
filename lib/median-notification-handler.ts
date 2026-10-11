@@ -26,13 +26,11 @@ export function setupMedianNotificationHandler(router: ReturnType<typeof useRout
    * This callback is called by the Median app when user opens a notification
    */
   (window as any).medianOpenedPushNotification = (payload: NotificationPayload) => {
-    console.log('[v0] Notification opened with payload:', payload);
-
+  
     try {
       // If there's a target URL in the notification, navigate to it
       if (payload.targetUrl) {
-        console.log('[v0] Routing to target URL:', payload.targetUrl);
-        router.push(payload.targetUrl);
+              router.push(payload.targetUrl);
         return;
       }
 

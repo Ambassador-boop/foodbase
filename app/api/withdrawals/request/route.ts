@@ -170,8 +170,7 @@ export async function POST(request: NextRequest) {
         withdrawalId
       );
 
-      console.log('[v0] Transfer initiated:', transfer.reference);
-
+  
       // Create withdrawal record. Status starts as 'pending' until Paystack
       // confirms via webhook / reconciliation in [withdrawalId]/route.ts.
       // We deduct the gross amount from available_balance immediately and,

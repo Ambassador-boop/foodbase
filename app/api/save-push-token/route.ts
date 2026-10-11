@@ -19,8 +19,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('[v0] Saving push token for user:', email);
-
+  
     // Get user ID from email
     const user = await getOne(
       'SELECT id FROM users WHERE email = $1',
