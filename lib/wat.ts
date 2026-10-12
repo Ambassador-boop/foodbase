@@ -130,6 +130,18 @@ export function formatWatTime(input: Date | string | null | undefined): string {
   });
 }
 
+/** Returns the UTC instant of 00:00 WAT on the first day of the current WAT month. */
+export function watMonthStartUtc(now = new Date()): Date {
+  const wall = toWatWall(now);
+  return new Date(Date.UTC(wall.getUTCFullYear(), wall.getUTCMonth(), 1) - 60 * 60 * 1000);
+}
+
+/** Returns the UTC instant of 00:00 WAT on the first day of the next WAT month. */
+export function nextWatMonthStartUtc(now = new Date()): Date {
+  const wall = toWatWall(now);
+  return new Date(Date.UTC(wall.getUTCFullYear(), wall.getUTCMonth() + 1, 1) - 60 * 60 * 1000);
+}
+
 /** Now in real UTC. Useful in tests / cron. */
 export function nowUtc(): Date {
   return new Date();

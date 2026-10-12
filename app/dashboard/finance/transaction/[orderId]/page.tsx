@@ -206,7 +206,7 @@ export default function TransactionDetailPage() {
   );
 
   const refundable = order ? Math.max(0, order.total_amount - totalRefunded) : 0;
-  const fullyRefunded = order ? totalRefunded >= order.total_amount : false;
+  const fullyRefunded = refundable <= 0;
 
   const copy = async (label: string, text: string) => {
     try {

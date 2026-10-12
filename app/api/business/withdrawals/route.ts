@@ -3,395 +3,62 @@ import { verifyJWT } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { getActiveBusinessForUser } from '@/lib/active-business';
 import { nanoid } from 'nanoid';
-import { reconcileBusinessWithdrawals, reverseFailedWithdrawalIfNeeded, TERMINAL_FAILED_STATUSES } from '@/lib/withdrawals';
+import { reconcileBusinessWithdrawals, verifyAndSyncTransfer, reverseFailedWithdrawalIfNeeded, ALLOWED_STATUSES } from '@/lib/withdrawals';
+import { FREE_WITHDRAWALS_PER_MONTH, OVERAGE_FEE_NGN, MIN_WITHDRAWAL_NGN } from '@/lib/withdrawal-policy';
+import { watMonthStartUtc } from '@/lib/wat';
 
 const PAYSTACK_API_KEY = process.env.PAYSTACK_SECRET_KEY;
 const PAYSTACK_BASE = 'https://api.paystack.co';
-const FREE_DAILY_WITHDRAWALS = 3;
-const OVERAGE_FEE_NGN = 500; // flat ₦500 fee for the 4th+ withdrawal of the day
-
-/* ------------------------------------------------------------------ */
-/*  Helpers                                                            */
-/* ------------------------------------------------------------------ */
-
-async function getUserId(req: NextRequest) {
-  const token =
-    req.headers.get('authorization')?.replace('Bearer ', '') ||
-    req.cookies.get('auth_token')?.value;
-  if (!token) return null;
-  const payload = await verifyJWT(token);
-  if (!payload) return null;
-  return (payload as any).userId || (payload as any).id;
+function rowsOf(raw: any): any[] { return Array.isArray(raw) ? raw : raw?.rows ?? []; }
+async function getUserId(req: NextRequest) { const token = req.headers.get('authorization')?.replace('Bearer ', '') || req.cookies.get('auth_token')?.value; if (!token) return null; const p = await verifyJWT(token); return p ? (p as any).userId || (p as any).id : null; }
+function genReference() { return `wdr_${nanoid(20).toLowerCase()}`; }
+class ProviderRejected extends Error {}
+class ProviderUnreachable extends Error {}
+async function providerJson(path: string, init: RequestInit): Promise<any> {
+  let res: Response;
+  try { res = await fetch(`${PAYSTACK_BASE}${path}`, init); } catch { throw new ProviderUnreachable('Payment provider unavailable'); }
+  let json: any = {}; try { json = await res.json(); } catch { json = {}; }
+  if (res.status >= 500) throw new ProviderUnreachable('Payment provider unavailable');
+  if (!res.ok || !json.status) throw new ProviderRejected(json.message || 'Payment provider rejected the request');
+  return json.data;
 }
-
-function genReference() {
-  // Paystack: lowercase a-z, 0-9, hyphen, underscore. 16-50 chars.
-  return `wdr_${nanoid(20).toLowerCase().replace(/[^a-z0-9_-]/g, '')}`;
-}
-
-async function createTransferRecipient(
-  accountNumber: string,
-  bankCode: string,
-  accountName: string,
-) {
-  const res = await fetch(`${PAYSTACK_BASE}/transferrecipient`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${PAYSTACK_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      type: 'nuban',
-      name: accountName,
-      account_number: accountNumber,
-      bank_code: bankCode,
-      currency: 'NGN',
-    }),
-  });
-  const json = await res.json();
-  if (!res.ok || !json.status) {
-    throw new Error(json.message || 'Failed to create transfer recipient');
-  }
-  return json.data; // { recipient_code, ... }
-}
-
-async function initiateTransfer(
-  recipientCode: string,
-  amountNaira: number,
-  reference: string,
-  reason: string,
-) {
-  const res = await fetch(`${PAYSTACK_BASE}/transfer`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${PAYSTACK_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      source: 'balance',
-      amount: Math.round(amountNaira * 100),
-      recipient: recipientCode,
-      reference,
-      reason,
-    }),
-  });
-  const json = await res.json();
-  if (!res.ok || !json.status) {
-    throw new Error(json.message || 'Failed to initiate transfer');
-  }
-  return json.data; // { transfer_code, status, reference, ... }
-}
-
-/* ------------------------------------------------------------------ */
-/*  GET — list all withdrawals for the authed business owner           */
-/* ------------------------------------------------------------------ */
+async function createRecipient(accountNumber: string, bankCode: string, name: string) { return providerJson('/transferrecipient', { method: 'POST', headers: { Authorization: `Bearer ${PAYSTACK_API_KEY}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'nuban', name, account_number: accountNumber, bank_code: bankCode, currency: 'NGN' }) }); }
+async function initiateTransfer(recipient: string, amount: number, reference: string, reason: string) { return providerJson('/transfer', { method: 'POST', headers: { Authorization: `Bearer ${PAYSTACK_API_KEY}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ source: 'balance', amount: Math.round(amount * 100), recipient, reference, reason }) }); }
 
 export async function GET(req: NextRequest) {
-  try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const business = await getActiveBusinessForUser(userId);
-    if (!business) {
-      return NextResponse.json({ error: 'Business not found' }, { status: 404 });
-    }
-
-    // Self-heal: refresh any pending Paystack transfers AND restore
-    // funds for terminal-failed withdrawals that haven't been reversed
-    // yet. Idempotent — won't double-credit on repeat calls.
-    try {
-      await reconcileBusinessWithdrawals(business.id);
-    } catch (err) {
-      console.error('[v0] withdrawals list: reconcile failed:', err);
-    }
-
-    const rows: any = await db.query(
-      `SELECT
-         w.id,
-         w.amount,
-         w.net_amount,
-         w.withdrawal_fee,
-         w.service_fee,
-         w.status,
-         w.bank_code,
-         w.bank_account_number,
-         w.bank_account_holder,
-         w.payment_reference,
-         w.reference,
-         w.paystack_transfer_id,
-         w.transfer_code,
-         w.failure_reason,
-         w.gateway_response,
-         w.notes,
-         w.requested_at,
-         w.processed_at,
-         w.created_at,
-         w.updated_at
-       FROM withdrawals w
-       WHERE w.business_id = $1
-       ORDER BY w.created_at DESC
-       LIMIT 200`,
-      [business.id],
-    );
-
-    let list = Array.isArray(rows) ? rows : rows?.rows ?? [];
-    
-    // Ensure any terminal-failed withdrawals with balance_deducted=true
-    // and balance_reversed=false are immediately reversed (idempotent)
-    for (const w of list) {
-      if (
-        TERMINAL_FAILED_STATUSES.has(String(w.status || '').toLowerCase()) &&
-        w.balance_deducted === true &&
-        w.balance_reversed !== true
-      ) {
-        try {
-          const result = await reverseFailedWithdrawalIfNeeded(w);
-          if (result.reversed) {
-            console.log('[v0] GET /business/withdrawals: Auto-reversed failed withdrawal:', w.id);
-            // Update the cached row with the new balance_reversed flag
-            w.balance_reversed = true;
-          }
-        } catch (err) {
-          console.error('[v0] GET /business/withdrawals: Failed to reverse withdrawal:', w.id, err);
-        }
-      }
-    }
-    
-    return NextResponse.json(
-      list.map((r: any) => ({
-        ...r,
-        amount: Number(r.amount ?? 0),
-        net_amount: r.net_amount != null ? Number(r.net_amount) : null,
-        withdrawal_fee: r.withdrawal_fee != null ? Number(r.withdrawal_fee) : 0,
-        service_fee: r.service_fee != null ? Number(r.service_fee) : 0,
-      })),
-    );
-  } catch (err) {
-    console.error('[v0] GET /business/withdrawals error:', err);
-    return NextResponse.json(
-      { error: 'Failed to fetch withdrawals' },
-      { status: 500 },
-    );
-  }
+  const userId = await getUserId(req); if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const business = await getActiveBusinessForUser(userId); if (!business) return NextResponse.json({ error: 'Business not found' }, { status: 404 });
+  try { await reconcileBusinessWithdrawals(business.id); } catch (error) { console.error('[v0] withdrawal reconciliation failed:', error); }
+  const raw: any = await db.query(`SELECT id,amount,net_amount,withdrawal_fee,service_fee,status,bank_code,bank_account_number,bank_account_holder,payment_reference,reference,paystack_transfer_id,transfer_code,failure_reason,gateway_response,notes,requested_at,processed_at,created_at,updated_at FROM withdrawals WHERE business_id=$1 ORDER BY created_at DESC LIMIT 200`, [business.id]);
+  return NextResponse.json(rowsOf(raw).map((r: any) => ({ ...r, amount: Number(r.amount), net_amount: r.net_amount == null ? null : Number(r.net_amount), withdrawal_fee: Number(r.withdrawal_fee || 0), service_fee: Number(r.service_fee || 0) })));
 }
 
-/* ------------------------------------------------------------------ */
-/*  POST — initiate a Paystack transfer                                */
-/* ------------------------------------------------------------------ */
-
 export async function POST(req: NextRequest) {
+  const userId = await getUserId(req); if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!PAYSTACK_API_KEY) return NextResponse.json({ error: 'Paystack is not configured on this server.' }, { status: 500 });
+  const business = await getActiveBusinessForUser(userId); if (!business) return NextResponse.json({ error: 'Business not found' }, { status: 404 });
+  const body = await req.json(); const amount = Number(body.amount); const notes = String(body.notes || '').slice(0, 500);
+  if (!Number.isFinite(amount) || amount < MIN_WITHDRAWAL_NGN || Math.round(amount * 100) !== amount * 100) return NextResponse.json({ error: `Minimum withdrawal is ₦${MIN_WITHDRAWAL_NGN}` }, { status: 400 });
+  const bankRaw: any = await db.query('SELECT bank_code,bank_account_number,bank_account_holder FROM businesses WHERE id=$1', [business.id]); const bank = rowsOf(bankRaw)[0];
+  if (!bank?.bank_code || !bank?.bank_account_number || !bank?.bank_account_holder) return NextResponse.json({ error: 'Add your bank details first' }, { status: 400 });
+  const withdrawalId = `wd_${nanoid(14)}`; const reference = genReference();
+  const reserveRaw: any = await db.query('SELECT fb_reserve_withdrawal($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) AS result', [business.id, amount, withdrawalId, reference, bank.bank_code, bank.bank_account_number, bank.bank_account_holder, notes || null, watMonthStartUtc().toISOString(), FREE_WITHDRAWALS_PER_MONTH, OVERAGE_FEE_NGN, MIN_WITHDRAWAL_NGN]);
+  const result = rowsOf(reserveRaw)[0]?.result; const reserve = typeof result === 'string' ? JSON.parse(result) : result || {};
+  if (reserve.status === 'below_minimum') return NextResponse.json({ error: `Minimum withdrawal is ₦${MIN_WITHDRAWAL_NGN}` }, { status: 400 });
+  if (reserve.status === 'business_not_found') return NextResponse.json({ error: 'Business not found' }, { status: 404 });
+  if (reserve.status === 'insufficient_balance') return NextResponse.json({ error: reserve.fee > 0 ? 'Insufficient available balance. A ₦500 fee applies from your 4th withdrawal this month' : 'Insufficient available balance' }, { status: 400 });
+  if (reserve.status !== 'reserved') return NextResponse.json({ error: 'Withdrawal could not be reserved' }, { status: 400 });
+  let recipientRaw: any = await db.query('SELECT id,recipient_code FROM transfer_recipients WHERE business_id=$1 AND account_number=$2 AND bank_code=$3 AND is_active=true LIMIT 1', [business.id, bank.bank_account_number, bank.bank_code]); let recipient = rowsOf(recipientRaw)[0];
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    if (!PAYSTACK_API_KEY) {
-      return NextResponse.json(
-        { error: 'Paystack is not configured on this server.' },
-        { status: 500 },
-      );
-    }
-
-    const body = await req.json();
-    const amountNaira = parseFloat(String(body.amount ?? ''));
-    const bankCode: string = String(body.bank_code ?? '').trim();
-    const bankAccountNumber: string = String(body.bank_account_number ?? '').trim();
-    const bankAccountHolder: string = String(body.bank_account_holder ?? '').trim();
-    const notes: string = String(body.notes ?? '').slice(0, 500);
-
-    if (!amountNaira || amountNaira <= 0) {
-      return NextResponse.json({ error: 'Invalid amount' }, { status: 400 });
-    }
-    if (!bankCode || !bankAccountNumber || !bankAccountHolder) {
-      return NextResponse.json(
-        { error: 'Bank details are required' },
-        { status: 400 },
-      );
-    }
-
-    /* ------------- Business + balance check ----------------------- */
-    const business = await getActiveBusinessForUser(userId);
-    if (!business) {
-      return NextResponse.json({ error: 'Business not found' }, { status: 404 });
-    }
-    const availableBalance = Number(business.available_balance ?? 0);
-
-    /* ------------- Daily withdrawal counter ----------------------- */
-    const todayCountRows: any = await db.query(
-      `SELECT COUNT(*)::int AS count
-         FROM withdrawals
-        WHERE business_id = $1
-          AND created_at >= date_trunc('day', NOW())
-          AND status NOT IN ('failed','rejected','abandoned','blocked')`,
-      [business.id],
-    );
-    const todayCountList = Array.isArray(todayCountRows)
-      ? todayCountRows
-      : todayCountRows?.rows ?? [];
-    const todayCount = Number(todayCountList[0]?.count ?? 0);
-
-    const incursOverageFee = todayCount >= FREE_DAILY_WITHDRAWALS;
-    const withdrawalFee = incursOverageFee ? OVERAGE_FEE_NGN : 0;
-    const totalDeduction = amountNaira + withdrawalFee;
-
-    if (totalDeduction > availableBalance) {
-      return NextResponse.json(
-        {
-          error: incursOverageFee
-            ? `Insufficient balance. A ₦${OVERAGE_FEE_NGN} fee applies because you've already made ${FREE_DAILY_WITHDRAWALS} withdrawals today.`
-            : 'Insufficient available balance',
-        },
-        { status: 400 },
-      );
-    }
-
-    /* ------------- Create Paystack recipient + transfer ----------- */
-    const reference = genReference();
-    const withdrawalId = `wd_${nanoid(14)}`;
-
-    let recipientCode: string;
-    let transferRecipientRowId: string;
-
-    try {
-      const recipient = await createTransferRecipient(
-        bankAccountNumber,
-        bankCode,
-        bankAccountHolder,
-      );
-      recipientCode = recipient.recipient_code;
-      transferRecipientRowId = `tr_${nanoid(14)}`;
-
-      await db.query(
-        `INSERT INTO transfer_recipients
-          (id, business_id, paystack_recipient_id, recipient_code, account_name,
-           account_number, bank_code, account_type, is_active, created_at, updated_at)
-         VALUES ($1,$2,$3,$3,$4,$5,$6,'nuban',true,NOW(),NOW())
-         ON CONFLICT DO NOTHING`,
-        [
-          transferRecipientRowId,
-          business.id,
-          recipientCode,
-          bankAccountHolder,
-          bankAccountNumber,
-          bankCode,
-        ],
-      );
-    } catch (err: any) {
-      console.error('[v0] Recipient create failed:', err);
-      return NextResponse.json(
-        { error: err?.message || 'Failed to create transfer recipient' },
-        { status: 502 },
-      );
-    }
-
-    let transferData: any;
-    try {
-      transferData = await initiateTransfer(
-        recipientCode,
-        amountNaira,
-        reference,
-        notes || 'Business withdrawal',
-      );
-    } catch (err: any) {
-      console.error('[v0] Initiate transfer failed:', err);
-      // Record the failed attempt so the user sees it on the timeline
-      // Note: balance_deducted is false because this withdrawal failed before
-      // the balance was ever deducted
-      await db.query(
-        `INSERT INTO withdrawals
-          (id, business_id, amount, net_amount, withdrawal_fee, service_fee,
-           bank_code, bank_account_number, bank_account_holder,
-           transfer_recipient_id, reference, payment_reference, status,
-           failure_reason, notes, balance_deducted, requested_at, created_at, updated_at)
-         VALUES ($1,$2,$3,$3,$4,0,$5,$6,$7,$8,$9,$9,'failed',$10,$11,false,NOW(),NOW(),NOW())`,
-        [
-          withdrawalId,
-          business.id,
-          amountNaira,
-          withdrawalFee,
-          bankCode,
-          bankAccountNumber,
-          bankAccountHolder,
-          transferRecipientRowId,
-          reference,
-          err?.message?.slice(0, 500) || 'Transfer initiation failed',
-          notes || null,
-        ],
-      );
-      return NextResponse.json(
-        { error: err?.message || 'Failed to initiate transfer', withdrawalId },
-        { status: 502 },
-      );
-    }
-
-    /* ------------- Persist withdrawal ----------------------------- */
-    const initialStatus = transferData.status || 'pending';
-    
-    /* ------------- Only deduct balance if initial status is not terminal failure --- */
-    const terminalFailureStatuses = new Set([
-      'failed',
-      'reversed',
-      'abandoned',
-      'blocked',
-      'rejected',
-    ]);
-    
-    const shouldDeductBalance = !terminalFailureStatuses.has(String(initialStatus).toLowerCase());
-    
-    await db.query(
-      `INSERT INTO withdrawals
-        (id, business_id, amount, net_amount, withdrawal_fee, service_fee,
-         bank_code, bank_account_number, bank_account_holder,
-         transfer_recipient_id, paystack_transfer_id, transfer_code,
-         reference, payment_reference, status, notes, balance_deducted,
-         requested_at, created_at, updated_at)
-       VALUES ($1,$2,$3,$3,$4,0,$5,$6,$7,$8,$9,$9,$10,$10,$11,$12,$13,NOW(),NOW(),NOW())`,
-      [
-        withdrawalId,
-        business.id,
-        amountNaira,
-        withdrawalFee,
-        bankCode,
-        bankAccountNumber,
-        bankAccountHolder,
-        transferRecipientRowId,
-        transferData.transfer_code,
-        reference,
-        initialStatus,
-        notes || null,
-        shouldDeductBalance,
-      ],
-    );
-    
-    if (shouldDeductBalance) {
-      await db.query(
-        `UPDATE businesses
-            SET available_balance = available_balance - $1,
-                updated_at = NOW()
-          WHERE id = $2`,
-        [totalDeduction, business.id],
-      );
-    }
-
-    return NextResponse.json(
-      {
-        success: true,
-        withdrawalId,
-        reference,
-        status: transferData.status || 'pending',
-        withdrawalFee,
-        message: 'Withdrawal initiated',
-      },
-      { status: 201 },
-    );
-  } catch (err) {
-    console.error('[v0] POST /business/withdrawals error:', err);
-    return NextResponse.json(
-      { error: 'Failed to create withdrawal' },
-      { status: 500 },
-    );
+    if (!recipient) { const created = await createRecipient(bank.bank_account_number, bank.bank_code, bank.bank_account_holder); const id = `tr_${nanoid(14)}`; await db.query(`INSERT INTO transfer_recipients (id,business_id,paystack_recipient_id,recipient_code,account_name,account_number,bank_code,account_type,is_active,created_at,updated_at) VALUES ($1,$2,$3,$3,$4,$5,$6,'nuban',true,NOW(),NOW())`, [id, business.id, created.recipient_code, bank.bank_account_holder, bank.bank_account_number, bank.bank_code]); recipient = { id, recipient_code: created.recipient_code }; }
+    const transfer = await initiateTransfer(recipient.recipient_code, amount, reference, notes || 'Business withdrawal'); const status = ALLOWED_STATUSES.has(String(transfer.status).toLowerCase()) ? String(transfer.status).toLowerCase() : 'pending';
+    await db.query(`UPDATE withdrawals SET transfer_recipient_id=$1,paystack_transfer_id=$2,transfer_code=$2,status=$3::withdrawal_status,processed_at=CASE WHEN $3 IN ('success','failed','reversed') THEN NOW() ELSE processed_at END,updated_at=NOW() WHERE id=$4`, [recipient.id, transfer.transfer_code, status, withdrawalId]);
+    if (status === 'success') await db.query('SELECT fb_credit_withdrawal_fee($1) AS result', [withdrawalId]);
+    return NextResponse.json({ success: true, withdrawalId, reference, status, withdrawalFee: Number(reserve.fee || 0), message: 'Withdrawal initiated' }, { status: 201 });
+  } catch (error) {
+    if (error instanceof ProviderRejected) { await db.query(`UPDATE withdrawals SET status='failed'::withdrawal_status,failure_reason=$1,updated_at=NOW() WHERE id=$2`, [error.message, withdrawalId]); await db.query('SELECT fb_reverse_failed_withdrawal($1) AS result', [withdrawalId]); return NextResponse.json({ error: error.message }, { status: 502 }); }
+    const verified = await verifyAndSyncTransfer(reference, withdrawalId);
+    if (verified?.notFound) { await db.query(`UPDATE withdrawals SET status='failed'::withdrawal_status,failure_reason=$1,updated_at=NOW() WHERE id=$2`, ['Transfer not found at provider', withdrawalId]); await db.query('SELECT fb_reverse_failed_withdrawal($1) AS result', [withdrawalId]); }
+    return NextResponse.json({ success: true, withdrawalId, status: verified?.status || 'pending' }, { status: 202 });
   }
 }
