@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { formatWat } from '@/lib/wat';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { PinModal } from '@/components/pin-modal';
@@ -18,9 +19,7 @@ import {
   Wallet,
 } from 'lucide-react';
 
-const PAYSTACK_MIN_NGN = 100;
-const FREE_DAILY_WITHDRAWALS = 3;
-const OVERAGE_FEE_NGN = 500;
+const MIN_WITHDRAWAL_NGN = 100;
 
 interface Business {
   available_balance: number;
@@ -46,7 +45,7 @@ export default function WithdrawPage() {
   const [business, setBusiness] = useState<Business | null>(null);
   const [bankDetails, setBankDetails] = useState<BankDetails | null>(null);
   const [bankNameMap, setBankNameMap] = useState<Record<string, string>>({});
-  const [todayCount, setTodayCount] = useState(0);
+  const [policy, setPolicy] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -62,11 +61,11 @@ export default function WithdrawPage() {
   useEffect(() => {
     (async () => {
       try {
-        const [bRes, bdRes, banksRes, wRes] = await Promise.all([
+        const [bRes, bdRes, banksRes, policyRes] = await Promise.all([
           fetch('/api/business', { credentials: 'include' }),
           fetch('/api/business/bank-details', { credentials: 'include' }),
           fetch('/api/paystack/banks'),
-          fetch('/api/business/withdrawals', { credentials: 'include' }),
+          fetch('/api/business/withdrawals/policy', { credentials: 'include' }),
         ]);
 
         if (bRes.ok) {
@@ -89,19 +88,7 @@ export default function WithdrawPage() {
           for (const b of d.banks || []) map[String(b.code)] = b.name;
           setBankNameMap(map);
         }
-        if (wRes.ok) {
-          const list: any[] = await wRes.json();
-          const startOfDay = new Date();
-          startOfDay.setHours(0, 0, 0, 0);
-          const count = list.filter(
-            (w: any) =>
-              new Date(w.created_at).getTime() >= startOfDay.getTime() &&
-              !['failed', 'rejected', 'abandoned', 'blocked'].includes(
-                String(w.status),
-              ),
-          ).length;
-          setTodayCount(count);
-        }
+        if (policyRes.ok) setPolicy(await policyRes.json());
       } catch (err) {
         console.error('[v0] withdraw bootstrap error:', err);
         setError('Failed to load withdrawal data');
@@ -121,20 +108,19 @@ export default function WithdrawPage() {
   );
 
   const withdrawNum = parseFloat(amount) || 0;
-  const incursOverage = todayCount >= FREE_DAILY_WITHDRAWALS;
-  const fee = incursOverage ? OVERAGE_FEE_NGN : 0;
+  const incursOverage = Boolean(policy?.nextWithdrawalHasFee);
+  const fee = incursOverage ? Number(policy?.overageFee ?? 0) : 0;
   const totalDeduction = withdrawNum + fee;
-  const balance = business?.available_balance ?? 0;
-  const remaining = Math.max(0, balance - totalDeduction);
-  const remainingFreeToday = Math.max(
-    0,
-    FREE_DAILY_WITHDRAWALS - todayCount,
-  );
+  const balance = Number(policy?.availableBalance ?? business?.available_balance ?? 0);
+  const remaining = balance - totalDeduction;
+  const remainingFree = Number(policy?.remainingFree ?? 0);
+  const resetsAt = policy?.resetsAt ? formatWat(policy.resetsAt, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true }) : 'next month';
 
   const validation = (() => {
+    if (balance <= 0) return 'Clear your deficit before withdrawing';
     if (!withdrawNum) return null;
-    if (withdrawNum < PAYSTACK_MIN_NGN)
-      return `Minimum withdrawal is ${NGN(PAYSTACK_MIN_NGN)}`;
+    if (withdrawNum < Number(policy?.minAmount ?? MIN_WITHDRAWAL_NGN))
+      return `Minimum withdrawal is ${NGN(Number(policy?.minAmount ?? MIN_WITHDRAWAL_NGN))}`;
     if (totalDeduction > balance) return 'Insufficient balance for this withdrawal';
     return null;
   })();
@@ -178,9 +164,6 @@ export default function WithdrawPage() {
         credentials: 'include',
         body: JSON.stringify({
           amount: withdrawNum,
-          bank_code: bankDetails.bank_code,
-          bank_account_number: bankDetails.bank_account_number,
-          bank_account_holder: bankDetails.bank_account_holder,
           notes,
         }),
       });
@@ -261,10 +244,10 @@ export default function WithdrawPage() {
             }
           }}
           purpose="withdrawal"
-          pinId={pinVerification.pinId}
+          pinId={pinVerification.pinId ?? ''}
           isLoading={submitting}
           method={verificationInfo?.method as any}
-          message={verificationInfo?.message}
+          message={verificationInfo?.message ?? undefined}
         />
       )}
 
@@ -290,41 +273,27 @@ export default function WithdrawPage() {
           <Wallet className="h-3.5 w-3.5" /> Available balance
         </p>
         <p className="mt-2 text-3xl font-bold leading-none md:text-4xl">
-          {NGN(business?.available_balance ?? 0)}
+          <span className={balance < 0 ? 'text-destructive' : undefined}>{NGN(balance)}</span>{balance < 0 && <span className="ml-2 text-xs">Deficit</span>}
         </p>
         <p className="mt-2 text-xs text-primary-foreground/80">
-          Pending settlement: {NGN(business?.pending_balance ?? 0)}
+          Pending settlement: {NGN(Number(policy?.pendingBalance ?? business?.pending_balance ?? 0))}
         </p>
       </div>
 
-      {/* Daily count notice */}
-      <div
-        className={`flex items-start gap-2 rounded-xl border p-3 text-xs ${
-          incursOverage
-            ? 'border-amber-200 bg-amber-50 text-amber-800'
-            : 'border-emerald-200 bg-emerald-50 text-emerald-800'
-        }`}
-      >
-        <Info className="mt-0.5 h-4 w-4 shrink-0" />
-        <div className="flex-1">
-          {incursOverage ? (
-            <>
-              You&apos;ve made {todayCount} withdrawals today. Each additional
-              withdrawal will be charged a flat{' '}
-              <span className="font-semibold">{NGN(OVERAGE_FEE_NGN)}</span> fee.
-            </>
-          ) : (
-            <>
-              <span className="font-semibold">
-                {remainingFreeToday} free withdrawal
-                {remainingFreeToday === 1 ? '' : 's'}
-              </span>{' '}
-              left today. After that, a flat {NGN(OVERAGE_FEE_NGN)} fee applies
-              per withdrawal.
-            </>
-          )}
+      {balance <= 0 ? (
+        <div className="flex items-start gap-2 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div><p className="font-semibold">Deficit</p><p>No available balance</p></div>
         </div>
-      </div>
+      ) : (
+        <div className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800">
+          <Info className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <span className="font-semibold">{remainingFree} free withdrawal{remainingFree === 1 ? '' : 's'} left this month</span>{' '}
+            (resets {resetsAt}). {incursOverage && `A flat ${NGN(fee)} fee applies to each additional withdrawal this month`}
+          </div>
+        </div>
+      )}
 
       <form onSubmit={submit} className="space-y-5">
         {/* Bank account card */}
@@ -373,7 +342,7 @@ export default function WithdrawPage() {
                 type="number"
                 inputMode="decimal"
                 step="0.01"
-                min={PAYSTACK_MIN_NGN}
+                min={Number(policy?.minAmount ?? MIN_WITHDRAWAL_NGN)}
                 max={balance}
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
@@ -403,7 +372,7 @@ export default function WithdrawPage() {
             </div>
 
             <p className="mt-2 text-xs text-muted-foreground">
-              Min {NGN(PAYSTACK_MIN_NGN)} · Max {NGN(balance)}
+              Min {NGN(Number(policy?.minAmount ?? MIN_WITHDRAWAL_NGN))} · Max {NGN(balance)}
             </p>
           </div>
 
@@ -443,7 +412,7 @@ export default function WithdrawPage() {
                   Withdrawal fee
                   {incursOverage && (
                     <span className="ml-1 text-[10px] text-amber-700">
-                      (4th+ today)
+                      (4th+ this month)
                     </span>
                   )}
                 </dt>

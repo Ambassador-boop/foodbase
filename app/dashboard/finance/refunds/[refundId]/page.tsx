@@ -214,7 +214,8 @@ export default function RefundDetailsPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || 'Retry failed');
       toast.success('Refund retry submitted to Paystack');
-      fetchRefund(true);
+      if (data.refundId) router.push(`/dashboard/finance/refunds/${data.refundId}`);
+      else fetchRefund(true);
     } catch (e: any) {
       toast.error(e.message || 'Could not retry refund');
     } finally {

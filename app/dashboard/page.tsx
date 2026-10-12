@@ -324,7 +324,7 @@ export default function DashboardPage() {
                 Available
               </div>
               <p className="text-lg sm:text-xl font-bold mt-1 tabular-nums text-emerald-900">
-                {mask(formatCurrency(metrics?.availableBalance || 0))}
+                <span className={Number(metrics?.availableBalance ?? 0) < 0 ? 'text-destructive' : undefined}>{mask(formatCurrency(metrics?.availableBalance ?? 0))}</span>{Number(metrics?.availableBalance ?? 0) < 0 && <span className="ml-1 text-[10px] text-destructive">Deficit</span>}
               </p>
               <p className="text-[11px] text-emerald-700/80 mt-0.5">Ready to withdraw</p>
             </div>
@@ -334,7 +334,7 @@ export default function DashboardPage() {
                 Pending
               </div>
               <p className="text-lg sm:text-xl font-bold mt-1 tabular-nums text-amber-900">
-                {mask(formatCurrency(metrics?.pendingBalance || 0))}
+                <span className={Number(metrics?.pendingBalance ?? 0) < 0 ? 'text-destructive' : undefined}>{mask(formatCurrency(metrics?.pendingBalance ?? 0))}</span>{Number(metrics?.pendingBalance ?? 0) < 0 && <span className="ml-1 text-[10px] text-destructive">Deficit</span>}
               </p>
               <p className="text-[11px] text-amber-700/80 mt-0.5">Awaiting settlement</p>
             </div>

@@ -356,12 +356,12 @@ export default function FinancePage() {
               Available balance
             </p>
             <p className="mt-2 text-3xl font-bold leading-none md:text-4xl">
-              {NGN_DEC(business?.available_balance ?? 0)}
+              <span className={Number(business?.available_balance ?? 0) < 0 ? 'text-destructive' : undefined}>{NGN_DEC(business?.available_balance ?? 0)}</span>{Number(business?.available_balance ?? 0) < 0 && <span className="ml-2 text-xs text-destructive">Deficit</span>}
             </p>
             <p className="mt-2 text-xs text-primary-foreground/80">
               Pending settlement:{' '}
               <span className="font-medium text-primary-foreground">
-                {NGN_DEC(business?.pending_balance ?? 0)}
+                <span className={Number(business?.pending_balance ?? 0) < 0 ? 'text-destructive' : undefined}>{NGN_DEC(business?.pending_balance ?? 0)}</span>{Number(business?.pending_balance ?? 0) < 0 && <span className="ml-2 text-xs text-destructive">Deficit</span>}
               </span>
             </p>
           </div>

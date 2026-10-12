@@ -17,16 +17,10 @@ import {
 } from 'lucide-react';
 
 interface OrderResp {
-  order: {
-    id: string;
-    customer_name: string;
-    customer_email: string;
-    payment_status: string;
-    payment_reference: string | null;
-    total_amount: number;
-  };
+  order: { id: string; customer_name: string; customer_email: string; payment_status: string; payment_reference: string | null; total_amount: number };
   refunds: Array<{ id: string; amount: number; status: string }>;
 }
+interface Eligibility { netReceived: number; alreadyRefunded: number; refundable: number; serviceFee: number; bucket: 'pending' | 'available'; bucketBalance: number; }
 
 const NGN = (n: number) =>
   new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(
@@ -49,6 +43,7 @@ export default function RefundRequestPage() {
   const orderId = params.orderId as string;
 
   const [data, setData] = useState<OrderResp | null>(null);
+  const [eligibility, setEligibility] = useState<Eligibility | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -71,7 +66,12 @@ export default function RefundRequestPage() {
         }
         const j: OrderResp = await res.json();
         setData(j);
-        setAmount(String(j.order.total_amount));
+        const eligibilityRes = await fetch(`/api/refunds/eligibility?orderId=${encodeURIComponent(orderId)}`, { credentials: 'include' });
+        const eligibilityJson = await eligibilityRes.json();
+        if (eligibilityRes.ok) {
+          setEligibility(eligibilityJson);
+          setAmount(String(eligibilityJson.refundable));
+        }
       } catch (err: any) {
         setError(err?.message || 'Failed to load order');
       } finally {
@@ -92,7 +92,7 @@ export default function RefundRequestPage() {
         .reduce((s, r) => s + Number(r.amount || 0), 0),
     [data],
   );
-  const refundable = order ? Math.max(0, order.total_amount - totalRefunded) : 0;
+  const refundable = eligibility?.refundable ?? 0;
 
   const refundNum = parseFloat(amount) || 0;
 
@@ -104,8 +104,8 @@ export default function RefundRequestPage() {
     if (!order) return null;
     if (!refundNum) return 'Enter a refund amount';
     if (refundNum <= 0) return 'Amount must be greater than zero';
-    if (refundNum > refundable)
-      return `Maximum refundable is ${NGN(refundable)}`;
+    if (refundNum > refundable) return `Maximum refundable is ${NGN(refundable)}`;
+    if (eligibility && refundNum > eligibility.bucketBalance) return `Your ${eligibility.bucket} balance is not enough to cover this refund`;
     if (!reason) return 'Select a reason';
     return null;
   })();
@@ -269,7 +269,9 @@ export default function RefundRequestPage() {
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
             Max refundable: {NGN(refundable)}
+            {eligibility && <> · {eligibility.bucket} balance: {NGN(eligibility.bucketBalance)}</>}
           </p>
+          {eligibility && <p className="mt-1 text-xs text-amber-700">The {NGN(eligibility.serviceFee)} service fee is not refundable.</p>}
         </section>
 
         {/* Reason */}

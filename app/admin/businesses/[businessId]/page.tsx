@@ -224,7 +224,10 @@ export default function BusinessDetailPage() {
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Available Balance</span>
                     <span className="font-semibold">
-                      ₦{Number(business.available_balance || 0).toLocaleString()}
+                      <span className={Number(business.available_balance || 0) < 0 ? 'text-destructive' : ''}>
+                        {Number(business.available_balance || 0) < 0 ? '−' : ''}₦{Math.abs(Number(business.available_balance || 0)).toLocaleString()}
+                        {Number(business.available_balance || 0) < 0 && <small className="ml-1 text-xs">Deficit</small>}
+                      </span>
                     </span>
                   </div>
                 )}
@@ -232,7 +235,10 @@ export default function BusinessDetailPage() {
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Pending Balance</span>
                     <span className="font-semibold">
-                      ₦{Number(business.pending_balance || 0).toLocaleString()}
+                      <span className={Number(business.pending_balance || 0) < 0 ? 'text-destructive' : ''}>
+                        {Number(business.pending_balance || 0) < 0 ? '−' : ''}₦{Math.abs(Number(business.pending_balance || 0)).toLocaleString()}
+                        {Number(business.pending_balance || 0) < 0 && <small className="ml-1 text-xs">Deficit</small>}
+                      </span>
                     </span>
                   </div>
                 )}
