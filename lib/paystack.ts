@@ -2,6 +2,27 @@ import crypto from 'crypto';
 
 const PAYSTACK_BASE_URL = 'https://api.paystack.co';
 
+export class ProviderRejected extends Error {}
+export class ProviderUnreachable extends Error {}
+
+export async function paystackRefund(transactionRef: string, amountKobo: number, opts: { customer_note?: string; merchant_note?: string }) {
+  let response: Response;
+  try {
+    response = await fetch(`${PAYSTACK_BASE_URL}/refund`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY || ''}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ transaction: transactionRef, amount: amountKobo, currency: 'NGN', ...opts }),
+    });
+  } catch {
+    throw new ProviderUnreachable('Payment provider is unreachable');
+  }
+  let json: any;
+  try { json = await response.json(); } catch { throw new ProviderUnreachable('Payment provider returned an invalid response'); }
+  if (response.status >= 500) throw new ProviderUnreachable('Payment provider is temporarily unavailable');
+  if (!response.ok || !json.status) throw new ProviderRejected(json.message || 'Refund was rejected by the payment provider');
+  return json.data;
+}
+
 export interface PaystackInitializeResponse {
   status: boolean;
   message: string;
