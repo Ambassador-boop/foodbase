@@ -36,8 +36,17 @@ export async function POST(req: NextRequest) {
       case 'refund.processed':
       case 'refund.failed':
       case 'refund.pending':
-      case 'refund.processing':
+      case 'refund.processing': {
+        const refundStatus = event.event === 'refund.processed' ? 'processed' : event.event === 'refund.failed' ? 'failed' : 'pending';
+        const refundId = String(event.data?.id ?? '');
+        const raw: any = await (await import('@/lib/db')).db.query('SELECT id FROM refunds WHERE paystack_refund_id=$1', [refundId]);
+        const found = (Array.isArray(raw) ? raw : raw?.rows ?? [])[0];
+        if (found) {
+          await (await import('@/lib/db')).db.query(`UPDATE refunds SET status=$1, processed_at=CASE WHEN $1 IN ('processed','failed') THEN COALESCE(processed_at,NOW()) ELSE processed_at END, updated_at=NOW() WHERE id=$2`, [refundStatus, found.id]);
+          if (refundStatus === 'failed') await (await import('@/lib/db')).db.query('SELECT fb_reverse_failed_refund($1)', [found.id]);
+        }
         return NextResponse.json({ success: true });
+      }
       default:
         return NextResponse.json({ success: true });
     }
