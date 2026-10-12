@@ -6,6 +6,7 @@ import { nanoid } from 'nanoid';
 import { reconcileBusinessWithdrawals, verifyAndSyncTransfer, reverseFailedWithdrawalIfNeeded, ALLOWED_STATUSES } from '@/lib/withdrawals';
 import { FREE_WITHDRAWALS_PER_MONTH, OVERAGE_FEE_NGN, MIN_WITHDRAWAL_NGN } from '@/lib/withdrawal-policy';
 import { watMonthStartUtc } from '@/lib/wat';
+import { normalizeAmount, requireTicket } from '@/lib/security/pin';
 
 const PAYSTACK_API_KEY = process.env.PAYSTACK_SECRET_KEY;
 const PAYSTACK_BASE = 'https://api.paystack.co';
@@ -41,6 +42,8 @@ export async function POST(req: NextRequest) {
   if (!Number.isFinite(amount) || amount < MIN_WITHDRAWAL_NGN || Math.round(amount * 100) !== amount * 100) return NextResponse.json({ error: `Minimum withdrawal is ₦${MIN_WITHDRAWAL_NGN}` }, { status: 400 });
   const bankRaw: any = await db.query('SELECT bank_code,bank_account_number,bank_account_holder FROM businesses WHERE id=$1', [business.id]); const bank = rowsOf(bankRaw)[0];
   if (!bank?.bank_code || !bank?.bank_account_number || !bank?.bank_account_holder) return NextResponse.json({ error: 'Add your bank details first' }, { status: 400 });
+  const authorized = await requireTicket({ ticket: body.authorizationTicket, userId, businessId: business.id, action: 'withdrawal', bind: { amount: normalizeAmount(amount), account: `${bank.bank_code}:${bank.bank_account_number}` } });
+  if (!authorized) return NextResponse.json({ error: 'PIN authorization required', code: 'PIN_REQUIRED' }, { status: 403 });
   const withdrawalId = `wd_${nanoid(14)}`; const reference = genReference();
   const reserveRaw: any = await db.query('SELECT fb_reserve_withdrawal($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) AS result', [business.id, amount, withdrawalId, reference, bank.bank_code, bank.bank_account_number, bank.bank_account_holder, notes || null, watMonthStartUtc().toISOString(), FREE_WITHDRAWALS_PER_MONTH, OVERAGE_FEE_NGN, MIN_WITHDRAWAL_NGN]);
   const result = rowsOf(reserveRaw)[0]?.result; const reserve = typeof result === 'string' ? JSON.parse(result) : result || {};
