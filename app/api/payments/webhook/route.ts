@@ -30,8 +30,9 @@ export async function POST(req: NextRequest) {
       case 'transfer.failed':
       case 'transfer.reversed': {
         const status = event.event === 'transfer.success' ? 'success' : event.event.slice('transfer.'.length);
-        const reference = event.data?.reference ?? event.data?.transfer_code;
-        const foundRaw: any = await db.query('SELECT id FROM withdrawals WHERE reference=$1 OR transfer_code=$1 LIMIT 1', [String(reference ?? '')]);
+        const reference = event.data?.reference;
+        const transferCode = event.data?.transfer_code;
+        const foundRaw: any = await db.query('SELECT id FROM withdrawals WHERE reference=$1 OR transfer_code=$2 LIMIT 1', [String(reference ?? ''), String(transferCode ?? '')]);
         const withdrawal = rowsOf(foundRaw)[0];
         if (withdrawal) {
           await db.query(`UPDATE withdrawals SET status=$1::withdrawal_status, processed_at=CASE WHEN $1 IN ('success','failed','reversed') THEN COALESCE(processed_at,NOW()) ELSE processed_at END, gateway_response=COALESCE($2,gateway_response), updated_at=NOW() WHERE id=$3`, [status, event.data?.reason ?? null, withdrawal.id]);

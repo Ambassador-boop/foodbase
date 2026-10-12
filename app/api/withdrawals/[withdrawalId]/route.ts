@@ -72,7 +72,6 @@ export async function GET(
     if (terminalFailedStatuses.has(String(row.status).toLowerCase())) {
       const reversalResult = await reverseFailedWithdrawalIfNeeded(row);
       if (reversalResult.reversed) {
-        console.log('[v0] GET /withdrawals/[id]: Auto-reversed failed withdrawal:', withdrawalId);
         // Refresh the row to get the updated balance_reversed flag
         const refreshResult: any = await db.query(
           `SELECT w.* FROM withdrawals w WHERE w.id = $1`,
