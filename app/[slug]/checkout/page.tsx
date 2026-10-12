@@ -191,10 +191,7 @@ export default function CheckoutPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          amount: cartTotal,
           orderId: orderData.orderId,
-          email: formData.email.trim(),
-          reference: orderData.reference,
         }),
       });
 

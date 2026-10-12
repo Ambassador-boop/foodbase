@@ -71,8 +71,7 @@ export default function DashboardLayout({
           const userData = await userRes.json();
           if (!cancelled && userData.user?.email) {
             setUserEmail(userData.user.email);
-            console.log('[v0] Dashboard: User email loaded for notifications');
-          }
+                    }
         }
 
         // List of all businesses owned by this user (with logos for animation)

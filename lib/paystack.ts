@@ -1,3 +1,5 @@
+import crypto from 'crypto';
+
 const PAYSTACK_BASE_URL = 'https://api.paystack.co';
 
 export interface PaystackInitializeResponse {
@@ -25,6 +27,7 @@ export interface PaystackVerifyResponse {
       email: string;
       customer_code: string;
     };
+    fees?: number | null;
     metadata?: Record<string, any>;
   };
 }
@@ -48,7 +51,7 @@ export async function initializePayment(
       amount: Math.round(amount * 100),
       email,
       reference,
-      redirect_url: `${baseUrl}/api/payments/webhook?reference=${reference}`,
+      redirect_url: `${baseUrl}/api/payments/webhook?reference=${encodeURIComponent(reference)}`,
       metadata,
     }),
   });
@@ -62,7 +65,7 @@ export async function initializePayment(
 
 export async function verifyPayment(reference: string): Promise<PaystackVerifyResponse> {
   const response = await fetch(
-    `${PAYSTACK_BASE_URL}/transaction/verify/${reference}`,
+    `${PAYSTACK_BASE_URL}/transaction/verify/${encodeURIComponent(reference)}`,
     {
       headers: {
         'Content-Type': 'application/json',
@@ -89,5 +92,5 @@ export async function getPaymentStatus(reference: string): Promise<string> {
 }
 
 export function generatePaymentReference(): string {
-  return `${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+  return `FB${crypto.randomUUID().replace(/-/g, '').toUpperCase()}`;
 }
