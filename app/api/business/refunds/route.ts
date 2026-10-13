@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { verifyJWT } from '@/lib/auth';
+import { maskEmail } from '@/lib/mask';
 import { getActiveBusinessForUser } from '@/lib/active-business';
 
 export async function GET(request: NextRequest) {
@@ -68,7 +69,7 @@ export async function GET(request: NextRequest) {
         created_at: r.created_at,
         updated_at: r.updated_at,
         customer_name: r.customer_name,
-        customer_email: r.customer_email,
+        customer_email_masked: maskEmail(r.customer_email),
       }))
     );
   } catch (error) {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { verifyJWT } from '@/lib/auth';
+import { maskEmail } from '@/lib/mask';
 import { generateAlphanumericId } from '@/lib/utils';
 
 const PAYSTACK_API_KEY = process.env.PAYSTACK_SECRET_KEY;
@@ -218,12 +219,12 @@ export async function GET(
       updated_at: row.updated_at,
 
       customer_name: row.customer_name,
-      customer_email: row.customer_email,
+      customer_email_masked: maskEmail(row.customer_email),
 
       order: {
         id: row.order_id,
         customer_name: row.customer_name,
-        customer_email: row.customer_email,
+        customer_email_masked: maskEmail(row.customer_email),
         customer_phone: null,
         total_amount: Number(row.order_total ?? 0),
         payment_reference: row.payment_reference,
