@@ -5,8 +5,7 @@ import { useRouter } from 'next/navigation';
 import { formatWat } from '@/lib/wat';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { PinModal } from '@/components/pin-modal';
-import { usePinVerification } from '@/hooks/use-pin-verification';
+import { usePinAuthorization } from '@/hooks/use-pin-authorization';
 import {
   AlertCircle,
   ArrowLeft,
@@ -49,10 +48,7 @@ export default function WithdrawPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [pinRequired, setPinRequired] = useState(false);
-  const [verificationInfo, setVerificationInfo] = useState<{ method?: string; message?: string } | null>(null);
-
-  const pinVerification = usePinVerification();
+  const { authorize, dialogs } = usePinAuthorization();
 
   const [amount, setAmount] = useState('');
   const [notes, setNotes] = useState('');
@@ -134,25 +130,17 @@ export default function WithdrawPage() {
       return;
     }
 
-    // Request PIN before processing withdrawal
-    setPinRequired(true);
     setError('');
-    
     try {
-      const result = await pinVerification.requestPin('withdrawal', {
-        amount: withdrawNum,
-        bank_code: bankDetails.bank_code,
-        bank_account_holder: bankDetails.bank_account_holder,
-      });
-      setVerificationInfo({ method: result.method, message: result.message });
+      const ticket = await authorize('withdrawal', { amount: withdrawNum }, `Withdraw ${NGN(withdrawNum)} to ${bankName} ••••${bankDetails.bank_account_number.slice(-4)}`);
+      await handlePinVerified(ticket);
     } catch (err) {
-      console.error('[v0] PIN request error:', err);
-      setError('Failed to send verification PIN. Please try again.');
-      setPinRequired(false);
+      if (err instanceof Error && err.message === 'cancelled') return;
+      setError(err instanceof Error ? err.message : 'PIN authorization failed');
     }
   };
 
-  const handlePinVerified = async () => {
+  const handlePinVerified = async (ticket: string) => {
     if (!bankDetails || !business) return;
     
     setSubmitting(true);
@@ -165,12 +153,12 @@ export default function WithdrawPage() {
         body: JSON.stringify({
           amount: withdrawNum,
           notes,
+          authorizationTicket: ticket,
         }),
       });
       const data = await res.json();
+      if (res.status === 403 && data.code === 'PIN_REQUIRED') throw new Error('PIN authorization required');
       if (!res.ok) throw new Error(data.error || 'Withdrawal failed');
-      setPinRequired(false);
-      pinVerification.closeModal();
       router.push(`/dashboard/finance/withdrawal/${data.withdrawalId}`);
     } catch (err: any) {
       console.error('[v0] withdraw submit error:', err);
@@ -225,39 +213,7 @@ export default function WithdrawPage() {
     <div className="mx-auto max-w-3xl space-y-5 pb-10">
       <Header />
 
-      {/* PIN Verification Modal */}
-      {pinRequired && (
-        <PinModal
-          isOpen={pinVerification.isOpen}
-          onClose={() => {
-            setPinRequired(false);
-            pinVerification.closeModal();
-            setVerificationInfo(null);
-          }}
-          onSubmit={async (pin) => {
-            try {
-              await pinVerification.verifyPin(pin);
-              await handlePinVerified();
-            } catch (err) {
-              console.error('PIN verification error:', err);
-              setError('Invalid PIN. Please try again.');
-            }
-          }}
-          purpose="withdrawal"
-          pinId={pinVerification.pinId ?? ''}
-          isLoading={submitting}
-          method={verificationInfo?.method as any}
-          message={verificationInfo?.message ?? undefined}
-        />
-      )}
-
-      {/* Verification info message */}
-      {pinRequired && verificationInfo?.message && (
-        <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
-          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-          {verificationInfo.message}
-        </div>
-      )}
+      {dialogs}
 
       {error && (
         <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">

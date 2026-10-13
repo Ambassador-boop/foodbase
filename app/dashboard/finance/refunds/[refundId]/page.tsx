@@ -25,6 +25,7 @@ import {
   FileText,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { usePinAuthorization } from '@/hooks/use-pin-authorization';
 
 interface RefundData {
   id: string;
@@ -175,6 +176,7 @@ export default function RefundDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [retrying, setRetrying] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const { authorize, dialogs } = usePinAuthorization();
 
   const fetchRefund = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -210,14 +212,15 @@ export default function RefundDetailsPage() {
     if (!refund) return;
     setRetrying(true);
     try {
-      const res = await fetch(`/api/refunds/${refundId}/retry`, { method: 'POST' });
+      const authorizationTicket = await authorize('refund', { orderId: refund.order.id, amount: refund.amount }, `Refund ${formatCurrency(refund.amount)}`);
+      const res = await fetch(`/api/refunds/${refundId}/retry`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ authorizationTicket }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || 'Retry failed');
       toast.success('Refund retry submitted to Paystack');
       if (data.refundId) router.push(`/dashboard/finance/refunds/${data.refundId}`);
       else fetchRefund(true);
     } catch (e: any) {
-      toast.error(e.message || 'Could not retry refund');
+      if (e?.message !== 'cancelled') toast.error(e.message || 'Could not retry refund');
     } finally {
       setRetrying(false);
     }
@@ -347,6 +350,7 @@ export default function RefundDetailsPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-muted/30 to-background">
+      {dialogs}
       {/* Top bar */}
       <header className="sticky top-0 z-20 bg-background/80 backdrop-blur-md border-b">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-3">

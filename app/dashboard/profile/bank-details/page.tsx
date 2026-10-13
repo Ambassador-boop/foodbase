@@ -3,8 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { PinModal } from '@/components/pin-modal';
-import { usePinVerification } from '@/hooks/use-pin-verification';
+import { usePinAuthorization } from '@/hooks/use-pin-authorization';
 import {
   AlertCircle,
   ArrowLeft,
@@ -41,10 +40,7 @@ export default function BankDetailsPage() {
   const [showBankDropdown, setShowBankDropdown] = useState(false);
   const [bankSearch, setBankSearch] = useState('');
   const [validating, setValidating] = useState(false);
-  const [pinRequired, setPinRequired] = useState(false);
-  const [verificationInfo, setVerificationInfo] = useState<{ method?: string; message?: string } | null>(null);
-
-  const pinVerification = usePinVerification();
+  const { authorize, dialogs } = usePinAuthorization();
 
   const [bankDetails, setBankDetails] = useState<BankDetails>({
     bank_code: '',
@@ -152,25 +148,17 @@ export default function BankDetailsPage() {
       return;
     }
 
-    // Request PIN before saving
-    setPinRequired(true);
     setError('');
-    
     try {
-      const result = await pinVerification.requestPin('bank_account', {
-        bank_code: bankDetails.bank_code,
-        bank_account_number: bankDetails.bank_account_number,
-        bank_account_holder: bankDetails.bank_account_holder,
-      });
-      setVerificationInfo({ method: result.method, message: result.message });
+      const ticket = await authorize('bank_account', { bank_code: bankDetails.bank_code, account_number: bankDetails.bank_account_number }, 'Confirm bank account change');
+      await handlePinVerified(ticket);
     } catch (err) {
-      console.error('PIN request error:', err);
-      setError('Failed to send verification PIN. Please try again.');
-      setPinRequired(false);
+      if (err instanceof Error && err.message === 'cancelled') return;
+      setError(err instanceof Error ? err.message : 'PIN authorization failed');
     }
   };
 
-  const handlePinVerified = async () => {
+  const handlePinVerified = async (authorizationTicket: string) => {
     setSaving(true);
     setError('');
 
@@ -182,7 +170,7 @@ export default function BankDetailsPage() {
         body: JSON.stringify({
           bank_code: bankDetails.bank_code,
           bank_account_number: bankDetails.bank_account_number,
-          bank_account_holder: bankDetails.bank_account_holder,
+          authorizationTicket,
         }),
       });
 
@@ -191,10 +179,10 @@ export default function BankDetailsPage() {
         throw new Error(data.error || 'Failed to save bank details');
       }
 
+      const refreshed = await fetch('/api/business/bank-details', { credentials: 'include' });
+      if (refreshed.ok) { const data = await refreshed.json(); setBankDetails((current) => ({ ...current, bank_account_holder: data.bank_account_holder || current.bank_account_holder })); }
       setSuccess('Bank details saved successfully! Your account is now verified.');
       setHasSavedDetails(true);
-      setPinRequired(false);
-      pinVerification.closeModal();
       setTimeout(() => setSuccess(''), 4000);
     } catch (err) {
       console.error('Save error:', err);
@@ -234,39 +222,7 @@ export default function BankDetailsPage() {
     <div className="space-y-6">
       <Header />
 
-      {/* PIN Verification Modal */}
-      {pinRequired && (
-        <PinModal
-          isOpen={pinVerification.isOpen}
-          onClose={() => {
-            setPinRequired(false);
-            pinVerification.closeModal();
-            setVerificationInfo(null);
-          }}
-          onSubmit={async (pin) => {
-            try {
-              await pinVerification.verifyPin(pin);
-              await handlePinVerified();
-            } catch (err) {
-              console.error('PIN verification error:', err);
-              setError('Invalid PIN. Please try again.');
-            }
-          }}
-          purpose="bank_account"
-          pinId={pinVerification.pinId}
-          isLoading={saving}
-          method={verificationInfo?.method as any}
-          message={verificationInfo?.message}
-        />
-      )}
-
-      {/* Verification info message */}
-      {pinRequired && verificationInfo?.message && (
-        <div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4">
-          <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-blue-600" />
-          <p className="text-sm text-blue-800">{verificationInfo.message}</p>
-        </div>
-      )}
+      {dialogs}
 
       {/* Status hero */}
       <section
