@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { verifyJWT } from '@/lib/auth';
+import { getBankName } from '@/lib/banks';
 import { verifyAndSyncTransfer, reverseFailedWithdrawalIfNeeded } from '@/lib/withdrawals';
 
 /* ------------------------------------------------------------------ */
@@ -92,7 +93,7 @@ export async function GET(
         row.withdrawal_fee != null ? Number(row.withdrawal_fee) : 0,
       service_fee: row.service_fee != null ? Number(row.service_fee) : 0,
       status: row.status,
-      bank_name: row.bank_code,
+      bank_name: await getBankName(row.bank_code),
       bank_account_number_last4: row.bank_account_number ? String(row.bank_account_number).slice(-4) : null,
       bank_account_holder: row.bank_account_holder,
       reference: row.reference || row.payment_reference,

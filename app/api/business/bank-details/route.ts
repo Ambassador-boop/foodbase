@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { requireTicket } from '@/lib/security/pin';
 import { verifyJWT } from '@/lib/auth';
 import { getActiveBusinessForUser } from '@/lib/active-business';
+import { getBankName } from '@/lib/banks';
 
 function rowsOf(raw: any): any[] { return Array.isArray(raw) ? raw : raw?.rows ?? []; }
 async function getUserId(req: NextRequest) { const token = req.headers.get('authorization')?.replace('Bearer ', '') || req.cookies.get('auth_token')?.value; const payload = token ? await verifyJWT(token) : null; return payload ? (payload as any).userId || (payload as any).id : null; }
@@ -12,7 +13,7 @@ export async function GET(req: NextRequest) {
     const userId = await getUserId(req); if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const business = await getActiveBusinessForUser(userId); if (!business) return NextResponse.json({ error: 'Business not found' }, { status: 404 });
     const raw = await db.query('SELECT bank_account_number, bank_code, bank_account_holder FROM businesses WHERE id=$1', [business.id]); const row = rowsOf(raw)[0];
-    return row ? NextResponse.json(row) : NextResponse.json({ error: 'Business not found' }, { status: 404 });
+    return row ? NextResponse.json({ ...row, bank_name: await getBankName(row.bank_code) }) : NextResponse.json({ error: 'Business not found' }, { status: 404 });
   } catch (error) { console.error('[v0] Failed to fetch bank details:', error); return NextResponse.json({ error: 'Internal server error' }, { status: 500 }); }
 }
 
