@@ -1,13 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { verifyJWT } from '@/lib/auth';
+import { maskEmail } from '@/lib/mask';
 
 function rowsOf(raw: any): any[] { return Array.isArray(raw) ? raw : raw?.rows ?? []; }
-function maskEmail(email: string | null) {
-  if (!email) return null;
-  const [local, domain] = email.split('@');
-  return local && domain ? `${local[0]}•••@${domain}` : null;
-}
 function paymentStatus(status: unknown) {
   const value = String(status || '').toLowerCase();
   if (['success', 'paid', 'completed'].includes(value)) return 'success';
