@@ -293,7 +293,7 @@ export default function TransactionDetailPage() {
 
       {/* Status hero */}
       <div
-        className={`relative overflow-hidden rounded-2xl border ${tone.ring} ${tone.soft} p-5 shadow-sm`}
+        className={`relative overflow-hidden rounded-2xl border border-border bg-card p-5`}
       >
         <div className="flex items-start gap-4">
           <div
@@ -358,7 +358,7 @@ export default function TransactionDetailPage() {
       </div>
 
       {/* Amount summary */}
-      <section className="rounded-2xl border border-border bg-card p-5 text-center shadow-sm">
+      <section className="rounded-2xl border border-border bg-card p-5 text-center shadow-none">
         <p className="text-xs uppercase tracking-wide text-muted-foreground">
           Total amount
         </p>
@@ -376,7 +376,7 @@ export default function TransactionDetailPage() {
       </section>
 
       {/* Customer card */}
-      <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+      <section className="rounded-2xl border border-border bg-card p-5 shadow-none">
         <h2 className="flex items-center gap-2 text-sm font-semibold">
           <User className="h-4 w-4 text-muted-foreground" />
           Customer
@@ -394,7 +394,7 @@ export default function TransactionDetailPage() {
       </section>
 
       {/* Order items */}
-      <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+      <section className="rounded-2xl border border-border bg-card p-5 shadow-none">
         <h2 className="flex items-center gap-2 text-sm font-semibold">
           <Receipt className="h-4 w-4 text-muted-foreground" />
           Items ({items.length})
@@ -438,7 +438,7 @@ export default function TransactionDetailPage() {
 
       {/* Existing refunds */}
       {refunds.length > 0 && (
-        <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+        <section className="rounded-2xl border border-border bg-card p-5 shadow-none">
           <h2 className="flex items-center gap-2 text-sm font-semibold">
             <Undo2 className="h-4 w-4 text-muted-foreground" />
             Refunds on this transaction
@@ -481,7 +481,7 @@ export default function TransactionDetailPage() {
       )}
 
       {/* References */}
-      <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+      <section className="rounded-2xl border border-border bg-card p-5 shadow-none">
         <h2 className="flex items-center gap-2 text-sm font-semibold">
           <Hash className="h-4 w-4 text-muted-foreground" />
           References

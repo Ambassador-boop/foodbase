@@ -39,16 +39,17 @@ export async function GET(request: NextRequest) {
 
     // Query all settlement records for this business, grouped by date
     const settlementRows: any = await db.query(
-      `SELECT DATE(fr.created_at) as settlement_date,
+      `SELECT (((fr.created_at AT TIME ZONE 'UTC') AT TIME ZONE 'Africa/Lagos')::date) as settlement_date,
               COUNT(*) as transaction_count,
               SUM(fr.amount) as total_amount,
+              0 as refunded_total,
               MIN(fr.created_at) as first_settlement_time,
               MAX(fr.created_at) as last_settlement_time
          FROM finance_records fr
         WHERE fr.business_id = $1
           AND fr.record_type = 'settlement'
-        GROUP BY DATE(fr.created_at)
-        ORDER BY DATE(fr.created_at) DESC
+        GROUP BY (((fr.created_at AT TIME ZONE 'UTC') AT TIME ZONE 'Africa/Lagos')::date)
+        ORDER BY (((fr.created_at AT TIME ZONE 'UTC') AT TIME ZONE 'Africa/Lagos')::date) DESC
         LIMIT 200`,
       [activeBusiness.id],
     );
@@ -58,6 +59,7 @@ export async function GET(request: NextRequest) {
         settlement_date: row.settlement_date,
         transaction_count: Number(row.transaction_count || 0),
         total_amount: Number(row.total_amount || 0),
+        refunded_total: Number(row.refunded_total || 0),
         first_settlement_time: row.first_settlement_time,
         last_settlement_time: row.last_settlement_time,
       }),
