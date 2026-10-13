@@ -1,11 +1,14 @@
 import bcrypt from 'bcryptjs';
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
+import { randomInt } from 'crypto';
 import { getOne } from './db';
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'your-secret-key-change-in-production'
-);
+function getJwtSecret() {
+  const secret = process.env.JWT_SECRET;
+  if (!secret && process.env.NODE_ENV === 'production') throw new Error('JWT_SECRET is not configured');
+  return new TextEncoder().encode(secret || 'your-secret-key-change-in-production');
+}
 
 export async function hashPassword(password: string): Promise<string> {
   const salt = await bcrypt.genSalt(10);
@@ -28,14 +31,14 @@ export async function createJWT(payload: {
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('30d')
-    .sign(JWT_SECRET);
+    .sign(getJwtSecret());
 
   return token;
 }
 
 export async function verifyJWT(token: string) {
   try {
-    const verified = await jwtVerify(token, JWT_SECRET);
+    const verified = await jwtVerify(token, getJwtSecret());
     return verified.payload;
   } catch (error) {
     return null;
@@ -76,7 +79,7 @@ export async function getCurrentUser() {
 }
 
 export function generateOTP(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  return randomInt(100000, 1000000).toString();
 }
 
 // Get token from either Authorization header or cookie

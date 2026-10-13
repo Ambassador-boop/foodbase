@@ -68,6 +68,8 @@ export default function DashboardPage() {
   const [error, setError] = useState('');
   const [hideValues, setHideValues] = useState(false);
   const [timeRange, setTimeRange] = useState<TimeRange>('today');
+  const [hasPin, setHasPin] = useState(true);
+  const [dismissedPinBanner, setDismissedPinBanner] = useState(false);
   const isMobile = useIsMobile();
 
   const fetchMetrics = useCallback(async (silent = false) => {
@@ -94,6 +96,7 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
+    fetch('/api/security/pin/status', { credentials: 'include' }).then((r) => r.json()).then((d) => setHasPin(Boolean(d.hasPin))).catch(() => undefined);
     fetchMetrics(true);
     const interval = setInterval(() => fetchMetrics(true), 15000);
     return () => clearInterval(interval);
@@ -172,10 +175,12 @@ export default function DashboardPage() {
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Sales & balances overview
-          </p>
-        </div>
+  <p className="text-sm text-muted-foreground mt-0.5">
+  Sales & balances overview
+  </p>
+  </div>
+  {!hasPin && !dismissedPinBanner && <div className="flex items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm"><Link href="/dashboard/security" className="font-medium text-primary">Create your PIN: it is required for withdrawals</Link><button type="button" aria-label="Dismiss PIN reminder" onClick={() => setDismissedPinBanner(true)} className="text-muted-foreground hover:text-foreground">×</button></div>}
+
         <div className="flex items-center gap-2">
           <Button
             variant="outline"

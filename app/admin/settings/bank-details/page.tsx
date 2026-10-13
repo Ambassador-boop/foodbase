@@ -45,7 +45,7 @@ export default function AdminBankDetailsPage() {
   const fetchInitialData = async () => {
     try {
       const [banksRes, detailsRes] = await Promise.all([
-        fetch('/api/paystack/banks'),
+        fetch('/api/paystack/banks', { credentials: 'include' }),
         fetch('/api/admin/bank-details', {
           credentials: 'include',
         }),
@@ -88,8 +88,9 @@ export default function AdminBankDetailsPage() {
 
     try {
       const response = await fetch('/api/paystack/validate-account', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           accountNumber: formData.accountNumber,
           bankCode: formData.bankCode,

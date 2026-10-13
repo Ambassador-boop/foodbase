@@ -68,4 +68,3 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ error: 'No reference provided' }, { status: 400 });
 }
 
-export { rowsOf };

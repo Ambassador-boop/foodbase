@@ -184,7 +184,7 @@ export default function WithdrawalDetailsPage() {
   useEffect(() => {
     if (!withdrawalId) return;
     fetchData();
-    fetch('/api/paystack/banks')
+    fetch('/api/paystack/banks', { credentials: 'include' })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (!d?.banks) return;

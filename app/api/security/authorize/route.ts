@@ -10,8 +10,10 @@ export async function POST(req: NextRequest) {
   try {
     const uid = await userId(req); if (!uid) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const business = await getActiveBusinessForUser(uid); if (!business) return NextResponse.json({ error: 'Business not found' }, { status: 404 });
+    const rate = await db.query("SELECT fb_rate_limit('authorize:' || $1, 30, 600) AS allowed", [uid]);
+    if (!Boolean(rowsOf(rate)[0]?.allowed)) return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
     const body = await req.json(); const action = String(body.action || ''); const params = body.params || {}; const pin = String(body.pin || '');
-    if (!['withdrawal', 'refund', 'bank_account'].includes(action)) return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+    if (!['withdrawal', 'refund', 'bank_account', 'password_change', 'profile_update'].includes(action)) return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
     if (!/^\d{4,6}$/.test(pin)) return NextResponse.json({ error: 'PIN must be 4 to 6 digits' }, { status: 400 });
     let bind: Record<string, string>;
     if (action === 'withdrawal') {
@@ -19,7 +21,9 @@ export async function POST(req: NextRequest) {
       if (!bank?.bank_code || !bank?.bank_account_number) return NextResponse.json({ error: 'Add your bank details first' }, { status: 400 });
       bind = { amount: normalizeAmount(params.amount), account: `${bank.bank_code}:${bank.bank_account_number}` };
     } else if (action === 'refund') bind = { order_id: String(params.orderId), amount: normalizeAmount(params.amount) };
-    else bind = { bank_code: String(params.bank_code), account_number: String(params.account_number) };
+    else if (action === 'bank_account') bind = { bank_code: String(params.bank_code), account_number: String(params.account_number) };
+    else if (action === 'password_change') bind = {};
+    else bind = { first_name: String(params.first_name || '').trim(), last_name: String(params.last_name || '').trim(), phone: String(params.phone || '').trim() };
     const result = await verifyPinAndIssueTicket({ userId: uid, businessId: business.id, action, bind, pin });
     if (!result.ok && result.code === 'LOCKED') return NextResponse.json({ error: 'Too many wrong attempts. Try again later.', code: 'LOCKED', lockedUntil: result.lockedUntil }, { status: 429 });
     if (!result.ok && result.code === 'PIN_NOT_SET') return NextResponse.json({ code: 'PIN_NOT_SET', error: 'Create a PIN first' }, { status: 409 });

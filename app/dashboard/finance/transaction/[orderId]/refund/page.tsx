@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { usePinAuthorization } from '@/hooks/use-pin-authorization';
 import {
   AlertCircle,
   ArrowLeft,
@@ -52,6 +53,7 @@ export default function RefundRequestPage() {
   const [reason, setReason] = useState('');
   const [notes, setNotes] = useState('');
   const [type, setType] = useState<'full' | 'partial'>('full');
+  const { authorize, dialogs } = usePinAuthorization();
 
   useEffect(() => {
     if (!orderId) return;
@@ -119,6 +121,7 @@ export default function RefundRequestPage() {
     setSubmitting(true);
     setError('');
     try {
+      const authorizationTicket = await authorize('refund', { orderId, amount: refundNum }, `Refund ${NGN(refundNum)}`);
       const res = await fetch('/api/refunds/request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -128,6 +131,7 @@ export default function RefundRequestPage() {
           amount: refundNum,
           reason,
           notes: notes || undefined,
+          authorizationTicket,
         }),
       });
       const j = await res.json();
@@ -136,6 +140,7 @@ export default function RefundRequestPage() {
       }
       router.push(`/dashboard/finance/refunds/${j.refundId}`);
     } catch (err: any) {
+      if (err?.message === 'cancelled') { setSubmitting(false); return; }
       setError(err?.message || 'Refund failed');
       setSubmitting(false);
     }
@@ -198,6 +203,7 @@ export default function RefundRequestPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-5 pb-10">
       <Header orderId={orderId} />
+      {dialogs}
 
       {error && (
         <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">

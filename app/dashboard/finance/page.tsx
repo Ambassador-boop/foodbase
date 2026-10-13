@@ -176,7 +176,7 @@ export default function FinancePage() {
   /* ------------- bank name lookup -------------------------------- */
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/paystack/banks')
+    fetch('/api/paystack/banks', { credentials: 'include' })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (cancelled || !d?.banks) return;

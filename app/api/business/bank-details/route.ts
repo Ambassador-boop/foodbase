@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     const userId = await getUserId(req); if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const business = await getActiveBusinessForUser(userId); if (!business) return NextResponse.json({ error: 'Business not found' }, { status: 404 });
     const body = await req.json(); const bankCode = String(body.bank_code || ''); const accountNumber = String(body.bank_account_number || body.account_number || '');
-    if (!bankCode || !accountNumber) return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    if (!/^\d{10}$/.test(accountNumber) || !/^\d{3,6}$/.test(bankCode)) return NextResponse.json({ error: 'Invalid bank details' }, { status: 400 });
     const authorized = await requireTicket({ ticket: body.authorizationTicket, userId, businessId: business.id, action: 'bank_account', bind: { bank_code: bankCode, account_number: accountNumber } });
     if (!authorized) return NextResponse.json({ error: 'PIN authorization required', code: 'PIN_REQUIRED' }, { status: 403 });
     const secret = process.env.PAYSTACK_SECRET_KEY; if (!secret) return NextResponse.json({ error: 'Could not verify this bank account' }, { status: 400 });
