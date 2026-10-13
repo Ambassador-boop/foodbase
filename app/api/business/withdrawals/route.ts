@@ -30,8 +30,8 @@ export async function GET(req: NextRequest) {
   const userId = await getUserId(req); if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const business = await getActiveBusinessForUser(userId); if (!business) return NextResponse.json({ error: 'Business not found' }, { status: 404 });
   try { await reconcileBusinessWithdrawals(business.id); } catch (error) { console.error('[v0] withdrawal reconciliation failed:', error); }
-  const raw: any = await db.query(`SELECT id,amount,net_amount,withdrawal_fee,service_fee,status,bank_code,bank_account_number,bank_account_holder,payment_reference,reference,paystack_transfer_id,transfer_code,failure_reason,gateway_response,notes,requested_at,processed_at,created_at,updated_at FROM withdrawals WHERE business_id=$1 ORDER BY created_at DESC LIMIT 200`, [business.id]);
-  return NextResponse.json(rowsOf(raw).map((r: any) => ({ ...r, amount: Number(r.amount), net_amount: r.net_amount == null ? null : Number(r.net_amount), withdrawal_fee: Number(r.withdrawal_fee || 0), service_fee: Number(r.service_fee || 0) })));
+  const raw: any = await db.query(`SELECT id,amount,net_amount,status,payment_reference,reference,notes,requested_at,processed_at,created_at,updated_at FROM withdrawals WHERE business_id=$1 ORDER BY created_at DESC LIMIT 200`, [business.id]);
+  return NextResponse.json(rowsOf(raw).map((r: any) => ({ id: r.id, amount: Number(r.amount), net_amount: r.net_amount == null ? null : Number(r.net_amount), status: r.status, payment_reference: r.payment_reference, reference: r.reference, notes: r.notes, requested_at: r.requested_at, processed_at: r.processed_at, created_at: r.created_at, updated_at: r.updated_at })));
 }
 
 export async function POST(req: NextRequest) {

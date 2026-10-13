@@ -7,68 +7,20 @@ import { Button } from '@/components/ui/button';
 import {
   AlertCircle,
   ArrowLeft,
-  BadgeCheck,
   CheckCircle2,
   Clock,
   Copy,
-  CreditCard,
-  Globe,
   Hash,
   Mail,
   MapPin,
   Phone,
   Receipt,
   RefreshCw,
-  Sparkles,
   Undo2,
   User,
   XCircle,
 } from 'lucide-react';
 import { formatWat } from '@/lib/wat';
-
-interface Authorization {
-  authorization_code?: string;
-  bin?: string;
-  last4?: string;
-  exp_month?: string;
-  exp_year?: string;
-  channel?: string;
-  card_type?: string;
-  bank?: string;
-  country_code?: string;
-  brand?: string;
-  reusable?: boolean;
-}
-
-interface Customer {
-  id?: number;
-  email?: string | null;
-  first_name?: string | null;
-  last_name?: string | null;
-  phone?: string | null;
-  customer_code?: string;
-}
-
-interface PaystackData {
-  id?: number;
-  reference?: string;
-  status?: string;
-  amount?: number; // in kobo
-  fees?: number; // in kobo
-  channel?: string;
-  currency?: string;
-  ip_address?: string;
-  paid_at?: string;
-  created_at?: string;
-  gateway_response?: string;
-  authorization?: Authorization;
-  customer?: Customer;
-  log?: {
-    history?: Array<{ type: string; message: string; time: number }>;
-    time_spent?: number;
-  };
-  error?: string;
-}
 
 interface OrderItem {
   id: string;
@@ -91,7 +43,7 @@ interface Resp {
   order: {
     id: string;
     customer_name: string;
-    customer_email: string;
+    customer_email_masked: string | null;
     customer_phone: string | null;
     address: string | null;
     notes: string | null;
@@ -107,7 +59,8 @@ interface Resp {
   };
   items: OrderItem[];
   refunds: RefundEntry[];
-  paystack: PaystackData | null;
+  payment: { status: 'success' | 'pending' | 'failed' | 'abandoned' | 'reversed'; method_label: string; paid_at: string | null };
+  settlement: { net_received: number | null; balance_bucket: string | null; settlement_status: string | null; available_at: string | null; settled_at: string | null };
 }
 
 const NGN = (n: number) =>
@@ -129,6 +82,7 @@ export default function TransactionDetailPage() {
   } | null>(null);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState<string | null>(null);
+  const [refundable, setRefundable] = useState(0);
 
   const fetchData = async () => {
     setRefreshing(true);
@@ -142,6 +96,8 @@ export default function TransactionDetailPage() {
       }
       const j: Resp = await res.json();
       setData(j);
+      const eligibility = await fetch(`/api/refunds/eligibility?orderId=${encodeURIComponent(orderId)}`, { credentials: 'include' });
+      if (eligibility.ok) setRefundable(Number((await eligibility.json()).refundable || 0));
       setError('');
     } catch (err: any) {
       console.error('[v0] transaction detail error:', err);
@@ -188,7 +144,6 @@ export default function TransactionDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderId]);
 
-  const ps = data?.paystack;
   const order = data?.order;
   const refunds = data?.refunds || [];
   const items = data?.items || [];
@@ -205,7 +160,6 @@ export default function TransactionDetailPage() {
     [refunds],
   );
 
-  const refundable = order ? Math.max(0, order.total_amount - totalRefunded) : 0;
   const fullyRefunded = refundable <= 0;
 
   const copy = async (label: string, text: string) => {
@@ -248,7 +202,7 @@ export default function TransactionDetailPage() {
 
   /* ---------- status hero --------------------------------------- */
   const statusKey = String(
-    ps?.status || order.payment_status || 'pending',
+    data?.payment.status || 'pending',
   ).toLowerCase();
 
   const heroCfg = (() => {
@@ -267,7 +221,7 @@ export default function TransactionDetailPage() {
           label: 'Successful',
           tone: 'emerald' as const,
           icon: CheckCircle2,
-          msg: 'Payment was processed successfully by Paystack.',
+          msg: 'Payment was processed successfully.',
         };
       case 'reversed':
         return {
@@ -281,7 +235,7 @@ export default function TransactionDetailPage() {
           label: 'Failed',
           tone: 'rose' as const,
           icon: XCircle,
-          msg: ps?.gateway_response || 'This transaction failed to process.',
+          msg: 'This transaction failed to process.',
         };
       case 'abandoned':
         return {
@@ -308,12 +262,7 @@ export default function TransactionDetailPage() {
 
   const Icon = heroCfg.icon;
 
-  const psAmount = ps?.amount != null ? Number(ps.amount) / 100 : null;
-  const psFees = ps?.fees != null ? Number(ps.fees) / 100 : null;
-  const customerName =
-    [ps?.customer?.first_name, ps?.customer?.last_name]
-      .filter(Boolean)
-      .join(' ') || order.customer_name;
+  const customerName = order.customer_name;
 
   /* ---------- render -------------------------------------------- */
   return (
@@ -417,16 +366,13 @@ export default function TransactionDetailPage() {
           {NGN(order.total_amount)}
         </p>
         <div className="mt-4 grid grid-cols-2 gap-3 text-left sm:grid-cols-3">
-          <Stat label="Subtotal" value={NGN(order.total_amount - order.service_fee_amount)} />
+          <Stat label="Order total" value={NGN(order.total_amount)} />
           <Stat label="Service fee" value={NGN(order.service_fee_amount)} />
-          {totalRefunded > 0 ? (
-            <Stat label="Refunded" value={NGN(totalRefunded)} tone="rose" />
-          ) : psFees != null ? (
-            <Stat label="Paystack fees" value={NGN(psFees)} />
-          ) : (
-            <Stat label="Net" value={NGN(order.total_amount)} tone="emerald" />
-          )}
+          {totalRefunded > 0 && <Stat label="Refunded" value={NGN(totalRefunded)} tone="rose" />}
+          <Stat label="You receive" value={NGN(Number(data?.settlement.net_received || 0) - totalRefunded)} tone="emerald" />
         </div>
+        {data?.settlement.settlement_status === 'pending' && data.settlement.available_at && <p className="mt-3 text-xs text-muted-foreground">Settles {formatWat(data.settlement.available_at, { dateStyle: 'medium', timeStyle: 'short' })} WAT</p>}
+        {data?.settlement.settlement_status === 'settled' && data.settlement.settled_at && <p className="mt-3 text-xs text-muted-foreground">Settled {formatWat(data.settlement.settled_at, { dateStyle: 'medium', timeStyle: 'short' })} WAT</p>}
       </section>
 
       {/* Customer card */}
@@ -437,79 +383,15 @@ export default function TransactionDetailPage() {
         </h2>
         <div className="mt-3 space-y-2 text-sm">
           {customerName && <Row icon={User} value={customerName} />}
-          {order.customer_email && (
-            <Row icon={Mail} value={order.customer_email} />
+          {order.customer_email_masked && (
+            <Row icon={Mail} value={order.customer_email_masked} />
           )}
           {order.customer_phone && (
             <Row icon={Phone} value={order.customer_phone} />
           )}
           {order.address && <Row icon={MapPin} value={order.address} />}
-          {ps?.ip_address && (
-            <Row icon={Globe} label="IP address" value={ps.ip_address} mono />
-          )}
-          {ps?.customer?.customer_code && (
-            <Row
-              icon={Hash}
-              label="Customer code"
-              value={ps.customer.customer_code}
-              mono
-            />
-          )}
         </div>
       </section>
-
-      {/* Payment method (Paystack authorization) */}
-      {ps?.authorization && (ps.authorization.last4 || ps.authorization.bank) && (
-        <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-          <h2 className="flex items-center gap-2 text-sm font-semibold">
-            <CreditCard className="h-4 w-4 text-muted-foreground" />
-            Payment method
-          </h2>
-          <div className="mt-3 rounded-xl border border-border bg-gradient-to-br from-slate-50 via-white to-slate-50 p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                  {ps.authorization.brand || ps.authorization.card_type || 'Card'}
-                </p>
-                <p className="mt-1 font-mono text-base font-semibold tracking-widest">
-                  •••• •••• •••• {ps.authorization.last4 || '••••'}
-                </p>
-              </div>
-              <div className="text-right">
-                {ps.authorization.exp_month && ps.authorization.exp_year && (
-                  <>
-                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                      Expires
-                    </p>
-                    <p className="mt-1 font-mono text-sm">
-                      {ps.authorization.exp_month}/
-                      {String(ps.authorization.exp_year).slice(-2)}
-                    </p>
-                  </>
-                )}
-              </div>
-            </div>
-            <div className="mt-3 flex flex-wrap gap-3 border-t border-dashed border-border pt-3 text-xs text-muted-foreground">
-              {ps.authorization.bank && (
-                <span className="inline-flex items-center gap-1">
-                  <BadgeCheck className="h-3 w-3" /> {ps.authorization.bank}
-                </span>
-              )}
-              {ps.authorization.country_code && (
-                <span>{ps.authorization.country_code}</span>
-              )}
-              {ps.authorization.channel && (
-                <span className="capitalize">via {ps.authorization.channel}</span>
-              )}
-              {ps.authorization.reusable && (
-                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
-                  Reusable
-                </span>
-              )}
-            </div>
-          </div>
-        </section>
-      )}
 
       {/* Order items */}
       <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
@@ -553,45 +435,6 @@ export default function TransactionDetailPage() {
           )}
         </ul>
       </section>
-
-      {/* Paystack timeline */}
-      {ps?.log?.history && ps.log.history.length > 0 && (
-        <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-          <h2 className="flex items-center gap-2 text-sm font-semibold">
-            <Sparkles className="h-4 w-4 text-muted-foreground" />
-            Transaction timeline
-          </h2>
-          <ol className="mt-4 space-y-3">
-            {ps.log.history.map((h, i) => (
-              <li key={i} className="flex gap-3">
-                <div
-                  className={`mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full ${
-                    h.type === 'success'
-                      ? 'bg-emerald-500'
-                      : h.type === 'error'
-                        ? 'bg-rose-500'
-                        : 'bg-amber-500'
-                  }`}
-                />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium capitalize">
-                    {h.type}
-                  </p>
-                  <p className="text-xs text-muted-foreground">{h.message}</p>
-                  <p className="mt-0.5 text-[11px] text-muted-foreground/80">
-                    {h.time}s after start
-                  </p>
-                </div>
-              </li>
-            ))}
-          </ol>
-          {ps.log.time_spent != null && (
-            <p className="mt-3 border-t border-border pt-3 text-[11px] text-muted-foreground">
-              Total time spent: {ps.log.time_spent}s
-            </p>
-          )}
-        </section>
-      )}
 
       {/* Existing refunds */}
       {refunds.length > 0 && (
@@ -660,21 +503,6 @@ export default function TransactionDetailPage() {
               copied={copied === 'Payment reference'}
             />
           )}
-          {ps?.id && (
-            <Identifier
-              label="Paystack ID"
-              value={String(ps.id)}
-              mono
-              onCopy={() => copy('Paystack ID', String(ps.id))}
-              copied={copied === 'Paystack ID'}
-            />
-          )}
-          {ps?.channel && (
-            <Identifier label="Channel" value={ps.channel} mono />
-          )}
-          {ps?.gateway_response && (
-            <Identifier label="Gateway response" value={ps.gateway_response} />
-          )}
           <Identifier
             label="Created"
                 value={`${formatWat(order.created_at, {
@@ -711,16 +539,11 @@ export default function TransactionDetailPage() {
             View order details
           </Button>
         </Link>
-        {!fullyRefunded && statusKey === 'success' && refundable > 0 && (
-          <Link
-            href={`/dashboard/finance/transaction/${order.id}/refund`}
-            className="flex-1"
-          >
-            <Button className="h-11 w-full gap-2 bg-rose-600 text-white hover:bg-rose-700">
-              <Undo2 className="h-4 w-4" />
-              Request refund
-            </Button>
-          </Link>
+        {data.payment.status === 'success' && refundable > 0 && (
+          <div className="flex-1">
+            <Link href={`/dashboard/finance/transaction/${order.id}/refund`}><Button className="h-11 w-full gap-2 bg-rose-600 text-white hover:bg-rose-700"><Undo2 className="h-4 w-4" />Request refund</Button></Link>
+            <p className="mt-2 text-center text-xs text-muted-foreground">The {NGN(order.service_fee_amount)} service fee is not refundable</p>
+          </div>
         )}
       </div>
     </div>
