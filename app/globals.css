@@ -4,31 +4,41 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: oklch(0.98 0.01 60);
-  --foreground: oklch(0.15 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.45 0.15 60);
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.55 0.1 140);
-  --secondary-foreground: oklch(0.15 0 0);
-  --muted: oklch(0.7 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.5 0.12 140);
-  --accent-foreground: oklch(1 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(1 0 0);
-  --border: oklch(0.9 0.01 60);
-  --input: oklch(0.95 0.01 60);
-  --ring: oklch(0.45 0.15 60);
-  --chart-1: oklch(0.45 0.15 60);
-  --chart-2: oklch(0.5 0.12 140);
-  --chart-3: oklch(0.55 0.1 30);
-  --chart-4: oklch(0.4 0.14 50);
-  --chart-5: oklch(0.48 0.11 80);
-  --radius: 0.375rem;
+  --background: #FBF4EE;
+  --foreground: #1D1A17;
+  --card: #FFFFFF;
+  --card-foreground: #1D1A17;
+  --popover: #FFFFFF;
+  --popover-foreground: #1D1A17;
+  --primary: #F26A21;
+  --primary-foreground: #FFFFFF;
+  --secondary: #FFFFFF;
+  --secondary-foreground: #1D1A17;
+  --muted: #F6EBE1;
+  --muted-foreground: #7A6F66;
+  --accent: #FFEDE0;
+  --accent-foreground: #8E3800;
+  --destructive: #D64545;
+  --destructive-foreground: #FFFFFF;
+  --border: #EFE3D8;
+  --input: #FFFFFF;
+  --ring: rgba(242,106,33,0.35);
+  --success: #1F9D55;
+  --success-bg: #E6F6EC;
+  --warning: #B7791F;
+  --warning-bg: #FFF4D6;
+  --danger: #D64545;
+  --danger-bg: #FDE9E7;
+  --neutral: #475569;
+  --neutral-bg: #EEF2F7;
+  --brand-deep: #8E3800;
+  --radius: 14px;
+  --chart-1: #F26A21;
+  --chart-2: #1F9D55;
+  --chart-3: #B7791F;
+  --chart-4: #475569;
+  --chart-5: #8E3800;
+  --radius: 14px;
   --sidebar: oklch(0.96 0.01 60);
   --sidebar-foreground: oklch(0.15 0 0);
   --sidebar-primary: oklch(0.45 0.15 60);
@@ -75,7 +85,7 @@
 }
 
 @theme inline {
-  --font-sans: 'Geist', 'Geist Fallback';
+  --font-sans: 'Plus Jakarta Sans', Arial, sans-serif;
   --font-mono: 'Geist Mono', 'Geist Mono Fallback';
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -114,6 +124,8 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 }
+
+.num { font-variant-numeric: tabular-nums; }
 
 @layer base {
   * {
