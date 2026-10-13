@@ -197,9 +197,6 @@ export async function GET(
       id: row.id,
 
       reference: row.payment_reference || null,
-      transaction_id: row.transaction_id,
-      paystack_refund_id: row.paystack_refund_id,
-
       amount: Number(row.refund_amount ?? row.legacy_amount ?? 0),
       original_amount: Number(row.original_amount ?? row.order_total ?? 0),
       currency: 'NGN',
@@ -212,11 +209,6 @@ export async function GET(
       balance_affected: row.balance_affected,
 
       failure_reason: row.failure_reason,
-
-      channel: row.channel,
-      deducted_amount:
-        row.deducted_amount != null ? Number(row.deducted_amount) : null,
-      fully_deducted: row.fully_deducted,
 
       expected_at: row.expected_at,
       requested_at: row.requested_at,
