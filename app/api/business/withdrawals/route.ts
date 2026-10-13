@@ -7,6 +7,7 @@ import { reconcileBusinessWithdrawals, verifyAndSyncTransfer, reverseFailedWithd
 import { FREE_WITHDRAWALS_PER_MONTH, OVERAGE_FEE_NGN, MIN_WITHDRAWAL_NGN } from '@/lib/withdrawal-policy';
 import { watMonthStartUtc } from '@/lib/wat';
 import { normalizeAmount, requireTicket } from '@/lib/security/pin';
+import { getBankName } from '@/lib/banks';
 
 const PAYSTACK_API_KEY = process.env.PAYSTACK_SECRET_KEY;
 const PAYSTACK_BASE = 'https://api.paystack.co';
@@ -31,7 +32,7 @@ export async function GET(req: NextRequest) {
   const business = await getActiveBusinessForUser(userId); if (!business) return NextResponse.json({ error: 'Business not found' }, { status: 404 });
   try { await reconcileBusinessWithdrawals(business.id); } catch (error) { console.error('[v0] withdrawal reconciliation failed:', error); }
   const raw: any = await db.query(`SELECT id,amount,net_amount,status,bank_code,bank_account_number,bank_account_holder,payment_reference,reference,notes,requested_at,processed_at,created_at,updated_at FROM withdrawals WHERE business_id=$1 ORDER BY created_at DESC LIMIT 200`, [business.id]);
-  return NextResponse.json(rowsOf(raw).map((r: any) => ({ id: r.id, amount: Number(r.amount), net_amount: r.net_amount == null ? null : Number(r.net_amount), status: r.status, bank_code: r.bank_code, bank_account_number: r.bank_account_number, bank_account_holder: r.bank_account_holder, payment_reference: r.payment_reference, reference: r.reference, notes: r.notes, requested_at: r.requested_at, processed_at: r.processed_at, created_at: r.created_at, updated_at: r.updated_at })));
+  return NextResponse.json(await Promise.all(rowsOf(raw).map(async (r: any) => ({ id: r.id, amount: Number(r.amount), net_amount: r.net_amount == null ? null : Number(r.net_amount), status: r.status, bank_code: r.bank_code, bank_name: await getBankName(r.bank_code), bank_account_number: r.bank_account_number, bank_account_holder: r.bank_account_holder, payment_reference: r.payment_reference, reference: r.reference, notes: r.notes, requested_at: r.requested_at, processed_at: r.processed_at, created_at: r.created_at, updated_at: r.updated_at })));
 }
 
 export async function POST(req: NextRequest) {

@@ -21,7 +21,7 @@ const badgeVariants = cva(
         warning: 'border-transparent bg-[#FFF4D6] text-[#B7791F]',
         danger: 'border-transparent bg-[#FDE9E7] text-[#D64545]',
         neutral: 'border-transparent bg-[#EEF2F7] text-[#475569]',
-        brand: 'border-transparent bg-[#FFEDE0] text-[#8E3800]',
+        brand: 'border-transparent bg-[#FFEDE0] text-primary',
       },
     },
     defaultVariants: {

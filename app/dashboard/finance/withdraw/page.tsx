@@ -28,6 +28,7 @@ interface BankDetails {
   bank_code: string;
   bank_account_number: string;
   bank_account_holder: string;
+  bank_name?: string;
 }
 interface Bank {
   code: string;
@@ -43,8 +44,7 @@ export default function WithdrawPage() {
   const router = useRouter();
   const [business, setBusiness] = useState<Business | null>(null);
   const [bankDetails, setBankDetails] = useState<BankDetails | null>(null);
-  const [bankNameMap, setBankNameMap] = useState<Record<string, string>>({});
-  const [policy, setPolicy] = useState<any>(null);
+    const [policy, setPolicy] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -57,10 +57,9 @@ export default function WithdrawPage() {
   useEffect(() => {
     (async () => {
       try {
-        const [bRes, bdRes, banksRes, policyRes] = await Promise.all([
+        const [bRes, bdRes, policyRes] = await Promise.all([
           fetch('/api/business', { credentials: 'include' }),
           fetch('/api/business/bank-details', { credentials: 'include' }),
-          fetch('/api/paystack/banks', { credentials: 'include' }),
           fetch('/api/business/withdrawals/policy', { credentials: 'include' }),
         ]);
 
@@ -73,18 +72,13 @@ export default function WithdrawPage() {
           if (d.bank_code && d.bank_account_number && d.bank_account_holder) {
             setBankDetails({
               bank_code: d.bank_code,
+              bank_name: d.bank_name,
               bank_account_number: d.bank_account_number,
               bank_account_holder: d.bank_account_holder,
             });
           }
         }
-        if (banksRes.ok) {
-          const d = await banksRes.json();
-          const map: Record<string, string> = {};
-          for (const b of d.banks || []) map[String(b.code)] = b.name;
-          setBankNameMap(map);
-        }
-        if (policyRes.ok) setPolicy(await policyRes.json());
+                if (policyRes.ok) setPolicy(await policyRes.json());
       } catch (err) {
         console.error('[v0] withdraw bootstrap error:', err);
         setError('Failed to load withdrawal data');
@@ -95,13 +89,7 @@ export default function WithdrawPage() {
   }, []);
 
   /* -------- derived --------------------------------------------- */
-  const bankName = useMemo(
-    () =>
-      bankDetails
-        ? bankNameMap[bankDetails.bank_code] || `Bank ${bankDetails.bank_code}`
-        : '',
-    [bankDetails, bankNameMap],
-  );
+  const bankName = bankDetails?.bank_name || bankDetails?.bank_code || '';
 
   const withdrawNum = parseFloat(amount) || 0;
   const incursOverage = Boolean(policy?.nextWithdrawalHasFee);

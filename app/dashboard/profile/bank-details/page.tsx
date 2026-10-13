@@ -29,6 +29,7 @@ interface BankDetails {
   bank_code: string;
   bank_account_number: string;
   bank_account_holder: string;
+  bank_name?: string;
 }
 
 export default function BankDetailsPage() {
@@ -72,6 +73,7 @@ export default function BankDetailsPage() {
         if (data.bank_code) {
           setBankDetails({
             bank_code: data.bank_code,
+            bank_name: data.bank_name || '',
             bank_account_number: data.bank_account_number || '',
             bank_account_holder: data.bank_account_holder || '',
           });
@@ -193,7 +195,7 @@ const response = await fetch('/api/paystack/validate-account', {
     }
   };
 
-  const selectedBank = banks.find((b) => b.code === bankDetails.bank_code);
+  const selectedBank = banks.find((b) => b.code === bankDetails.bank_code) || (bankDetails.bank_name ? { code: bankDetails.bank_code, name: bankDetails.bank_name } : undefined);
 
   const filteredBanks = useMemo(() => {
     if (!bankSearch) return banks;
