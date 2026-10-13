@@ -38,7 +38,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const items = rowsOf(itemRaw).map((it: any) => ({ id: it.id, menu_item_id: it.menu_item_id, name: it.menu_item_name, image: it.menu_item_image, quantity: it.quantity, item_price: Number(it.item_price || 0), configuration: it.configuration }));
     const refundRaw = await db.query(`SELECT id,refund_amount,amount,status,reason,created_at FROM refunds WHERE order_id=$1 ORDER BY created_at DESC`, [orderId]);
     const refunds = rowsOf(refundRaw).map((r: any) => ({ id: r.id, amount: Number(r.refund_amount ?? r.amount ?? 0), status: r.status, reason: r.reason, created_at: r.created_at }));
-    const txRaw = await db.query(`SELECT amount,payment_method,channel,balance_bucket,settlement_status,available_at,settled_at FROM transactions WHERE order_id=$1 ORDER BY created_at ASC LIMIT 1`, [orderId]);
+    const txRaw = await db.query(`SELECT amount,payment_method,balance_bucket,settlement_status,available_at,settled_at FROM transactions WHERE order_id=$1 ORDER BY created_at ASC LIMIT 1`, [orderId]);
     const tx = rowsOf(txRaw)[0] || null;
     return NextResponse.json({
       order: { id: order.id, customer_name: order.customer_name, customer_email_masked: maskEmail(order.customer_email), customer_phone: order.customer_phone, address: order.address, notes: order.notes, status: order.status, payment_status: order.payment_status, payment_reference: order.payment_reference, total_amount: Number(order.total_amount || 0), service_fee_amount: Number(order.service_fee_amount || 0), created_at: order.created_at, paid_at: order.paid_at, completed_at: order.completed_at, business_name: order.business_name },
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       settlement: { net_received: tx ? Number(tx.amount || 0) : null, balance_bucket: tx?.balance_bucket ?? null, settlement_status: tx?.settlement_status ?? null, available_at: tx?.available_at ?? null, settled_at: tx?.settled_at ?? null },
     });
   } catch (error) {
-    console.error('[v0] business transaction privacy route failed');
+    console.error('[v0] business transaction privacy route failed', error instanceof Error ? error.message : String(error), (error as any)?.code ? `postgres_code=${(error as any).code}` : '');
     return NextResponse.json({ error: 'Failed to fetch transaction' }, { status: 500 });
   }
 }
