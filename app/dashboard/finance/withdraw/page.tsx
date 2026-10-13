@@ -60,7 +60,7 @@ export default function WithdrawPage() {
         const [bRes, bdRes, banksRes, policyRes] = await Promise.all([
           fetch('/api/business', { credentials: 'include' }),
           fetch('/api/business/bank-details', { credentials: 'include' }),
-          fetch('/api/paystack/banks'),
+          fetch('/api/paystack/banks', { credentials: 'include' }),
           fetch('/api/business/withdrawals/policy', { credentials: 'include' }),
         ]);
 

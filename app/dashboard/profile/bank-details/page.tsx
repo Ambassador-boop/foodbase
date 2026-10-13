@@ -58,7 +58,7 @@ export default function BankDetailsPage() {
   const fetchInitialData = async () => {
     try {
       const [banksRes, detailsRes] = await Promise.all([
-        fetch('/api/paystack/banks'),
+        fetch('/api/paystack/banks', { credentials: 'include' }),
         fetch('/api/business/bank-details', { credentials: 'include' }),
       ]);
 
@@ -99,8 +99,9 @@ export default function BankDetailsPage() {
     setError('');
 
     try {
-      const response = await fetch('/api/paystack/validate-account', {
-        method: 'POST',
+const response = await fetch('/api/paystack/validate-account', {
+      method: 'POST',
+      credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           accountNumber: bankDetails.bank_account_number,

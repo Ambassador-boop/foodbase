@@ -4,9 +4,9 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
-export type PinAction = 'withdrawal' | 'refund' | 'bank_account';
+export type PinAction = 'withdrawal' | 'refund' | 'bank_account' | 'password_change' | 'profile_update';
 
-const titles: Record<PinAction, string> = { withdrawal: 'Authorize withdrawal', refund: 'Authorize refund', bank_account: 'Confirm bank account change' };
+const titles: Record<PinAction, string> = { withdrawal: 'Authorize withdrawal', refund: 'Authorize refund', bank_account: 'Confirm bank account change', password_change: 'Confirm password change', profile_update: 'Confirm profile update' };
 
 export function PinAuthorizeDialog({ open, action, summary, lockedUntil, onOpenChange, onSubmit, onForgot, loading, error }: { open: boolean; action: PinAction; summary?: string; lockedUntil?: string | null; onOpenChange: (open: boolean) => void; onSubmit: (pin: string) => void; onForgot: () => void; loading?: boolean; error?: string }) {
   const [pin, setPin] = useState('');

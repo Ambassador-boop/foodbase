@@ -39,7 +39,8 @@ export async function POST(req: NextRequest) {
   if (!PAYSTACK_API_KEY) return NextResponse.json({ error: 'Paystack is not configured on this server.' }, { status: 500 });
   const business = await getActiveBusinessForUser(userId); if (!business) return NextResponse.json({ error: 'Business not found' }, { status: 404 });
   const body = await req.json(); const amount = Number(body.amount); const notes = String(body.notes || '').slice(0, 500);
-  if (!Number.isFinite(amount) || amount < MIN_WITHDRAWAL_NGN || Math.round(amount * 100) !== amount * 100) return NextResponse.json({ error: `Minimum withdrawal is ₦${MIN_WITHDRAWAL_NGN}` }, { status: 400 });
+  if (!Number.isFinite(amount) || amount < MIN_WITHDRAWAL_NGN) return NextResponse.json({ error: `Minimum withdrawal is ₦${MIN_WITHDRAWAL_NGN}` }, { status: 400 });
+  if (Math.abs(amount * 100 - Math.round(amount * 100)) > 1e-6) return NextResponse.json({ error: 'Amount can have at most 2 decimal places' }, { status: 400 });
   const bankRaw: any = await db.query('SELECT bank_code,bank_account_number,bank_account_holder FROM businesses WHERE id=$1', [business.id]); const bank = rowsOf(bankRaw)[0];
   if (!bank?.bank_code || !bank?.bank_account_number || !bank?.bank_account_holder) return NextResponse.json({ error: 'Add your bank details first' }, { status: 400 });
   const authorized = await requireTicket({ ticket: body.authorizationTicket, userId, businessId: business.id, action: 'withdrawal', bind: { amount: normalizeAmount(amount), account: `${bank.bank_code}:${bank.bank_account_number}` } });
