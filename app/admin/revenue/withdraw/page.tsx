@@ -137,7 +137,8 @@ export default function AdminWithdrawalPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-2xl">
+  <>
+  <div className="space-y-6 max-w-2xl">
       {/* Header */}
       <div className="flex items-center gap-4">
         <Link href="/admin/revenue">
@@ -289,6 +290,7 @@ export default function AdminWithdrawalPage() {
           </>
       )}
     </div>
-    {dialogs} 
+    {dialogs}
+  </>
   );
 }
