@@ -14,6 +14,7 @@ const navigationItems = [
   { label: 'Withdrawals', href: '/admin/withdrawals', icon: DollarSign },
   { label: 'Users', href: '/admin/users', icon: Users },
   { label: 'Settings', href: '/admin/settings', icon: Settings },
+  { label: 'Security', href: '/admin/security', icon: Settings },
 ];
 
 export default function AdminLayout({

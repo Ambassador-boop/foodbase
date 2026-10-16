@@ -1,4 +1,5 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin, isAdminAuth } from '@/lib/admin-auth';
 import { getKudiBalance } from '@/lib/pin-utils';
 
 /**
@@ -6,7 +7,8 @@ import { getKudiBalance } from '@/lib/pin-utils';
  * Returns current KudiSMS account balance
  * Public endpoint (consider adding auth if needed)
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const auth = await requireAdmin(req); if (!isAdminAuth(auth)) return auth;
   try {
     const balance = await getKudiBalance();
 

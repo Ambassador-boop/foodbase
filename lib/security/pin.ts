@@ -19,7 +19,7 @@ export async function getPinStatus(userId: string) {
   return { hasPin: Boolean(result.has_pin ?? result.hasPin), locked: Boolean(result.locked), lockedUntil: result.locked_until ?? result.lockedUntil ?? null };
 }
 
-export async function verifyPinAndIssueTicket(input: { userId: string; businessId: string; action: string; bind: Record<string, string>; pin: string }) {
+export async function verifyPinAndIssueTicket(input: { userId: string; businessId: string | null; action: string; bind: Record<string, string>; pin: string }) {
   const attemptRaw = await db.query('SELECT fb_pin_begin_attempt($1,$2,$3) AS result', [input.userId, PIN_MAX_ATTEMPTS, PIN_LOCK_MINUTES]);
   const attempt = jsonResult(rowsOf(attemptRaw)[0]?.result);
   if (attempt.allowed === false) return { ok: false as const, code: 'LOCKED' as const, lockedUntil: attempt.locked_until ?? attempt.lockedUntil ?? null };
@@ -36,13 +36,13 @@ export async function verifyPinAndIssueTicket(input: { userId: string; businessI
   return { ok: true as const, ticket };
 }
 
-export async function consumeTicket(input: { ticket: string; userId: string; businessId: string; action: string; bind: Record<string, string> }): Promise<boolean> {
+export async function consumeTicket(input: { ticket: string; userId: string; businessId: string | null; action: string; bind: Record<string, string> }): Promise<boolean> {
   const raw = await db.query('SELECT fb_consume_authorization($1,$2,$3,$4,$5::jsonb) AS result', [input.ticket, input.userId, input.businessId, input.action, JSON.stringify(input.bind)]);
   const result = jsonResult(rowsOf(raw)[0]?.result);
   return result === true || result?.ok === true || result?.authorized === true || result?.valid === true;
 }
 
-export async function requireTicket(input: { ticket?: string; userId: string; businessId: string; action: string; bind: Record<string, string> }): Promise<boolean> {
+export async function requireTicket(input: { ticket?: string; userId: string; businessId: string | null; action: string; bind: Record<string, string> }): Promise<boolean> {
   if (!pinEnforced()) return true;
   if (!input.ticket) return false;
   return consumeTicket({ ...input, ticket: input.ticket });
