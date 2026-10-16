@@ -21,7 +21,7 @@ interface ColorConfig {
 const defaultColors: ColorConfig = {
   backgroundColor: '#f8f6f2',
   textColor: '#1a1a1a',
-  buttonColor: '#F26A21',
+  buttonColor: '#8E3800',
   buttonTextColor: '#ffffff',
   headerColor: '#ffffff',
   headerTextColor: '#1a1a1a',

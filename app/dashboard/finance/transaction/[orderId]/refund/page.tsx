@@ -323,7 +323,7 @@ export default function RefundRequestPage() {
         <div className="flex items-start gap-2 rounded-xl border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
           <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
           <p>
-            Refunds are processed by Paystack. Customers usually receive funds
+            Refunds are processed as online payments. Customers usually receive funds
             within a few business days, but it can take up to 10 business days.
           </p>
         </div>
