@@ -397,7 +397,7 @@ export default function WithdrawPage() {
         <div className="flex items-start gap-2 rounded-xl border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
           <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
           <p>
-            Transfers are processed securely by Paystack. Funds typically
+            Transfers are processed securely as an online payment. Funds typically
             arrive in seconds, but may take up to a few minutes during peak
             hours.
           </p>

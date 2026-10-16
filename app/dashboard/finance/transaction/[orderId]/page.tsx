@@ -126,7 +126,7 @@ export default function TransactionDetailPage() {
       } else {
         setRecheckMessage({
           tone: j.paystackStatus === 'success' ? 'ok' : 'warn',
-          text: j.message || j.error || 'Paystack has not confirmed this yet.',
+          text: j.message || j.error || 'Online payment has not confirmed this yet.',
         });
       }
     } catch (err: any) {
@@ -249,7 +249,7 @@ export default function TransactionDetailPage() {
           label: 'Pending',
           tone: 'amber' as const,
           icon: Clock,
-          msg: 'Awaiting payment confirmation from Paystack.',
+          msg: 'Awaiting online payment confirmation.',
         };
     }
   })();
