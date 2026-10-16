@@ -82,32 +82,24 @@ export default function WithdrawalsPage() {
     fetchWithdrawals(newPage);
   };
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return <CheckCircle className="w-4 h-4 text-green-600" />;
-      case 'pending':
-        return <Clock className="w-4 h-4 text-amber-600" />;
-      case 'failed':
-      case 'rejected':
-        return <XCircle className="w-4 h-4 text-red-600" />;
-      default:
-        return <Clock className="w-4 h-4 text-gray-600" />;
-    }
+  const normalizeStatus = (status: string) => {
+    const value = String(status).toLowerCase();
+    if (value === 'success' || value === 'completed') return 'Completed';
+    if (['pending', 'otp', 'received', 'queued', 'processing'].includes(value)) return 'Pending';
+    if (['failed', 'rejected', 'abandoned', 'blocked', 'reversed'].includes(value)) return 'Failed';
+    return 'Pending';
   };
-
+  const getStatusIcon = (status: string) => {
+    const normalized = normalizeStatus(status);
+    if (normalized === 'Completed') return <CheckCircle className="w-4 h-4 text-green-600" />;
+    if (normalized === 'Failed') return <XCircle className="w-4 h-4 text-red-600" />;
+    return <Clock className="w-4 h-4 text-amber-600" />;
+  };
   const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return 'bg-green-100 text-green-800';
-      case 'pending':
-        return 'bg-amber-100 text-amber-800';
-      case 'failed':
-      case 'rejected':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
+    const normalized = normalizeStatus(status);
+    if (normalized === 'Completed') return 'bg-green-100 text-green-800';
+    if (normalized === 'Failed') return 'bg-red-100 text-red-800';
+    return 'bg-amber-100 text-amber-800';
   };
 
   if (loading && withdrawals.length === 0) {
