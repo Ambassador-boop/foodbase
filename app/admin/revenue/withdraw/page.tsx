@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ArrowLeft, AlertCircle, Loader } from 'lucide-react';
+import { usePinAuthorization } from '@/hooks/use-pin-authorization';
 
 interface BankDetails {
   id: string;
@@ -30,6 +31,9 @@ export default function AdminWithdrawalPage() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [success, setSuccess] = useState('');
+  const [recent, setRecent] = useState<any[]>([]);
+  const { authorize, dialogs } = usePinAuthorization();
 
   useEffect(() => {
     fetchInitialData();
@@ -37,13 +41,14 @@ export default function AdminWithdrawalPage() {
 
   const fetchInitialData = async () => {
     try {
-      const [bankRes, revenueRes] = await Promise.all([
+      const [bankRes, revenueRes, withdrawalsRes] = await Promise.all([
         fetch('/api/admin/bank-details', {
           credentials: 'include',
         }),
         fetch('/api/admin/revenue', {
           credentials: 'include',
         }),
+        fetch('/api/admin/withdrawals', { credentials: 'include' }),
       ]);
 
       if (bankRes.ok) {
@@ -55,6 +60,7 @@ export default function AdminWithdrawalPage() {
         const data = await revenueRes.json();
         setRevenue(data.summary);
       }
+      if (withdrawalsRes.ok) setRecent((await withdrawalsRes.json()).slice(0, 10));
 
       setError('');
     } catch (err) {
@@ -88,6 +94,7 @@ export default function AdminWithdrawalPage() {
     setError('');
 
     try {
+      const authorizationTicket = await authorize('admin_withdrawal', { amount });
       const response = await fetch('/api/admin/withdrawals', {
         method: 'POST',
         headers: {
@@ -96,10 +103,7 @@ export default function AdminWithdrawalPage() {
         credentials: 'include',
         body: JSON.stringify({
           amount,
-          bank_code: bankDetails.bank_code,
-          account_number: bankDetails.account_number,
-          account_name: bankDetails.account_name,
-          paystack_transfer_id: null,
+          authorizationTicket,
         }),
       });
 
@@ -110,8 +114,7 @@ export default function AdminWithdrawalPage() {
         return;
       }
 
-      // Show success message and refresh
-      alert('Withdrawal request created successfully. Your funds will be transferred shortly.');
+      setSuccess('Withdrawal request created successfully. Your funds will be transferred shortly.');
       setWithdrawAmount('');
       fetchInitialData();
     } catch (err) {
@@ -262,7 +265,7 @@ export default function AdminWithdrawalPage() {
               <p className="text-xs font-semibold">Processing Information:</p>
               <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
                 <li>Withdrawals are processed through Paystack</li>
-                <li>Transfer typically completes within 2-5 minutes</li>
+                <li>Transfers usually arrive within a few minutes. Track the status in the withdrawal history below.</li>
                 <li>You will receive a notification once processed</li>
               </ul>
             </div>
@@ -275,9 +278,17 @@ export default function AdminWithdrawalPage() {
             >
               {submitting ? 'Processing...' : 'Request Withdrawal'}
             </Button>
-          </form>
-        </>
+            </form>
+            {success && <p className="text-sm text-green-700 mt-3">{success}</p>}
+            <div className="mt-6">
+              <h3 className="text-sm font-semibold mb-2">Recent payouts</h3>
+              <div className="flex flex-col gap-2">
+                {recent.map((item) => <div key={`${item.source}-${item.id}`} className="flex items-center justify-between text-xs border rounded p-2"><span>{formatCurrency(Number(item.amount))}</span><span className="capitalize">{item.status}</span><span>{new Date(item.created_at).toLocaleDateString()}</span></div>)}
+              </div>
+            </div>
+          </>
       )}
     </div>
+    {dialogs} 
   );
 }
