@@ -77,12 +77,12 @@ export default function BusinessesPage() {
           <h1 className="text-2xl font-bold mb-1">Businesses</h1>
           <p className="text-xs text-muted-foreground">Manage restaurant accounts</p>
         </div>
-        <Link href="/admin/businesses/register">
+        <div className="flex items-center gap-2"><Link href="/admin/businesses/performance"><Button variant="outline" className="h-8 text-xs">Performance</Button></Link><Link href="/admin/businesses/register">
           <Button className="h-8 text-xs bg-primary text-white hover:bg-primary-dark">
             <Plus className="w-4 h-4 mr-1" />
             Register Business
           </Button>
-        </Link>
+        </Link></div>
       </div>
 
       {error && (
