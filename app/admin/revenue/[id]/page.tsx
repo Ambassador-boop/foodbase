@@ -33,8 +33,8 @@ interface TransactionDetails {
 }
 
 export default function TransactionDetailsPage() {
-  const params = useParams();
-  const { id } = params as { id: string };
+  const params = useParams<{ id: string }>();
+  const { id } = params;
 
   const [data, setData] = useState<TransactionDetails | null>(null);
   const [loading, setLoading] = useState(true);

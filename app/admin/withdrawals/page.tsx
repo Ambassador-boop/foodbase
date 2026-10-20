@@ -134,7 +134,7 @@ export default function WithdrawalsPage() {
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto">
+            <div className="md:hidden space-y-3 p-3">{withdrawals.map(w => <div key={w.id} className="rounded-2xl border p-4"><div className="flex justify-between"><span className="text-sm font-medium">{w.business_name}</span><span className="text-xs">{normalizeStatus(w.status)}</span></div><p className="mt-2 text-sm font-semibold">{formatCurrency(Number(w.amount)||0)}</p><p className="text-xs text-muted-foreground">Fee {formatCurrency(Number(w.withdrawal_fee||w.service_fee)||0)} · Net {formatCurrency(Number(w.net_amount)||0)}</p><p className="mt-2 text-xs text-muted-foreground">{formatDate(w.created_at||w.requested_at)} · {w.bank_account_number ? `•••• ${w.bank_account_number.slice(-4)}` : '—'}</p></div>)}</div><div className="hidden overflow-x-auto md:block">
               <table className="w-full">
                 <thead className="bg-background border-b border-border">
                   <tr>

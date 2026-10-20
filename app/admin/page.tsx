@@ -1,141 +1,23 @@
-'use client';
+'use client'
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { Building2, ShoppingBag, Wallet, AlertCircle } from 'lucide-react'
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
+import { Bar, BarChart, CartesianGrid, XAxis } from 'recharts'
+import { StatCard, AdminCard, RangeChips, MetricRow, money, wat, maskAccount, Button, Input, StatusBadge } from '@/components/admin/shared'
+import { usePinAuthorization } from '@/hooks/use-pin-authorization'
 
-import { useEffect, useState } from 'react';
-import { Building2, DollarSign, Users, AlertCircle, TrendingUp } from 'lucide-react';
-import Link from 'next/link';
-
-interface AdminMetrics {
-  totalBusinesses: number;
-  totalRevenue: number;
-  totalOrders: number;
-  totalUsers: number;
-}
-
-export default function AdminPage() {
-  const [metrics, setMetrics] = useState<AdminMetrics | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    const fetchMetrics = async () => {
-      try {
-        const response = await fetch('/api/admin/metrics');
-        const data = await response.json();
-
-        if (!response.ok) throw new Error(data.error);
-
-        setMetrics(data);
-      } catch (err) {
-        setError('Failed to load metrics');
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchMetrics();
-  }, []);
-
-  const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(amount);
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <p className="text-muted-foreground text-sm">Loading metrics...</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold mb-1">Admin Dashboard</h1>
-        <p className="text-xs text-muted-foreground">Platform overview and management</p>
-      </div>
-
-      {error && (
-        <div className="p-3 bg-red-50 border border-red-200 rounded text-red-700 text-xs flex items-start gap-2">
-          <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-          <span>{error}</span>
-        </div>
-      )}
-
-      {/* Metrics Grid */}
-      {metrics && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white border border-border rounded-lg p-4">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">Total Businesses</p>
-                <p className="text-2xl font-bold text-foreground">{metrics.totalBusinesses}</p>
-              </div>
-              <Building2 className="w-5 h-5 text-primary/40 flex-shrink-0" />
-            </div>
-            <p className="text-xs text-muted-foreground mt-3">Active restaurants</p>
-          </div>
-
-          <div className="bg-white border border-border rounded-lg p-4">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">Total Orders</p>
-                <p className="text-2xl font-bold text-foreground">{metrics.totalOrders}</p>
-              </div>
-              <TrendingUp className="w-5 h-5 text-accent/40 flex-shrink-0" />
-            </div>
-            <p className="text-xs text-muted-foreground mt-3">All-time orders</p>
-          </div>
-
-          <div className="bg-white border border-border rounded-lg p-4">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">Total Revenue</p>
-                <p className="text-2xl font-bold text-foreground">{formatCurrency(metrics.totalRevenue)}</p>
-              </div>
-              <DollarSign className="w-5 h-5 text-green-500/40 flex-shrink-0" />
-            </div>
-            <p className="text-xs text-muted-foreground mt-3">Platform revenue</p>
-          </div>
-
-          <div className="bg-white border border-border rounded-lg p-4">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">Total Users</p>
-                <p className="text-2xl font-bold text-foreground">{metrics.totalUsers}</p>
-              </div>
-              <Users className="w-5 h-5 text-blue-500/40 flex-shrink-0" />
-            </div>
-            <p className="text-xs text-muted-foreground mt-3">Admin & business owners</p>
-          </div>
-        </div>
-      )}
-
-      {/* Quick Actions */}
-      <div className="bg-white border border-border rounded-lg p-4">
-        <h2 className="text-sm font-semibold mb-3">Quick Actions</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-          <Link href="/admin/businesses">
-            <button className="w-full px-3 py-2 text-xs border border-border rounded hover:bg-muted/5 transition-colors font-medium">
-              View Businesses
-            </button>
-          </Link>
-          <Link href="/admin/withdrawals">
-            <button className="w-full px-3 py-2 text-xs border border-border rounded hover:bg-muted/5 transition-colors font-medium">
-              Approve Withdrawals
-            </button>
-          </Link>
-          <Link href="/admin/users">
-            <button className="w-full px-3 py-2 text-xs border border-border rounded hover:bg-muted/5 transition-colors font-medium">
-              Manage Users
-            </button>
-          </Link>
-          <Link href="/admin/settings">
-            <button className="w-full px-3 py-2 text-xs border border-border rounded hover:bg-muted/5 transition-colors font-medium">
-              Platform Settings
-            </button>
-          </Link>
-        </div>
-      </div>
-    </div>
-  );
-}
+type Overview = any
+export default function AdminPage() { const [range,setRange]=useState('30d'); const [data,setData]=useState<Overview|null>(null); const [sms,setSms]=useState<any>(null); const [amount,setAmount]=useState('1000'); const [result,setResult]=useState(''); const [loading,setLoading]=useState(true); const {authorize,dialogs}=usePinAuthorization()
+ useEffect(()=>{setLoading(true); Promise.all([fetch(`/api/admin/overview?range=${range}`).then(r=>r.ok?r.json():{}),fetch('/api/admin/sms').then(r=>r.ok?r.json():null)]).then(([a,s])=>{setData(a.overview||a);setSms(s)}).finally(()=>setLoading(false))},[range])
+ const fund=async()=>{try{const ticket=await authorize('sms_funding',{amount:Number(amount)});const r=await fetch('/api/admin/sms/fund',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({amount:Number(amount),authorizationTicket:ticket})});const d=await r.json();setResult(d.message||d.error||'Funding request submitted');setSms((s:any)=>({...s,recent:[d.transfer,...(s?.recent||[])]}))}catch(e){setResult(e instanceof Error?e.message:'Funding cancelled')}}
+ if(loading) return <div className="flex min-h-96 items-center justify-center text-sm text-muted-foreground">Loading overview…</div>
+ const overview=data||{}; const chart=(overview.daily||overview.dailyBreakdown||[]).map((d:any)=>({date:new Date(d.date).toLocaleDateString('en-NG',{day:'numeric',month:'short'}),net:Number(d.net??d.daily_revenue??0)})); const hero=Number(overview.netRevenue??overview.summary?.total_revenue??0)
+ return <div className="flex flex-col gap-5"><div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><h1 className="text-2xl font-semibold">Admin dashboard</h1><p className="text-[13px] text-muted-foreground">Platform overview and management</p></div><RangeChips value={range} onChange={setRange}/></div>
+ <section className="rounded-2xl bg-[var(--primary)] p-5 text-primary-foreground"><p className="text-[13px] text-primary-foreground/75">Net platform revenue</p><p className="mt-2 text-3xl font-semibold">{money(hero)}</p><p className="mt-2 text-sm text-primary-foreground/75">Service fees + withdrawal fees − Paystack fees − SMS</p></section>
+ {sms&&<AdminCard title="SMS wallet" description={`Balance ${money(sms.balance)} · as of ${new Date(sms.asOf||Date.now()).toLocaleTimeString('en-NG',{hour:'numeric',minute:'2-digit'})} WAT`}><div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-2xl font-semibold">{money(sms.balance)}</p>{sms.isLow&&<p className="text-[13px] text-destructive">Low balance</p>}{sms.stale&&<p className="text-[13px] text-muted-foreground">Last known value</p>}<p className="mt-2 text-[13px] text-muted-foreground">Funding account {maskAccount(sms.funding?.accountNumber)} · {sms.funding?.accountName||'—'}</p></div>{sms.funding?.configured===false?<p className="text-[13px] text-muted-foreground">SMS funding is not configured.</p>:<div className="flex w-full flex-col gap-2 sm:w-auto"><div className="flex gap-2"><Input min="1000" type="number" value={amount} onChange={e=>setAmount(e.target.value)} className="w-full sm:w-36"/><Button onClick={fund}>Fund SMS</Button></div><p className="text-[12px] text-muted-foreground">KudiSMS deducts 7.5% VAT on every payment</p></div>}</div>{result&&<p className="mt-3 rounded-xl bg-accent p-3 text-[13px]">{result}</p>}<div className="mt-4 flex flex-col gap-2">{(sms.recent||[]).slice(0,5).map((t:any)=><div key={t.id} className="flex justify-between text-[13px]"><span>{money(t.amount)} · {wat(t.created_at)}</span><StatusBadge status={t.status}/></div>)}</div></AdminCard>}
+ <div className="grid grid-cols-2 gap-3 md:grid-cols-4"><StatCard label="Payments volume" value={money(overview.paymentsVolume??overview.totalVolume)} icon={Wallet}/><StatCard label="Paid orders" value={overview.paidOrders??overview.totalOrders??0} icon={ShoppingBag}/><StatCard label="Average order" value={money(overview.averageOrder)} icon={ShoppingBag}/><StatCard label="Businesses" value={overview.businesses??overview.totalBusinesses??0} icon={Building2}/></div>
+ <AdminCard title="Revenue chart" description="Daily net revenue"><ChartContainer config={{net:{label:'Net',color:'var(--chart-1)'}}} className="h-56 w-full"><BarChart data={chart}><CartesianGrid vertical={false}/><XAxis dataKey="date" tickLine={false} axisLine={false} tick={{fontSize:11}}/><ChartTooltip content={<ChartTooltipContent/>}/><Bar dataKey="net" fill="var(--color-net)" radius={4}/></BarChart></ChartContainer></AdminCard>
+ <div className="grid gap-5 lg:grid-cols-2"><AdminCard title="Solvency"><MetricRow label="Paystack balance" value={overview.paystackBalance==null?'Unavailable':money(overview.paystackBalance)}/><MetricRow label="Owed to businesses" value={money(overview.owedToBusinesses)}/><MetricRow label="Your revenue (available)" value={money(overview.availableRevenue)}/><MetricRow label="Difference" value={<span className="flex items-center gap-2">{money(overview.difference)} <StatusBadge status={Number(overview.difference)>=0?'completed':'failed'}>{Number(overview.difference)>=0?'Covered':'Shortfall'}</StatusBadge></span>}/><p className="mt-3 text-[13px] text-muted-foreground">{Number(overview.difference)>=0?'Available funds cover business obligations.':'Review Paystack and ledger balances before processing payouts.'}</p></AdminCard><AdminCard title="Needs attention">{Object.entries(overview.attentionCounts||{}).filter(([,v])=>Number(v)>0).map(([k,v])=><Link key={k} href="/admin/attention" className="flex justify-between border-b py-2 text-[13px]"><span>{k}</span><span className="font-semibold">{String(v)}</span></Link>)}{!Object.values(overview.attentionCounts||{}).some(v=>Number(v)>0)&&<p className="text-[13px] text-muted-foreground">All clear</p>}</AdminCard></div>
+ <AdminCard title="Top businesses"><div className="flex flex-col gap-2">{(overview.topBusinesses||overview.topRestaurants||[]).slice(0,5).map((b:any)=><div key={b.id||b.name} className="flex justify-between text-[13px]"><span>{b.name}</span><span>{money(b.volume??b.restaurant_revenue)}</span></div>)}</div><Link href="/admin/businesses/performance" className="mt-3 inline-block text-[13px] font-medium text-primary">View performance</Link></AdminCard>
+ <AdminCard title="Quick Actions"><div className="grid grid-cols-2 gap-2 md:grid-cols-4">{[['/admin/businesses','View Businesses'],['/admin/withdrawals','Approve Withdrawals'],['/admin/users','Manage Users'],['/admin/settings','Platform Settings']].map(([href,label])=><Link key={href} href={href} className="rounded-xl border p-2 text-center text-[13px] font-medium hover:bg-muted">{label}</Link>)}</div></AdminCard>{dialogs}</div> }
