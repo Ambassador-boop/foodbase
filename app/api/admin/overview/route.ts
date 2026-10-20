@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     const [ordersResult, feesResult, withdrawalsResult, businessesResult, dailyResult] = await Promise.all([
       sql`SELECT id, total_amount, status, payment_status, created_at FROM orders ORDER BY created_at DESC`,
       sql`SELECT osf.order_id, osf.service_fee_amount, osf.created_at, o.total_amount, b.id AS business_id, b.name AS business_name FROM order_service_fees osf JOIN orders o ON o.id = osf.order_id JOIN businesses b ON b.id = o.business_id ORDER BY osf.created_at DESC`,
-      sql`SELECT amount, fee, status, created_at FROM withdrawals ORDER BY created_at DESC`,
+      sql`SELECT amount, withdrawal_fee, service_fee, status, created_at FROM withdrawals ORDER BY created_at DESC`,
       sql`SELECT COUNT(*)::int AS count FROM businesses WHERE is_active = true`,
       sql`SELECT DATE(osf.created_at) AS date, COALESCE(SUM(osf.service_fee_amount), 0) AS net FROM order_service_fees osf GROUP BY DATE(osf.created_at) ORDER BY date ASC`,
     ])
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     const paidOrders = orders.filter((row: any) => String(row.payment_status || row.status).toLowerCase() === 'paid' || String(row.payment_status || '').toLowerCase() === 'success')
     const paymentsVolume = orders.reduce((sum: number, row: any) => sum + Number(row.total_amount || 0), 0)
     const serviceFees = fees.reduce((sum: number, row: any) => sum + Number(row.service_fee_amount || 0), 0)
-    const withdrawalFees = withdrawals.reduce((sum: number, row: any) => sum + Number(row.fee || 0), 0)
+    const withdrawalFees = withdrawals.reduce((sum: number, row: any) => sum + Number(row.withdrawal_fee || 0) + Number(row.service_fee || 0), 0)
     const averageOrder = orders.length ? paymentsVolume / orders.length : 0
     const byBusiness = new Map<string, { id: string; name: string; volume: number }>()
     for (const row of fees as any[]) {
