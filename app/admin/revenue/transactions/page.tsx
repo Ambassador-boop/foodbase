@@ -1,224 +1,191 @@
-'use client';
+'use client'
 
-import { Suspense, useEffect, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { ArrowLeft, AlertCircle, Loader, ChevronLeft, ChevronRight } from 'lucide-react';
+import * as React from 'react'
+import Link from 'next/link'
+import { ArrowLeft, Download, Info, ReceiptText } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import {
+  DataTable,
+  EmptyState,
+  ErrorState,
+  MobileRow,
+  Money,
+  PageHeader,
+  Pagination,
+  Panel,
+  StatusBadge,
+  StatusPill,
+  TableSkeleton,
+  type Column,
+} from '@/components/admin/ui'
+import { useAdminRange } from '@/components/admin/range'
+import { useAdminData } from '@/components/admin/use-admin-data'
+import { count, dateTimeWat, money } from '@/components/admin/format'
+import type { FeeTransactionsResponse } from '@/components/admin/types'
 
-interface Transaction {
-  id: string;
-  order_id: string;
-  service_fee_amount: number;
-  service_fee_type: string;
-  created_at: string;
-  total_amount: number;
-  customer_name: string;
-  order_status: string;
-  business_name: string;
-}
+type FeeRow = FeeTransactionsResponse['transactions'][number]
 
-interface PaginationInfo {
-  page: number;
-  limit: number;
-  total: number;
-  totalPages: number;
-}
+export default function FeeTransactionsPage() {
+  const { query, label } = useAdminRange()
+  const [page, setPage] = React.useState(1)
 
-function TransactionsContent() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const pageParam = searchParams.get('page');
+  React.useEffect(() => {
+    setPage(1)
+  }, [query])
 
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [pagination, setPagination] = useState<PaginationInfo>({
-    page: 1,
-    limit: 20,
-    total: 0,
-    totalPages: 0,
-  });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const { data, loading, error, reload } = useAdminData<FeeTransactionsResponse>(
+    `/api/admin/revenue/transactions?${query}&page=${page}&limit=25`,
+  )
 
-  useEffect(() => {
-    const page = pageParam ? parseInt(pageParam) : 1;
-    fetchTransactions(page);
-  }, [pageParam]);
+  const rows = data?.transactions ?? []
+  const pagination = data?.pagination
+  const pageTotal = rows.reduce((total, row) => total + Number(row.amount ?? 0), 0)
 
-  const fetchTransactions = async (page: number) => {
-    setLoading(true);
-    try {
-      const response = await fetch(`/api/admin/revenue/transactions?page=${page}&limit=20`, {
-        credentials: 'include',
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.error || 'Failed to fetch transactions');
-        return;
-      }
-
-      setTransactions(data.transactions || []);
-      setPagination(data.pagination);
-    } catch (err) {
-      console.error('[v0] Error fetching transactions:', err);
-      setError('Failed to load transactions');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(amount);
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-NG', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-  };
-
-  const handlePageChange = (newPage: number) => {
-    router.push(`?page=${newPage}`);
-  };
-
-  if (loading && transactions.length === 0) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader className="w-6 h-6 animate-spin text-primary" />
-      </div>
-    );
-  }
+  const columns: Column<FeeRow>[] = [
+    {
+      key: 'occurred_at',
+      header: 'Date',
+      sortValue: (row) => row.occurred_at ?? '',
+      render: (row) => <span className="text-[12px] text-muted-foreground">{row.occurred_at ? dateTimeWat(row.occurred_at) : '—'}</span>,
+    },
+    {
+      key: 'type',
+      header: 'Type',
+      render: (row) => (
+        <StatusPill tone={row.transaction_type === 'withdrawal_fee' ? 'neutral' : 'brand'}>
+          {row.transaction_type === 'withdrawal_fee' ? 'Withdrawal fee' : 'Service fee'}
+        </StatusPill>
+      ),
+    },
+    {
+      key: 'business',
+      header: 'Business',
+      sortValue: (row) => row.business_name,
+      render: (row) => <span className="truncate font-medium">{row.business_name}</span>,
+    },
+    {
+      key: 'order',
+      header: 'Order',
+      render: (row) =>
+        row.order_id ? (
+          <Link href={`/admin/transactions/${row.order_id}`} className="font-mono text-[11px] text-primary hover:underline">
+            {row.order_id.slice(0, 14)}
+          </Link>
+        ) : (
+          <span className="text-[12px] text-muted-foreground">Withdrawal</span>
+        ),
+    },
+    {
+      key: 'amount',
+      header: 'Fee',
+      align: 'right',
+      sortValue: (row) => row.amount,
+      render: (row) => <Money value={row.amount} className="font-medium" />,
+    },
+    {
+      key: 'order_status',
+      header: 'Order status',
+      align: 'right',
+      render: (row) => <StatusBadge status={row.order_status} />,
+    },
+  ]
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <Link href="/admin/revenue">
-          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-            <ArrowLeft className="w-4 h-4" />
-          </Button>
-        </Link>
-        <div>
-          <h1 className="text-2xl font-bold">Revenue Transactions</h1>
-          <p className="text-xs text-muted-foreground">Complete list of all service fee transactions</p>
-        </div>
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center gap-2">
+        <Button asChild variant="ghost" size="sm" className="h-8 gap-1 px-2 text-[12px] text-muted-foreground">
+          <Link href="/admin/revenue">
+            <ArrowLeft className="size-3.5" aria-hidden="true" />
+            Revenue
+          </Link>
+        </Button>
       </div>
 
-      {/* Error Alert */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex gap-3">
-          <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-          <p className="text-xs text-red-800">{error}</p>
-        </div>
-      )}
+      <PageHeader
+        title="Fee transactions"
+        description="Every fee the platform has booked, from paid orders and completed withdrawals."
+        meta={
+          <>
+            <span>{data?.period.label ?? label}</span>
+            <span aria-hidden="true">·</span>
+            <span>{pagination ? `${count(pagination.total)} entries` : 'Loading…'}</span>
+          </>
+        }
+        actions={
+          <Button asChild variant="outline" size="sm" className="h-9 gap-1.5">
+            <a href={`/api/admin/export?type=revenue&${query}`}>
+              <Download className="size-3.5" aria-hidden="true" />
+              Export
+            </a>
+          </Button>
+        }
+      />
 
-      {/* Transactions Table */}
-      <div className="bg-white border border-border rounded-lg overflow-hidden">
-        {transactions.length === 0 ? (
-          <div className="p-8 text-center">
-            <p className="text-muted-foreground text-xs">No transactions found</p>
-          </div>
+      {error ? <ErrorState message={error} onRetry={reload} /> : null}
+
+      <Panel
+        title="Fee ledger"
+        description="Service fees are booked only on paid orders. Withdrawal fees are booked only on successful payouts."
+        action={
+          rows.length > 0 ? (
+            <span className="text-[12px] text-muted-foreground">
+              This page: <span className="num font-medium text-foreground">{money(pageTotal)}</span>
+            </span>
+          ) : null
+        }
+      >
+        {loading && rows.length === 0 ? (
+          <TableSkeleton rows={8} columns={5} />
         ) : (
           <>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-background border-b border-border">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-semibold">Restaurant</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold">Customer</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold">Service Fee</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold">Order Total</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold">Status</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold">Date</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {transactions.map((tx) => (
-                    <tr key={tx.id} className="hover:bg-background">
-                      <td className="px-4 py-3 text-xs font-medium">{tx.business_name}</td>
-                      <td className="px-4 py-3 text-xs text-muted-foreground">{tx.customer_name}</td>
-                      <td className="px-4 py-3 text-xs font-semibold text-green-600">
-                        {formatCurrency(Number(tx.service_fee_amount) || 0)}
-                      </td>
-                      <td className="px-4 py-3 text-xs">{formatCurrency(Number(tx.total_amount) || 0)}</td>
-                      <td className="px-4 py-3 text-xs">
-                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                          tx.order_status === 'completed'
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {tx.order_status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-xs text-muted-foreground">{formatDate(tx.created_at)}</td>
-                      <td className="px-4 py-3 text-xs">
-                        <Link href={`/admin/revenue/${tx.id}`}>
-                          <Button variant="ghost" size="sm" className="h-6 text-xs">
-                            View
-                          </Button>
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DataTable<FeeRow>
+              rows={rows}
+              columns={columns}
+              caption="Service fee and withdrawal fee entries"
+              getRowKey={(row) => `${row.transaction_type}:${row.id}`}
+              initialSortKey="occurred_at"
+              pageSize={25}
+              empty={
+                <EmptyState
+                  icon={ReceiptText}
+                  title="No fees in this range"
+                  description="Fees appear when an order is paid or a withdrawal completes. Widen the date range to see earlier activity."
+                />
+              }
+              renderMobile={(row) => (
+                <MobileRow
+                  href={row.order_id ? `/admin/transactions/${row.order_id}` : undefined}
+                  title={row.business_name}
+                  meta={`${row.transaction_type === 'withdrawal_fee' ? 'Withdrawal fee' : 'Service fee'} · ${row.occurred_at ? dateTimeWat(row.occurred_at) : ''}`}
+                  value={<Money value={row.amount} />}
+                  status={<StatusBadge status={row.order_status} />}
+                />
+              )}
+            />
 
-            {/* Pagination */}
-            <div className="px-4 py-3 border-t border-border flex items-center justify-between">
-              <p className="text-xs text-muted-foreground">
-                Showing {(pagination.page - 1) * pagination.limit + 1} to{' '}
-                {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} transactions
-              </p>
-
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-6 px-2 text-xs gap-1"
-                  disabled={pagination.page === 1}
-                  onClick={() => handlePageChange(pagination.page - 1)}
-                >
-                  <ChevronLeft className="w-3 h-3" />
-                </Button>
-
-                <div className="flex items-center gap-1">
-                  {Array.from({ length: pagination.totalPages }, (_, i) => i + 1).map((page) => (
-                    <Button
-                      key={page}
-                      variant={pagination.page === page ? 'default' : 'outline'}
-                      size="sm"
-                      className="h-6 w-6 p-0 text-xs"
-                      onClick={() => handlePageChange(page)}
-                    >
-                      {page}
-                    </Button>
-                  ))}
-                </div>
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-6 px-2 text-xs gap-1"
-                  disabled={pagination.page === pagination.totalPages}
-                  onClick={() => handlePageChange(pagination.page + 1)}
-                >
-                  <ChevronRight className="w-3 h-3" />
-                </Button>
+            {pagination && pagination.total > 0 ? (
+              <div className="mt-3">
+                <Pagination
+                  page={pagination.page}
+                  totalPages={pagination.totalPages}
+                  total={pagination.total}
+                  pageSize={pagination.limit}
+                  onChange={setPage}
+                  unit="entries"
+                />
               </div>
-            </div>
+            ) : null}
           </>
         )}
+      </Panel>
+
+      <div className="flex items-start gap-1.5 rounded-xl border border-border bg-card px-4 py-3 text-[11px] leading-5 text-muted-foreground">
+        <Info className="mt-0.5 size-3 shrink-0" aria-hidden="true" />
+        <p>
+          A service fee row can exist before an order is paid; those rows are excluded so this ledger matches the revenue
+          figures. Withdrawal fees are written by the settlement flow when a payout succeeds.
+        </p>
       </div>
     </div>
-  );
-}
-
-export default function TransactionsPage() {
-  return (
-    <Suspense fallback={<div className="flex items-center justify-center h-screen"><Loader className="w-6 h-6 animate-spin" /></div>}>
-      <TransactionsContent />
-    </Suspense>
-  );
+  )
 }
