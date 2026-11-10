@@ -22,6 +22,7 @@ import {
   ImageIcon,
 } from 'lucide-react';
 import { calculateServiceFee } from '@/lib/service-fee';
+import { DELIVERY_FEE } from '@/lib/pricing';
 
 interface Restaurant {
   id: string;
@@ -46,8 +47,6 @@ interface CartItem {
   quantity: number;
   addons?: { id: string; name: string; price: number; image_url?: string }[];
 }
-
-const DELIVERY_FEE = 1000;
 
 export default function CheckoutPage() {
   const params = useParams();
@@ -181,6 +180,15 @@ export default function CheckoutPage() {
       });
 
       const orderData = await orderResponse.json();
+
+      // The server re-prices every order from the database. If its total differs
+      // from what this page calculated, it refuses to create the order (409).
+      // Show its message and stay on this page instead of going to payment.
+      if (orderData?.code === 'PRICE_MISMATCH') {
+        setError(orderData.error || 'Prices have changed. Please review your cart.');
+        return;
+      }
+
       if (!orderResponse.ok) {
         setError(orderData.error || 'Failed to create order');
         return;
