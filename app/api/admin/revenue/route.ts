@@ -1,111 +1,141 @@
-import { sql } from '@vercel/postgres';
-import { NextRequest, NextResponse } from 'next/server';
-import { getTokenFromRequest, verifyToken } from '@/lib/auth';
+import { NextRequest, NextResponse } from 'next/server'
+import { getTokenFromRequest, verifyToken } from '@/lib/auth'
+import { getOne, query } from '@/lib/db'
+import { AdminPeriod, periodSqlParams, resolveAdminPeriod, serialisePeriod } from '@/lib/admin-period'
+import { getPaidSummary, getSmsSummary, getWithdrawalSummary, num, round2 } from '@/lib/admin-analytics'
 
-export async function GET(req: NextRequest) {
+export const dynamic = 'force-dynamic'
+
+const PAID = "o.payment_status IN ('paid', 'completed')"
+
+function previousWindow(period: AdminPeriod): AdminPeriod | null {
+  if (!period.previousStart || !period.previousEnd) return null
+  return { ...period, start: period.previousStart, end: period.previousEnd }
+}
+
+export async function GET(request: NextRequest) {
   try {
-    const token = await getTokenFromRequest(req);
-    if (!token) {
-      console.error('[v0] No token provided to /api/admin/revenue');
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const token = await getTokenFromRequest(request)
+    const user = token ? await verifyToken(token) : null
+    if (!user || user.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+    const params = request.nextUrl.searchParams
+    const period = resolveAdminPeriod({ range: params.get('range'), from: params.get('from'), to: params.get('to') })
+    const previous = previousWindow(period)
+    const [start, end] = periodSqlParams(period)
+
+    const [revenueRow, paid, previousPaid, withdrawals, previousWithdrawals, sms, dailyResult, topResult, recentResult] =
+      await Promise.all([
+        getOne(
+          'SELECT total_revenue, withdrawn_amount, available_balance, updated_at FROM admin_revenue ORDER BY updated_at DESC NULLS LAST LIMIT 1',
+        ),
+        getPaidSummary(period),
+        previous ? getPaidSummary(previous) : Promise.resolve(null),
+        getWithdrawalSummary(period),
+        previous ? getWithdrawalSummary(previous) : Promise.resolve(null),
+        getSmsSummary(period),
+        query(
+          `SELECT ((coalesce(o.paid_at, o.created_at) + interval '1 hour')::date)::text AS date,
+                  count(*)::int AS transaction_count,
+                  coalesce(sum(o.service_fee_amount), 0)::float8 AS daily_revenue
+             FROM orders o
+            WHERE ${PAID}
+              AND ($1::timestamptz IS NULL OR coalesce(o.paid_at, o.created_at) >= $1::timestamptz AT TIME ZONE 'UTC')
+              AND coalesce(o.paid_at, o.created_at) < $2::timestamptz AT TIME ZONE 'UTC'
+            GROUP BY 1
+            ORDER BY 1 DESC
+            LIMIT 120`,
+          [start, end],
+        ),
+        query(
+          `SELECT b.id, b.name,
+                  count(*)::int AS transaction_count,
+                  coalesce(sum(o.service_fee_amount), 0)::float8 AS restaurant_revenue
+             FROM orders o
+             JOIN businesses b ON b.id = o.business_id
+            WHERE ${PAID}
+              AND ($1::timestamptz IS NULL OR coalesce(o.paid_at, o.created_at) >= $1::timestamptz AT TIME ZONE 'UTC')
+              AND coalesce(o.paid_at, o.created_at) < $2::timestamptz AT TIME ZONE 'UTC'
+            GROUP BY b.id, b.name
+            ORDER BY restaurant_revenue DESC
+            LIMIT 10`,
+          [start, end],
+        ),
+        query(
+          `SELECT coalesce(osf.id, 'fee_' || o.id) AS id,
+                  o.id AS order_id,
+                  coalesce(osf.service_fee_amount, o.service_fee_amount, 0)::float8 AS service_fee_amount,
+                  coalesce(osf.service_fee_type, 'tiered') AS service_fee_type,
+                  coalesce(osf.created_at, o.paid_at, o.created_at) AS created_at,
+                  b.name AS business_name,
+                  o.total_amount::float8 AS total_amount
+             FROM orders o
+             JOIN businesses b ON b.id = o.business_id
+             LEFT JOIN LATERAL (
+               SELECT osf.id, osf.service_fee_amount, osf.service_fee_type, osf.created_at
+                 FROM order_service_fees osf
+                WHERE osf.order_id = o.id
+                ORDER BY osf.created_at DESC
+                LIMIT 1
+             ) osf ON TRUE
+            WHERE ${PAID}
+            ORDER BY coalesce(osf.created_at, o.paid_at, o.created_at) DESC
+            LIMIT 8`,
+          [],
+        ),
+      ])
+
+    const rowsOf = (value: any): Record<string, unknown>[] => (Array.isArray(value) ? value : value?.rows ?? [])
+
+    const components = {
+      serviceFees: paid.serviceFees,
+      withdrawalFees: withdrawals.feeRevenue,
+      paystackFees: paid.paystackFees,
+      paystackFeesRecordedPayments: paid.paystackFeePayments,
+      paymentsWithTransaction: paid.paymentsWithTransaction,
+      smsSpend: sms.spend,
+      paymentsVolume: paid.volume,
+      paidOrders: paid.paidOrders,
+      net: round2(paid.serviceFees + withdrawals.feeRevenue - paid.paystackFees - sms.spend),
     }
 
-    let user;
-    try {
-      user = await verifyToken(token);
-    } catch (tokenErr) {
-      console.error('[v0] Token verification failed:', tokenErr);
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
+    const previousComponents = previousPaid && previousWithdrawals
+      ? {
+          serviceFees: previousPaid.serviceFees,
+          withdrawalFees: previousWithdrawals.feeRevenue,
+          paystackFees: previousPaid.paystackFees,
+          smsSpend: 0,
+          net: round2(previousPaid.serviceFees + previousWithdrawals.feeRevenue - previousPaid.paystackFees),
+        }
+      : null
 
-    if (!user) {
-      console.error('[v0] User not found in token');
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    if (user.role !== 'admin') {
-      console.error('[v0] User role is not admin:', user.role);
-      return NextResponse.json({ error: 'Forbidden - admin role required' }, { status: 403 });
-    }
-
-    // Ensure admin_revenue record exists
-    try {
-      const countResult = await sql`SELECT COUNT(*) as count FROM admin_revenue`;
-      if (countResult.rows[0].count === '0' || countResult.rows[0].count === 0) {
-        await sql`INSERT INTO admin_revenue (total_revenue, withdrawn_amount, available_balance) VALUES (0, 0, 0)`;
-      }
-    } catch (err) {
-      console.error('[v0] Error ensuring admin_revenue record exists:', err);
-    }
-
-    // Get admin revenue summary
-    const revenueResult = await sql`
-      SELECT total_revenue, withdrawn_amount, available_balance, updated_at
-      FROM admin_revenue
-      ORDER BY updated_at DESC
-      LIMIT 1
-    `;
-
-    const revenue = revenueResult.rows[0] || {
-      total_revenue: 0,
-      withdrawn_amount: 0,
-      available_balance: 0,
-      updated_at: new Date().toISOString(),
-    };
-
-    // Get daily revenue breakdown
-    const dailyResult = await sql`
-      SELECT 
-        DATE(osf.created_at) as date,
-        COUNT(*) as transaction_count,
-        SUM(osf.service_fee_amount) as daily_revenue
-      FROM order_service_fees osf
-      WHERE osf.service_fee_type = 'tiered'
-      GROUP BY DATE(osf.created_at)
-      ORDER BY date DESC
-      LIMIT 30
-    `;
-
-    // Get top restaurants by revenue
-    const restaurantsResult = await sql`
-      SELECT 
-        b.id,
-        b.name,
-        COUNT(DISTINCT osf.order_id) as transaction_count,
-        SUM(osf.service_fee_amount) as restaurant_revenue
-      FROM order_service_fees osf
-      JOIN orders o ON osf.order_id = o.id
-      JOIN businesses b ON o.business_id = b.id
-      WHERE osf.service_fee_type = 'tiered'
-      GROUP BY b.id, b.name
-      ORDER BY restaurant_revenue DESC
-      LIMIT 10
-    `;
-
-    // Get recent transactions
-    const recentResult = await sql`
-      SELECT 
-        osf.id,
-        osf.order_id,
-        osf.service_fee_amount,
-        osf.service_fee_type,
-        osf.created_at,
-        b.name as business_name
-      FROM order_service_fees osf
-      JOIN orders o ON osf.order_id = o.id
-      JOIN businesses b ON o.business_id = b.id
-      ORDER BY osf.created_at DESC
-      LIMIT 5
-    `;
+    const summary = revenueRow
+      ? {
+          total_revenue: round2(num(revenueRow.total_revenue)),
+          withdrawn_amount: round2(num(revenueRow.withdrawn_amount)),
+          available_balance: round2(num(revenueRow.available_balance)),
+          updated_at: revenueRow.updated_at ? new Date(revenueRow.updated_at).toISOString() : new Date().toISOString(),
+        }
+      : { total_revenue: 0, withdrawn_amount: 0, available_balance: 0, updated_at: new Date().toISOString() }
 
     return NextResponse.json({
-      summary: revenue,
-      dailyBreakdown: dailyResult.rows,
-      topRestaurants: restaurantsResult.rows,
-      recentTransactions: recentResult.rows,
-    });
+      period: serialisePeriod(period),
+      previousPeriod: previous ? serialisePeriod(previous) : null,
+      summary,
+      components,
+      previousComponents,
+      dailyBreakdown: rowsOf(dailyResult),
+      topRestaurants: rowsOf(topResult),
+      recentTransactions: rowsOf(recentResult),
+      withdrawals: {
+        byStatus: withdrawals.byStatus,
+        successAmount: withdrawals.successAmount,
+        successCount: withdrawals.successCount,
+        feeRevenue: withdrawals.feeRevenue,
+      },
+    })
   } catch (error) {
-    console.error('Failed to fetch revenue data:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('[admin] revenue summary failed', error)
+    return NextResponse.json({ error: 'Failed to load revenue' }, { status: 500 })
   }
 }

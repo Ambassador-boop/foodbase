@@ -1,8 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { sql } from '@vercel/postgres'
 import { getTokenFromRequest, verifyToken } from '@/lib/auth'
+import { getOne } from '@/lib/db'
+import { AdminPeriod, resolveAdminPeriod, serialisePeriod } from '@/lib/admin-period'
+import {
+  getAttentionQueue,
+  getBusinessTotals,
+  getDailySeries,
+  getOrderFunnel,
+  getPaidSummary,
+  getRefundSummary,
+  getSettlementSummary,
+  getSmsSummary,
+  getTopBusinesses,
+  getWithdrawalSummary,
+  num,
+  round2,
+} from '@/lib/admin-analytics'
+import { getPaystackBalance } from '@/lib/paystack'
 
-const rangeDays: Record<string, number | null> = { today: 1, '7d': 7, '30d': 30, month: 31, all: null }
+export const dynamic = 'force-dynamic'
+
+/** The equal-length window immediately before `period`, or null for "all time". */
+function previousWindow(period: AdminPeriod): AdminPeriod | null {
+  if (!period.previousStart || !period.previousEnd) return null
+  return { ...period, start: period.previousStart, end: period.previousEnd }
+}
+
+export interface RevenueComponents {
+  serviceFees: number
+  withdrawalFees: number
+  paystackFees: number
+  paystackFeesRecordedPayments: number
+  paymentsWithTransaction: number
+  paystackFeesMissing: number
+  smsSpend: number
+  net: number
+  /** True when at least one Paystack fee is missing, so net revenue is a floor. */
+  incomplete: boolean
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,46 +45,171 @@ export async function GET(request: NextRequest) {
     const user = token ? await verifyToken(token) : null
     if (!user || user.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-    const range = request.nextUrl.searchParams.get('range') || '30d'
-    const days = rangeDays[range] ?? 30
-    const cutoff = days === null ? null : new Date(Date.now() - days * 86400000)
+    const params = request.nextUrl.searchParams
+    const period = resolveAdminPeriod({ range: params.get('range'), from: params.get('from'), to: params.get('to') })
+    const previous = previousWindow(period)
 
-    const [ordersResult, feesResult, withdrawalsResult, businessesResult, dailyResult] = await Promise.all([
-      sql`SELECT id, total_amount, status, payment_status, created_at FROM orders ORDER BY created_at DESC`,
-      sql`SELECT osf.order_id, osf.service_fee_amount, osf.created_at, o.total_amount, b.id AS business_id, b.name AS business_name FROM order_service_fees osf JOIN orders o ON o.id = osf.order_id JOIN businesses b ON b.id = o.business_id ORDER BY osf.created_at DESC`,
-      sql`SELECT amount, withdrawal_fee, service_fee, status, created_at FROM withdrawals ORDER BY created_at DESC`,
-      sql`SELECT COUNT(*)::int AS count FROM businesses WHERE is_active = true`,
-      sql`SELECT DATE(osf.created_at) AS date, COALESCE(SUM(osf.service_fee_amount), 0) AS net FROM order_service_fees osf GROUP BY DATE(osf.created_at) ORDER BY date ASC`,
+    const [
+      paid,
+      previousPaid,
+      funnel,
+      withdrawals,
+      previousWithdrawals,
+      sms,
+      previousSms,
+      settlement,
+      businessTotals,
+      daily,
+      topBusinesses,
+      attention,
+      paystack,
+      platformRevenueRow,
+    ] = await Promise.all([
+      getPaidSummary(period),
+      previous ? getPaidSummary(previous) : Promise.resolve(null),
+      getOrderFunnel(period),
+      getWithdrawalSummary(period),
+      previous ? getWithdrawalSummary(previous) : Promise.resolve(null),
+      getSmsSummary(period),
+      previous ? getSmsSummary(previous) : Promise.resolve(null),
+      getSettlementSummary(period),
+      getBusinessTotals(period),
+      getDailySeries(period),
+      getTopBusinesses(period),
+      getAttentionQueue({ includeRows: false }),
+      getPaystackBalance(),
+      getOne(
+        'SELECT total_revenue, withdrawn_amount, available_balance, updated_at FROM admin_revenue ORDER BY updated_at DESC NULLS LAST LIMIT 1',
+      ),
     ])
 
-    const inRange = (value: string | Date) => !cutoff || new Date(value) >= cutoff
-    const orders = ordersResult.rows.filter((row: any) => inRange(row.created_at))
-    const fees = feesResult.rows.filter((row: any) => inRange(row.created_at))
-    const withdrawals = withdrawalsResult.rows.filter((row: any) => inRange(row.created_at))
-    const paidOrders = orders.filter((row: any) => String(row.payment_status || row.status).toLowerCase() === 'paid' || String(row.payment_status || '').toLowerCase() === 'success')
-    const paymentsVolume = orders.reduce((sum: number, row: any) => sum + Number(row.total_amount || 0), 0)
-    const serviceFees = fees.reduce((sum: number, row: any) => sum + Number(row.service_fee_amount || 0), 0)
-    const withdrawalFees = withdrawals.reduce((sum: number, row: any) => sum + Number(row.withdrawal_fee || 0) + Number(row.service_fee || 0), 0)
-    const averageOrder = orders.length ? paymentsVolume / orders.length : 0
-    const byBusiness = new Map<string, { id: string; name: string; volume: number }>()
-    for (const row of fees as any[]) {
-      const current = byBusiness.get(row.business_id) || { id: row.business_id, name: row.business_name, volume: 0 }
-      current.volume += Number(row.total_amount || 0)
-      byBusiness.set(row.business_id, current)
-    }
-    const topBusinesses = [...byBusiness.values()].sort((a, b) => b.volume - a.volume).slice(0, 5)
-    const daily = dailyResult.rows.filter((row: any) => inRange(row.date)).map((row: any) => ({ ...row, net: Number(row.net || 0) }))
-    const netRevenue = serviceFees + withdrawalFees
+    const platformRevenue = platformRevenueRow as {
+      total_revenue: number
+      withdrawn_amount: number
+      available_balance: number
+      updated_at: string
+    } | null
 
-    return NextResponse.json({ overview: {
-      netRevenue, paymentsVolume, paidOrders: paidOrders.length, averageOrder,
-      businesses: Number(businessesResult.rows[0]?.count || 0), daily, topBusinesses,
-      paystackBalance: null, owedToBusinesses: 0, availableRevenue: netRevenue, difference: netRevenue,
-      attentionCounts: {},
-      revenue: { serviceFees, withdrawalFees, paystackFees: 0, smsSpend: 0, net: netRevenue },
-    } })
+    const refunds = await getRefundSummary(period, paid.volume)
+    const previousRefunds = previous ? await getRefundSummary(previous, previousPaid?.volume ?? 0) : null
+
+    const revenue: RevenueComponents = {
+      serviceFees: paid.serviceFees,
+      withdrawalFees: withdrawals.feeRevenue,
+      paystackFees: paid.paystackFees,
+      paystackFeesRecordedPayments: paid.paystackFeePayments,
+      paymentsWithTransaction: paid.paymentsWithTransaction,
+      paystackFeesMissing: Math.max(0, paid.paymentsWithTransaction - paid.paystackFeePayments),
+      smsSpend: sms.spend,
+      net: round2(paid.serviceFees + withdrawals.feeRevenue - paid.paystackFees - sms.spend),
+      incomplete: paid.paymentsWithTransaction > paid.paystackFeePayments,
+    }
+
+    const previousRevenue: RevenueComponents | null =
+      previousPaid && previousWithdrawals && previousSms
+        ? {
+            serviceFees: previousPaid.serviceFees,
+            withdrawalFees: previousWithdrawals.feeRevenue,
+            paystackFees: previousPaid.paystackFees,
+            paystackFeesRecordedPayments: previousPaid.paystackFeePayments,
+            paymentsWithTransaction: previousPaid.paymentsWithTransaction,
+            paystackFeesMissing: Math.max(0, previousPaid.paymentsWithTransaction - previousPaid.paystackFeePayments),
+            smsSpend: previousSms.spend,
+            net: round2(previousPaid.serviceFees + previousWithdrawals.feeRevenue - previousPaid.paystackFees - previousSms.spend),
+            incomplete: previousPaid.paymentsWithTransaction > previousPaid.paystackFeePayments,
+          }
+        : null
+
+    const averageOrder = paid.paidOrders > 0 ? round2(paid.volume / paid.paidOrders) : 0
+    const previousAverageOrder =
+      previousPaid && previousPaid.paidOrders > 0 ? round2(previousPaid.volume / previousPaid.paidOrders) : previousPaid ? 0 : null
+
+    const adminAvailableRevenue = round2(num(platformRevenue?.available_balance))
+    const owedToBusinesses = businessTotals.owed
+    const difference = paystack.balance === null ? null : round2(paystack.balance - owedToBusinesses - adminAvailableRevenue)
+    const solvencyUnknown: string[] = []
+    if (paystack.balance === null) solvencyUnknown.push('paystackBalance')
+
+    return NextResponse.json({
+      period: serialisePeriod(period),
+      previousPeriod: previous ? serialisePeriod(previous) : null,
+      generatedAt: new Date().toISOString(),
+      attention: attention.total,
+      overview: {
+        // Legacy keys kept for existing consumers.
+        netRevenue: revenue.net,
+        paymentsVolume: paid.volume,
+        paidOrders: paid.paidOrders,
+        averageOrder,
+        businesses: businessTotals.active,
+        daily,
+        topBusinesses,
+        paystackBalance: paystack.balance,
+        owedToBusinesses,
+        availableRevenue: adminAvailableRevenue,
+        difference,
+        attentionCounts: {
+          anomalies: attention.anomalies,
+          stuckWithdrawals: attention.stuckWithdrawals,
+          stuckRefunds: attention.stuckRefunds,
+          pendingTransfers: attention.pendingTransfers,
+          paidWithoutTransaction: attention.paidWithoutTransaction,
+        },
+        attention: attention.total,
+        revenue,
+
+        // New detail.
+        revenueComparison: previousRevenue,
+        paymentsVolumePrevious: previousPaid ? previousPaid.volume : null,
+        paidOrdersPrevious: previousPaid ? previousPaid.paidOrders : null,
+        averageOrderPrevious: previousAverageOrder,
+        totalBusinesses: businessTotals.total,
+        activeBusinesses: businessTotals.active,
+        newBusinesses: businessTotals.newInPeriod,
+        businessesOwed: owedToBusinesses,
+        funnel,
+        refunds,
+        refundsPrevious: previousRefunds ? { count: previousRefunds.count, amount: previousRefunds.amount } : null,
+        withdrawals: {
+          byStatus: withdrawals.byStatus,
+          successCount: withdrawals.successCount,
+          successAmount: withdrawals.successAmount,
+          feeRevenue: withdrawals.feeRevenue,
+          pendingCount: withdrawals.pendingCount,
+          pendingAmount: withdrawals.pendingAmount,
+          failedCount: withdrawals.failedCount,
+          failedAmount: withdrawals.failedAmount,
+        },
+        settlement,
+        solvency: {
+          paystackBalance: paystack.balance,
+          paystackBalanceAsOf: paystack.asOf,
+          paystackBalanceStale: paystack.stale,
+          paystackBalanceError: paystack.balance === null ? paystack.message ?? 'Paystack balance is unavailable' : null,
+          owedToBusinesses,
+          totalDeficits: Math.abs(businessTotals.deficitsTotal),
+          deficitCount: businessTotals.deficitCount,
+          deficits: businessTotals.deficits,
+          adminAvailableRevenue,
+          difference,
+          covered: difference === null ? null : difference >= 0,
+          unknown: solvencyUnknown,
+        },
+        platformRevenue: {
+          totalRevenue: round2(num(platformRevenue?.total_revenue)),
+          withdrawnAmount: round2(num(platformRevenue?.withdrawn_amount)),
+          availableBalance: adminAvailableRevenue,
+          updatedAt: platformRevenue?.updated_at ? new Date(platformRevenue.updated_at).toISOString() : null,
+        },
+        businessBalances: {
+          availableTotal: businessTotals.availableTotal,
+          pendingTotal: businessTotals.pendingTotal,
+        },
+        sms: { spend: sms.spend, transfers: sms.transfers, pendingTransfers: sms.pendingTransfers },
+      },
+    })
   } catch (error) {
-    console.error('[v0] admin overview failed', error)
+    console.error('[admin] overview failed', error)
     return NextResponse.json({ error: 'Failed to fetch overview' }, { status: 500 })
   }
 }

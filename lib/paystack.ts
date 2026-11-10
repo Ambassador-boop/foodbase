@@ -115,3 +115,79 @@ export async function getPaymentStatus(reference: string): Promise<string> {
 export function generatePaymentReference(): string {
   return `FB${crypto.randomUUID().replace(/-/g, '').toUpperCase()}`;
 }
+
+export interface PaystackBalanceSnapshot {
+  /** Spendable NGN balance in naira, or null when it could not be read. */
+  balance: number | null
+  /** ISO timestamp of the reading. */
+  asOf: string
+  /** True when the value came from an earlier successful read. */
+  stale: boolean
+  /** Machine-readable reason when `balance` is null. */
+  reason?: 'not_configured' | 'unreachable' | 'rejected'
+  message?: string
+}
+
+interface CachedBalance {
+  snapshot: PaystackBalanceSnapshot
+  expiresAt: number
+}
+
+const BALANCE_TTL_MS = 60_000
+let balanceCache: CachedBalance | null = null
+
+/**
+ * Reads the platform's Paystack NGN balance. The provider returns kobo.
+ * Results (including transient failures) are cached for 60 seconds so an admin
+ * dashboard refresh never hammers the provider. Previously known values are
+ * returned marked `stale` when a refresh fails, and are never invented.
+ */
+export async function getPaystackBalance(now = Date.now()): Promise<PaystackBalanceSnapshot> {
+  if (balanceCache && balanceCache.expiresAt > now) return balanceCache.snapshot
+
+  const cache = (snapshot: PaystackBalanceSnapshot) => {
+    balanceCache = { snapshot, expiresAt: now + BALANCE_TTL_MS }
+    return snapshot
+  }
+
+  if (!process.env.PAYSTACK_SECRET_KEY) {
+    return cache({ balance: null, asOf: new Date(now).toISOString(), stale: false, reason: 'not_configured', message: 'Paystack is not configured in this environment' })
+  }
+
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 6_000)
+  try {
+    const response = await fetch(`${PAYSTACK_BASE_URL}/balance`, {
+      headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`, 'Content-Type': 'application/json' },
+      cache: 'no-store',
+      signal: controller.signal,
+    })
+    const json: any = await response.json().catch(() => null)
+    if (!response.ok || !json?.status || !Array.isArray(json.data)) {
+      return cache({
+        balance: null,
+        asOf: new Date(now).toISOString(),
+        stale: false,
+        reason: 'rejected',
+        message: typeof json?.message === 'string' ? json.message : 'Paystack rejected the balance request',
+      })
+    }
+    const ngn = json.data.find((entry: any) => String(entry?.currency || '').toUpperCase() === 'NGN') ?? json.data[0]
+    const kobo = Number(ngn?.balance)
+    if (!Number.isFinite(kobo)) {
+      return cache({ balance: null, asOf: new Date(now).toISOString(), stale: false, reason: 'rejected', message: 'Paystack returned no NGN balance' })
+    }
+    return cache({ balance: Math.round(kobo) / 100, asOf: new Date(now).toISOString(), stale: false })
+  } catch (error) {
+    const previous = balanceCache?.snapshot
+    return cache({
+      balance: previous?.balance ?? null,
+      asOf: previous?.asOf ?? new Date(now).toISOString(),
+      stale: Boolean(previous?.balance !== null && previous?.balance !== undefined),
+      reason: previous?.balance !== null && previous?.balance !== undefined ? undefined : 'unreachable',
+      message: error instanceof Error ? error.message : 'Payment provider is unreachable',
+    })
+  } finally {
+    clearTimeout(timeout)
+  }
+}
