@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next'
-import { Geist_Mono, Instrument_Sans, Instrument_Serif, Plus_Jakarta_Sans } from 'next/font/google'
+import { Geist_Mono, Plus_Jakarta_Sans } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { Toaster } from 'sonner'
 import { HideV0Badge } from '@/components/HideV0Badge'
@@ -8,21 +8,10 @@ import './globals.css'
 const jakarta = Plus_Jakarta_Sans({ subsets: ['latin'], weight: ['400', '500', '600', '700'], variable: '--font-jakarta' });
 const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-geist-mono' });
 
-// Batch 3A editorial pairing. Dashboard screens use these two; the rest of the
-// product keeps Plus Jakarta Sans above so nothing existing is restyled.
-const instrumentSerif = Instrument_Serif({
-  subsets: ['latin'],
-  weight: '400',
-  style: ['normal', 'italic'],
-  display: 'swap',
-  variable: '--font-editorial',
-});
-const instrumentSans = Instrument_Sans({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
-  display: 'swap',
-  variable: '--font-dashboard-ui',
-});
+// The Batch 3A editorial pairing is NOT loaded here on purpose: only the
+// dashboard, the admin console and the registration page use it, and each of
+// those loads it in its own layout (lib/editorial-fonts.tsx). The storefront and
+// the rest of the product keep Plus Jakarta Sans above and never download it.
 
 export const metadata: Metadata = {
   title: 'FoodBase',
@@ -76,7 +65,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className={`${jakarta.variable} ${geistMono.variable} ${instrumentSerif.variable} ${instrumentSans.variable}`}>
+    <html lang="en" className={`${jakarta.variable} ${geistMono.variable}`}>
       <head>
         <script dangerouslySetInnerHTML={{
           __html: `

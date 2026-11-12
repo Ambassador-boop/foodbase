@@ -9,7 +9,15 @@ import { Toggle, TimeInput } from '@/components/dashboard/toggle'
 import { ErrorState, Skeleton } from '@/components/dashboard/empty-state'
 import { StatusPill } from '@/components/dashboard/status-pill'
 import { toast } from '@/components/dashboard/toast'
-import { DAY_LABELS, isOpenAt, type DayHours } from '@/lib/hours-shared'
+import {
+  DAY_LABELS,
+  formatTime12h,
+  hasConfiguredHours,
+  isOpenAt,
+  lagosNow,
+  nextOpeningAt,
+  type DayHours,
+} from '@/lib/hours-shared'
 
 /**
  * Opening hours editor.
@@ -106,9 +114,48 @@ export function HoursEditor() {
   const incompleteDays = openDays.filter((day) => !day.open_time || !day.close_time)
   const step = openDays.length === 0 ? 0 : incompleteDays.length > 0 ? 1 : 2
 
-  const now = React.useMemo(() => new Date(), [])
+  // Lagos wall-clock time, the same clock the order API enforces against, so this
+  // preview cannot disagree with what a customer is actually shown.
+  const now = React.useMemo(() => lagosNow(), [])
   const openNow = state ? isOpenAt(state.days, now) : false
   const todayRow = state?.days.find((day) => day.day_of_week === now.getDay())
+  const hoursConfigured = state ? hasConfiguredHours(state.days) : false
+  const nextOpening = state && !openNow ? nextOpeningAt(state.days, now) : null
+  const todayWindow =
+    todayRow && !todayRow.is_closed && todayRow.open_time && todayRow.close_time
+      ? `${formatTime12h(todayRow.open_time)} – ${formatTime12h(todayRow.close_time)}`
+      : null
+
+  // Exactly what a customer sees right now, for the state on screen (saved or
+  // not). Kept in one place so the copy cannot drift from the real behaviour.
+  const customerPreview = (() => {
+    if (!state) {
+      return { tone: 'neutral' as const, text: '' }
+    }
+    if (!hoursConfigured) {
+      return {
+        tone: 'neutral' as const,
+        text: 'No opening hours published yet. Customers see no open or closed status, and they can order at any time.',
+      }
+    }
+    if (openNow) {
+      return {
+        tone: 'open' as const,
+        text: `Open now${todayWindow ? ` · Today ${todayWindow}` : ''}. Orders go through as normal.`,
+      }
+    }
+    const opens = nextOpening?.label ?? 'Their next opening time'
+    if (state.acceptOrdersOutsideHours) {
+      return {
+        tone: 'closed-ordering' as const,
+        text: `Closed now · ${opens}. Customers can still pay, and the order waits on your board until you open.`,
+      }
+    }
+    return {
+      tone: 'paused' as const,
+      text: `Closed now · ${opens}. Ordering is paused: the cart and checkout show this time, and the pay button is disabled.`,
+    }
+  })()
 
   const save = async () => {
     if (!state || saving) return
@@ -271,7 +318,11 @@ export function HoursEditor() {
         </div>
       </SectionCard>
 
-      <SectionCard id="hours-policy" title="Orders outside opening hours">
+      <SectionCard
+        id="hours-policy"
+        title="Orders outside opening hours"
+        description="Applies to every customer. Opening times are read in West Africa Time (Lagos), whatever timezone they are ordering from."
+      >
         <div className="flex flex-col gap-3">
           <Toggle
             id="accept-outside"
@@ -281,7 +332,7 @@ export function HoursEditor() {
               setDirty(true)
             }}
             label="Keep accepting orders when we are closed"
-            description="On by default. Customers can still order and pay, and the order waits on your board until you open. Turn this off only if you would rather refuse orders while closed."
+            description="On by default. While you are closed, customers can still order and pay, and the order waits on your board until you open. Turn it off and ordering is blocked while you are closed: the cart and checkout show your next opening time and the pay button is disabled, but they can still browse the menu and edit their cart. Orders already placed are never affected."
           />
           <div className="flex flex-wrap items-center gap-2 rounded-[8px] border border-[var(--dash-line)] bg-[var(--dash-surface-sunken)] px-3 py-2.5">
             <span className="text-[11.5px] font-medium uppercase tracking-[0.1em] text-[var(--dash-ink-4)]">
@@ -294,8 +345,32 @@ export function HoursEditor() {
               {todayRow && !todayRow.is_closed && todayRow.open_time
                 ? `Today ${todayRow.open_time} – ${todayRow.close_time ?? '—'}`
                 : 'No hours set for today'}
-              {!state.acceptOrdersOutsideHours && !openNow ? ' · orders paused until you open' : ''}
+              {!state.acceptOrdersOutsideHours && !openNow ? ' · customers cannot order until you open' : ''}
             </span>
+          </div>
+
+          {/* Live preview. Read-only, updates as the toggle or times change. */}
+          <div className="rounded-[8px] border border-[var(--dash-line)] bg-[var(--dash-cream)] px-3 py-3">
+            <p className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-[var(--dash-ink-4)]">
+              Customers will see
+            </p>
+            <p className="mt-1.5 flex items-start gap-2 text-[12.5px] leading-[1.55] text-[var(--dash-ink-2)]">
+              <span
+                className={`mt-[6px] size-1.5 shrink-0 rounded-full ${
+                  customerPreview.tone === 'open'
+                    ? 'bg-[#1F7A47]'
+                    : customerPreview.tone === 'paused'
+                      ? 'bg-[var(--dash-brown)]'
+                      : 'bg-[var(--dash-ink-4)]'
+                }`}
+                aria-hidden="true"
+              />
+              <span>{customerPreview.text}</span>
+            </p>
+            <p className="mt-2 pl-3.5 text-[11.5px] leading-[1.5] text-[var(--dash-ink-4)]">
+              Orders placed before closing stay as they are. This preview shows the current state, and
+              matches the cart and checkout for every customer.
+            </p>
           </div>
         </div>
       </SectionCard>

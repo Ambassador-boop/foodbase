@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getOne, getAll } from '@/lib/db';
-import { getBusinessHours, isOpenAt, describeToday, type DayHours } from '@/lib/business-hours';
+import {
+  getBusinessHours,
+  isOpenAt,
+  describeToday,
+  hasConfiguredHours,
+  lagosNow,
+  nextOpeningAt,
+  type DayHours,
+} from '@/lib/business-hours';
 
 /**
  * Restaurant storefront menu endpoint.
@@ -165,15 +173,28 @@ export async function GET(
 
     // -------- Opening hours (Batch 3A, additive) --------
     // Never let hours break the menu: a failure here just omits the field.
-    let hours: { days: DayHours[]; isOpenNow: boolean; acceptOrdersOutsideHours: boolean; today: string } | null = null;
+    let hours: {
+      days: DayHours[];
+      isOpenNow: boolean;
+      acceptOrdersOutsideHours: boolean;
+      today: string;
+      /** Batch 3A-fix: false when the owner has no schedule yet. */
+      hoursConfigured: boolean;
+      /** Batch 3A-fix: "Opens today at 10:00 AM", or null when open/unknown. */
+      opensAt: string | null;
+    } | null = null;
     try {
       const hoursState = await getBusinessHours(business.id);
-      const now = new Date();
+      // Lagos wall-clock time: the same clock the order API enforces against.
+      const now = lagosNow();
+      const isOpenNow = isOpenAt(hoursState.days, now);
       hours = {
         days: hoursState.days,
-        isOpenNow: isOpenAt(hoursState.days, now),
+        isOpenNow,
         acceptOrdersOutsideHours: hoursState.acceptOrdersOutsideHours,
         today: describeToday(hoursState.days, now),
+        hoursConfigured: hasConfiguredHours(hoursState.days),
+        opensAt: isOpenNow ? null : nextOpeningAt(hoursState.days, now)?.label ?? null,
       };
     } catch (hoursError) {
       console.error('[menu] hours unavailable', hoursError);

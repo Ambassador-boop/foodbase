@@ -4,6 +4,8 @@ import {
   AVAILABILITY_KEYS,
   DEFAULT_HOURS,
   WEEK_ORDER,
+  evaluateOrdering,
+  lagosNow,
   toHm,
   type DayHours,
   type HoursState,
@@ -26,8 +28,15 @@ export {
   toHm,
   isOpenAt,
   describeToday,
+  lagosNow,
+  nextOpeningAt,
+  hasConfiguredHours,
+  isOrderingPaused,
+  evaluateOrdering,
+  formatTime12h,
   type DayHours,
   type HoursState,
+  type StorefrontHours,
 } from '@/lib/hours-shared'
 
 function rowsOf<T>(raw: any): T[] {
@@ -169,4 +178,44 @@ export async function saveBusinessHours(
   }
 
   return { tableSaved }
+}
+
+/* ==========================================================================
+ * Batch 3A-fix: the ordering gate
+ * ========================================================================== */
+
+export type OrderingStatus = {
+  /** False only when an order must be refused right now. */
+  allowed: boolean
+  openNow: boolean
+  /** False when the owner has no schedule yet. */
+  hoursConfigured: boolean
+  /** "Opens today at 10:00 AM", or null when open / unknown. */
+  opensAt: string | null
+}
+
+/**
+ * Can this business take an order right now?
+ *
+ * Refuses only when every one of these is true: the owner turned
+ * accept_orders_outside_hours off, a schedule exists, and Lagos wall-clock time
+ * is currently outside it. A missing column, a missing table, a failed query or
+ * an empty schedule all resolve to "allowed" - an order is never lost because
+ * the hours lookup could not answer.
+ */
+export async function getOrderingStatus(businessId: string): Promise<OrderingStatus> {
+  const allow: OrderingStatus = {
+    allowed: true,
+    openNow: true,
+    hoursConfigured: false,
+    opensAt: null,
+  }
+
+  try {
+    const state = await getBusinessHours(businessId)
+    return evaluateOrdering(state.days, state.acceptOrdersOutsideHours, lagosNow())
+  } catch (error) {
+    console.warn('[hours] ordering status unavailable, allowing the order', error)
+    return allow
+  }
 }
