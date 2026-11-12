@@ -5,6 +5,7 @@ import { settleWithdrawalSuccess } from '@/lib/withdrawals';
 import { recordAdminTransferFee } from '@/lib/admin-transfers';
 import { settlePaystackPayment } from '@/lib/payments/settle';
 import { sendOrderStatusNotification } from '@/lib/notification-service';
+import { notifyRestaurantPaidOrder } from '@/lib/paid-order-notification';
 
 function rowsOf(raw: any): any[] { return Array.isArray(raw) ? raw : raw?.rows ?? []; }
 
@@ -25,6 +26,11 @@ export async function POST(req: NextRequest) {
         const result = await settlePaystackPayment(event.data);
         if (result.status === 'settled') {
           try { await sendOrderStatusNotification(String(result.order_id), 'confirmed', 'paid'); } catch (error) { console.error('[v0] Webhook notification failed:', error); }
+        }
+        // Batch 3C: one paid-order alert per order, whichever of verify and this
+        // webhook gets there first. The claim inside the function decides.
+        if ((result.status === 'settled' || result.status === 'already_settled') && result.order_id) {
+          try { await notifyRestaurantPaidOrder(String(result.order_id)); } catch (error) { console.error('[v0] Paid order notification failed:', error); }
         }
         return NextResponse.json({ success: true });
       }

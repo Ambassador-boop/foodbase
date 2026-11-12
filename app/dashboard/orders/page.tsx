@@ -14,11 +14,13 @@ import {
   RefreshCw,
   Search,
   ShoppingBag,
+  ChefHat,
   TrendingUp,
   XCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { KitchenSoundToggle, useNewPaidOrderSound } from '@/components/dashboard/kitchen/paid-order-sound';
 import { toast } from 'sonner';
 import { formatWat, formatWatYMD } from '@/lib/wat';
 
@@ -289,6 +291,9 @@ export default function OrdersPage() {
     };
   }, [businessId]);
 
+  // Batch 3C: the same alert tone the kitchen uses, once per newly paid order.
+  useNewPaidOrderSound(orders);
+
   /* ------------------------------- Filtering ------------------------------ */
 
   const filtered = useMemo(() => {
@@ -384,6 +389,16 @@ export default function OrdersPage() {
               Orders
             </h1>
           </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <KitchenSoundToggle />
+          <Link
+            href="/dashboard/kitchen"
+            className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            <ChefHat className="h-4 w-4" aria-hidden="true" />
+            Kitchen display
+          </Link>
         </div>
       </header>
 

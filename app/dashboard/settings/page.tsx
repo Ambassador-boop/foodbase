@@ -8,6 +8,7 @@ import {
   Users,
   Lock,
   Bell,
+  BellRing,
   CreditCard,
   ChevronRight,
 } from 'lucide-react';
@@ -68,6 +69,13 @@ const settingsSections: SettingsSection[] = [
     href: '/dashboard/notifications',
     badge: 'Coming soon',
     badgeVariant: 'coming-soon',
+  },
+  {
+    id: 'push-alerts',
+    title: 'Push alerts',
+    description: 'Register this device, send a test alert, and set the paid-order sound',
+    icon: BellRing,
+    href: '/dashboard/settings/notifications',
   },
   {
     id: 'billing',

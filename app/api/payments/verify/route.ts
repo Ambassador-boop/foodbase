@@ -3,6 +3,7 @@ import { verifyPayment } from '@/lib/paystack';
 import { getOne } from '@/lib/db';
 import { settlePaystackPayment } from '@/lib/payments/settle';
 import { sendOrderStatusNotification } from '@/lib/notification-service';
+import { notifyRestaurantPaidOrder } from '@/lib/paid-order-notification';
 
 export async function POST(request: NextRequest) {
   try {
@@ -41,6 +42,16 @@ export async function POST(request: NextRequest) {
       try { await sendOrderStatusNotification(orderId, 'confirmed', 'paid'); } catch (error) {
         console.error('[v0] Payment notification failed:', error);
       }
+    }
+
+    // Batch 3C: the restaurant's one "this order is paid" alert. `restaurant_notified_at`
+    // is claimed with a single guarded UPDATE, so verify and the webhook racing each
+    // other still produce exactly one push. It is also attempted on `already_settled`
+    // so a notification that failed earlier repairs itself on the next look.
+    try {
+      await notifyRestaurantPaidOrder(orderId);
+    } catch (error) {
+      console.error('[v0] Paid order notification failed:', error);
     }
 
     return NextResponse.json({

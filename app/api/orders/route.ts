@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getOne } from '@/lib/db';
 import { generateAlphanumericId } from '@/lib/utils';
-import { sendNewOrderNotification } from '@/lib/notification-service';
 import {
   getServiceFeeConfig,
   calculateServiceFee,
@@ -659,20 +658,10 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Send immediate notification to business owner about new order
-    // This happens regardless of payment status
-    console.log('[v0] Order API: Triggering immediate notification for order:', orderId);
-    try {
-      const notificationSent = await sendNewOrderNotification(orderId, businessId, customerName);
-      if (notificationSent) {
-        console.log('[v0] Order API: Notification sent successfully');
-      } else {
-        console.warn('[v0] Order API: Notification failed to send, but continuing with order creation');
-      }
-    } catch (notificationError) {
-      console.error('[v0] Order API: Error triggering notification:', notificationError);
-      // Don't fail order creation if notification fails
-    }
+    // Batch 3C: the restaurant is no longer told about an order here, before it has
+    // been paid. The paid-order alert fires once at payment confirmation, from
+    // /api/payments/verify and /api/payments/webhook (lib/paid-order-notification.ts).
+    // `sendNewOrderNotification` itself is untouched and still serves /api/orders/notify.
 
     return NextResponse.json({
       success: true,
