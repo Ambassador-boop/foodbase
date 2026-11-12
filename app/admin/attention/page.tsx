@@ -22,7 +22,7 @@ const CATEGORY_META: Array<{
     key: 'anomalies',
     label: 'Balance anomalies',
     short: 'Balances',
-    explanation: 'A stored business balance does not match the payments, refunds and withdrawals the ledger can prove.',
+    explanation: 'A stored business balance does not match the payments, refunds and withdrawals the ledger can prove, a pending balance does not match the transactions still waiting to settle, or a refund went past the payment it came from.',
     icon: AlertTriangle,
   },
   {
@@ -87,7 +87,14 @@ export default function AlertsPage() {
   const filtered = React.useMemo(() => {
     if (category === 'all') return items
     return items.filter((item) => {
-      if (category === 'anomalies') return item.kind === 'payment_anomaly' || item.kind === 'negative_balance' || item.kind === 'unreconciled_balance'
+      if (category === 'anomalies')
+        return (
+          item.kind === 'payment_anomaly' ||
+          item.kind === 'negative_balance' ||
+          item.kind === 'unreconciled_balance' ||
+          item.kind === 'pending_balance_drift' ||
+          item.kind === 'over_refunded'
+        )
       if (category === 'stuckWithdrawals') return item.kind === 'stuck_withdrawal'
       if (category === 'stuckRefunds') return item.kind === 'stuck_refund'
       if (category === 'pendingTransfers') return item.kind === 'admin_transfer'
@@ -252,7 +259,8 @@ export default function AlertsPage() {
                       {item.status ? <span className="capitalize">Status: {item.status.replace(/_/g, ' ')}</span> : null}
                       {item.amount !== null && item.amount !== undefined ? (
                         <span className="num">
-                          {item.kind === 'unreconciled_balance' ? 'Gap ' : ''}
+                          {item.kind === 'unreconciled_balance' || item.kind === 'pending_balance_drift' ? 'Gap ' : ''}
+                          {item.kind === 'over_refunded' ? 'Over by ' : ''}
                           {new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', maximumFractionDigits: 2 }).format(item.amount)}
                         </span>
                       ) : null}

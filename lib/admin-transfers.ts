@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import { nanoid } from 'nanoid';
+import { resolveTransferFee } from '@/lib/paystack-fees';
 
 const PAYSTACK_BASE = 'https://api.paystack.co';
 const PAYSTACK_API_KEY = process.env.PAYSTACK_SECRET_KEY;
@@ -37,10 +38,64 @@ export async function reconcileAdminTransfers(kind: string) {
     catch { /* leave pending when the provider cannot be reached */ }
   }
 }
+
+/**
+ * Record what Paystack charged to send an admin transfer.
+ *
+ * Paystack deducts the transfer fee (and, from ₦10,000 up, the ₦50 stamp duty)
+ * from the balance but the transfer object carries no fee, so the amount comes from
+ * the published tiers in lib/paystack-fees.ts unless the provider one day returns
+ * one. fb_admin_record_transfer_fee does the write: it only accepts a transfer that
+ * is already 'success', only once, and moves admin_revenue.available_balance down
+ * and expenses_amount up by the fee.
+ *
+ * Never throws. A missing fee is a reporting gap, not a reason to break a sync, and
+ * a database without docs/sql/2d-transfer-fee.sql applied yet simply logs.
+ */
+export async function recordAdminTransferFee(id: string, data?: any) {
+  try {
+    const raw: any = await db.query(
+      'SELECT amount::float8 AS amount, kind, status FROM admin_transfers WHERE id=$1',
+      [id],
+    );
+    const row = rowsOf(raw)[0];
+    if (!row) return null;
+
+    const amount = Number(row.amount ?? 0);
+    const resolved = resolveTransferFee(amount, data);
+    if (!(resolved.fee > 0)) return null;
+
+    const resultRaw: any = await db.query(
+      'SELECT fb_admin_record_transfer_fee($1,$2,$3) AS result',
+      [id, resolved.fee, resolved.source],
+    );
+    const resultRow = rowsOf(resultRaw)[0];
+    const result = typeof resultRow?.result === 'string' ? JSON.parse(resultRow.result) : resultRow?.result ?? null;
+
+    if (result?.status && result.status !== 'recorded' && result.status !== 'already_recorded') {
+      console.warn(`[v0] Transfer fee not recorded for ${id}: ${result.status}`);
+    }
+    return result;
+  } catch (error) {
+    const code = (error as { code?: string })?.code ?? '';
+    const hint =
+      code === '42883'
+        ? 'fb_admin_record_transfer_fee is missing: run docs/sql/2d-transfer-fee.sql'
+        : code === '42703'
+          ? 'admin_transfers.provider_fee is missing: add the column first'
+          : 'the transfer sync continues, but admin revenue will not include this fee';
+    console.error(`[v0] Could not record the Paystack fee for transfer ${id} (${hint}):`, error);
+    return null;
+  }
+}
+
 export async function syncAdminTransfer(id: string, data: any) {
   const status = normalizeProviderStatus(data?.status);
   await db.query(`UPDATE admin_transfers SET paystack_transfer_code=COALESCE($1,paystack_transfer_code), status=$2, processed_at=CASE WHEN $2 IN ('success','failed','reversed') THEN COALESCE(processed_at,NOW()) ELSE processed_at END, updated_at=NOW() WHERE id=$3`, [data?.transfer_code ?? null, status, id]);
   if (status === 'failed' || status === 'reversed') await db.query('SELECT fb_admin_reverse_transfer($1) AS result', [id]);
+  // A fee is only charged on a transfer that actually succeeded. Recorded once,
+  // after the status write, and never for a failed or reversed transfer.
+  if (status === 'success') await recordAdminTransferFee(id, data);
 }
 export function newAdminTransferIds(prefix: string) { return { id: `at_${nanoid(14)}`, reference: `${prefix}_${nanoid(20).toLowerCase()}` }; }
 export { rowsOf };

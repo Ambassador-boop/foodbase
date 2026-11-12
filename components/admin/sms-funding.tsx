@@ -382,6 +382,13 @@ export function SmsFundingHistory({ records }: { records: SmsFundingRecord[] }) 
             <div className="min-w-0">
               <p className="num text-[13px] font-medium text-foreground">{money(record.amount)}</p>
               <p className="mt-0.5 text-[11px] text-muted-foreground">{dateTimeWat(record.createdAt)}</p>
+              {record.providerFee ? (
+                <p className="num mt-0.5 text-[11px] text-muted-foreground">
+                  Fee {money(record.providerFee)}
+                  <span aria-hidden="true"> · </span>
+                  Total cost {money(record.totalCost ?? record.amount + record.providerFee)}
+                </p>
+              ) : null}
               {record.failureReason ? (
                 <p className="mt-1 flex items-start gap-1 text-[11px] leading-4 text-[var(--danger)]">
                   <AlertTriangle className="mt-0.5 size-3 shrink-0" aria-hidden="true" />

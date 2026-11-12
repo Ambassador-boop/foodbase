@@ -286,26 +286,59 @@ export async function getWithdrawalSummary(period: AdminPeriod): Promise<Withdra
 }
 
 export interface SmsSummary {
+  /** Amount funded plus the Paystack fees paid to send it. The real cost. */
   spend: number
+  /** The amounts funded, without the transfer fees. */
+  amountsFunded: number
+  /** Paystack transfer fees + stamp duty recorded on those transfers. */
+  smsTransferFees: number
   transfers: number
   pendingTransfers: number
   recorded: boolean
 }
 
-/** SMS wallet funding transfers that actually left the platform balance. */
+/**
+ * SMS wallet funding transfers that actually left the platform balance, plus the
+ * Paystack cost of sending them.
+ *
+ * Paystack deducts the transfer fee (and the ₦50 stamp duty at ₦10,000 and above)
+ * from the balance, so the amount funded alone understates what the platform spent.
+ * `fb_admin_record_transfer_fee` stores that fee on `admin_transfers.provider_fee`;
+ * when the column or the function is not there yet the summary still renders, with
+ * the fee reported as 0 rather than failing the whole dashboard.
+ */
 export async function getSmsSummary(period: AdminPeriod): Promise<SmsSummary> {
   const [start, end] = periodSqlParams(period)
-  const result = await queryRow<Record<string, unknown>>(
-    `SELECT
-        coalesce(sum(amount) FILTER (WHERE balance_deducted AND NOT coalesce(balance_reversed, false)), 0)::float8 AS spend,
-        count(*) FILTER (WHERE balance_deducted AND NOT coalesce(balance_reversed, false))::int AS transfers,
+  const deducted = 'balance_deducted AND NOT coalesce(balance_reversed, false)'
+  const withFees = `SELECT
+        coalesce(sum(amount) FILTER (WHERE ${deducted}), 0)::float8 AS funded,
+        coalesce(sum(coalesce(provider_fee, 0)) FILTER (WHERE ${deducted}), 0)::float8 AS fees,
+        count(*) FILTER (WHERE ${deducted})::int AS transfers,
         count(*) FILTER (WHERE lower(status) NOT IN ('success', 'completed', 'failed', 'reversed'))::int AS pending
        FROM admin_transfers
-      WHERE kind = 'sms_funding' AND ${awareRange('created_at')}`,
-    [start, end],
-  )
+      WHERE kind = 'sms_funding' AND ${awareRange('created_at')}`
+  const withoutFees = `SELECT
+        coalesce(sum(amount) FILTER (WHERE ${deducted}), 0)::float8 AS funded,
+        0::float8 AS fees,
+        count(*) FILTER (WHERE ${deducted})::int AS transfers,
+        count(*) FILTER (WHERE lower(status) NOT IN ('success', 'completed', 'failed', 'reversed'))::int AS pending
+       FROM admin_transfers
+      WHERE kind = 'sms_funding' AND ${awareRange('created_at')}`
+
+  let result: Record<string, unknown> | null = null
+  try {
+    result = await queryRow<Record<string, unknown>>(withFees, [start, end])
+  } catch (error) {
+    console.error('[admin] provider_fee unavailable; SMS spend excludes transfer fees', error)
+    result = await queryRow<Record<string, unknown>>(withoutFees, [start, end])
+  }
+
+  const amountsFunded = round2(num(result?.funded))
+  const smsTransferFees = round2(num(result?.fees))
   return {
-    spend: round2(num(result?.spend)),
+    spend: round2(amountsFunded + smsTransferFees),
+    amountsFunded,
+    smsTransferFees,
     transfers: num(result?.transfers),
     pendingTransfers: num(result?.pending),
     recorded: true,
@@ -582,7 +615,7 @@ const ATTENTION_LIMIT = 50
 export async function getAttentionQueue(options: { includeRows?: boolean } = {}): Promise<AttentionQueue> {
   const includeRows = options.includeRows !== false
 
-  const [negativeBalances, anomalies, stuckWithdrawals, stuckRefunds, pendingTransfers, paidWithoutTransaction, reconciliation] =
+  const [negativeBalances, anomalies, stuckWithdrawals, stuckRefunds, pendingTransfers, paidWithoutTransaction, reconciliation, pendingDrift, overRefunded] =
     await Promise.all([
       queryRows<Record<string, unknown>>(
         `SELECT id, name, available_balance::float8 AS available_balance, pending_balance::float8 AS pending_balance
@@ -669,6 +702,52 @@ export async function getAttentionQueue(options: { includeRows?: boolean } = {})
           ORDER BY abs(actual - expected) DESC
           LIMIT ${ATTENTION_LIMIT}`,
       ),
+      // Pending-balance invariant (read-only). Stored pending_balance must equal the
+      // net of every transaction that is still pending in the pending bucket, using
+      // exactly the arithmetic fb_settle_due_transactions applies when it settles:
+      // GREATEST(0, amount - refunds that are not failed/rejected).
+      queryRows<Record<string, unknown>>(
+        `WITH refunded AS (
+            SELECT transaction_id, coalesce(sum(refund_amount), 0) AS refunded
+              FROM refunds
+             WHERE lower(status::text) NOT IN ('failed', 'rejected')
+             GROUP BY transaction_id
+         ), pending AS (
+            SELECT t.business_id,
+                   coalesce(sum(GREATEST(0, t.amount - coalesce(rf.refunded, 0))), 0) AS derived
+              FROM transactions t
+              LEFT JOIN refunded rf ON rf.transaction_id = t.id
+             WHERE t.settlement_status::text = 'pending'
+               AND t.balance_bucket = 'pending'
+             GROUP BY t.business_id
+         )
+         SELECT b.id, b.name,
+                coalesce(b.pending_balance, 0)::float8 AS stored,
+                coalesce(p.derived, 0)::float8 AS derived,
+                (coalesce(b.pending_balance, 0) - coalesce(p.derived, 0))::float8 AS gap
+           FROM businesses b
+           LEFT JOIN pending p ON p.business_id = b.id
+          WHERE abs(coalesce(b.pending_balance, 0) - coalesce(p.derived, 0)) > 0.01
+          ORDER BY abs(coalesce(b.pending_balance, 0) - coalesce(p.derived, 0)) DESC
+          LIMIT ${ATTENTION_LIMIT}`,
+      ),
+      // Refunds that pushed a transaction past the money it actually took. Read-only;
+      // legacy rows are reported, never adjusted.
+      queryRows<Record<string, unknown>>(
+        `SELECT r.transaction_id, min(r.order_id) AS order_id, r.business_id,
+                b.name AS business_name,
+                t.amount::float8 AS transaction_amount,
+                sum(r.refund_amount)::float8 AS refunded,
+                count(*)::int AS refund_count
+           FROM refunds r
+           JOIN transactions t ON t.id = r.transaction_id
+           LEFT JOIN businesses b ON b.id = r.business_id
+          WHERE lower(r.status::text) NOT IN ('failed', 'rejected')
+          GROUP BY r.transaction_id, r.business_id, b.name, t.amount
+         HAVING sum(r.refund_amount) > t.amount
+          ORDER BY (sum(r.refund_amount) - t.amount) DESC
+          LIMIT ${ATTENTION_LIMIT}`,
+      ),
     ])
 
   const anomalyItems: AttentionItem[] = []
@@ -705,6 +784,42 @@ export async function getAttentionQueue(options: { includeRows?: boolean } = {})
       business_id: String(entry.id),
       resolvable: false,
       severity: 'warning',
+    })
+  }
+  for (const entry of pendingDrift) {
+    if (negativeBalances.some((business) => String(business.id) === String(entry.id))) continue
+    const stored = round2(num(entry.stored))
+    const derived = round2(num(entry.derived))
+    anomalyItems.push({
+      id: `pending_drift:${entry.id}`,
+      kind: 'pending_balance_drift',
+      title: String(entry.name ?? 'Business'),
+      detail: `Stored pending balance ₦${stored.toLocaleString('en-NG')} does not match the ₦${derived.toLocaleString('en-NG')} still awaiting settlement`,
+      amount: round2(stored - derived),
+      status: 'pending_drift',
+      created_at: null,
+      href: `/admin/businesses/${entry.id}`,
+      business_id: String(entry.id),
+      resolvable: false,
+      severity: 'warning',
+    })
+  }
+  for (const entry of overRefunded) {
+    const refunded = round2(num(entry.refunded))
+    const paid = round2(num(entry.transaction_amount))
+    anomalyItems.push({
+      id: `over_refunded:${entry.transaction_id}`,
+      kind: 'over_refunded',
+      title: String(entry.business_name ?? 'Business'),
+      detail: `Refunds of ₦${refunded.toLocaleString('en-NG')} exceed the ₦${paid.toLocaleString('en-NG')} payment on order ${String(entry.order_id ?? '')}`,
+      amount: round2(refunded - paid),
+      status: 'over_refunded',
+      created_at: null,
+      href: entry.order_id ? `/admin/transactions/${entry.order_id}` : '/admin/transactions',
+      business_id: entry.business_id ? String(entry.business_id) : null,
+      order_id: entry.order_id ? String(entry.order_id) : null,
+      resolvable: false,
+      severity: 'danger',
     })
   }
   for (const entry of anomalies) {

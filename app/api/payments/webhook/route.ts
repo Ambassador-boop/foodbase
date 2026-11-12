@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { db } from '@/lib/db';
+import { recordAdminTransferFee } from '@/lib/admin-transfers';
 import { settlePaystackPayment } from '@/lib/payments/settle';
 import { sendOrderStatusNotification } from '@/lib/notification-service';
 
@@ -44,6 +45,8 @@ export async function POST(req: NextRequest) {
           if (admin) {
             await db.query(`UPDATE admin_transfers SET status=$1, processed_at=CASE WHEN $1='success' THEN COALESCE(processed_at,NOW()) ELSE processed_at END, paystack_transfer_code=COALESCE($2,paystack_transfer_code), updated_at=NOW() WHERE id=$3`, [status, transferCode ?? null, admin.id]);
             if (status === 'failed' || status === 'reversed') await db.query('SELECT fb_admin_reverse_transfer($1) AS result', [admin.id]);
+            // Same recorder the reconcile path uses. Idempotent, never throws.
+            if (status === 'success') await recordAdminTransferFee(admin.id, event.data);
           }
         }
         return NextResponse.json({ success: true });
