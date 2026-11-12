@@ -169,6 +169,8 @@ export interface AttentionResponse {
   pendingTransfers: number
   paidWithoutTransaction: number
   total: number
+  /** Batch 3A: businesses created in the last 7 days. Never added to `total`. */
+  newRegistrations?: number
   rows: {
     anomalies: AttentionItem[]
     stuckWithdrawals: AttentionItem[]

@@ -212,3 +212,141 @@
   --settle-border: #3B322B;
   --settle-muted: #A79A8E;
 }
+
+/* ==========================================================================
+   Dashboard design system tokens (Batch 3A, additive)
+   --------------------------------------------------------------------------
+   Nothing above this block is changed. These are new, namespaced tokens used
+   by every component in components/dashboard/. They exist so the dashboard
+   screens share one palette, one spacing rhythm and one motion language
+   instead of re-deriving colours per page.
+   ========================================================================== */
+
+:root {
+  /* Brand, unchanged values, exposed under dashboard names */
+  --dash-brown: #8E3800;
+  --dash-brown-deep: #6F2C00;
+  --dash-brown-soft: #A85C2B;
+  --dash-cream: #FBF4EE;
+  --dash-sand: #F4E9DE;
+  --dash-sand-deep: #EBDCCD;
+
+  /* Structure */
+  --dash-line: #E9DCD0;
+  --dash-line-strong: #D9C7B7;
+  --dash-surface: #FFFFFF;
+  --dash-surface-sunken: #FBF8F4;
+  --dash-surface-inset: #F7F0E8;
+
+  /* Text. ink-3 clears AA (4.5:1) on --dash-cream for 13px and up. */
+  --dash-ink-1: #1D1A17;
+  --dash-ink-2: #453D36;
+  --dash-ink-3: #6B5D52;
+  --dash-ink-4: #8B7D71;
+
+  /* State */
+  --dash-focus: #8E3800;
+  --dash-success: #1F7A47;
+  --dash-success-bg: #E8F4EC;
+  --dash-warning: #8A5A12;
+  --dash-warning-bg: #FBF1DC;
+  --dash-danger: #B23A3A;
+  --dash-danger-bg: #FBEBE9;
+  --dash-info: #1F5F8B;
+  --dash-info-bg: #E9F1F7;
+
+  /* Elevation: flat by default. Cards are separated by a hairline, not a shadow. */
+  --dash-shadow-1: 0 1px 1px rgba(29, 26, 23, 0.03);
+  --dash-shadow-2: 0 2px 6px rgba(29, 26, 23, 0.06), 0 1px 2px rgba(29, 26, 23, 0.04);
+  --dash-shadow-pop: 0 18px 40px -12px rgba(29, 26, 23, 0.22), 0 2px 6px rgba(29, 26, 23, 0.06);
+
+  /* Motion. Fast for state, base for layout. Never longer than 200ms. */
+  --dash-motion-fast: 150ms;
+  --dash-motion-base: 180ms;
+  --dash-ease: cubic-bezier(0.2, 0.7, 0.3, 1);
+
+  /* Layout rhythm (4/8 scale) */
+  --dash-gutter: 16px;
+  --dash-page-max: 1320px;
+}
+
+/* Type stacks for the new screens. `--font-editorial` and `--font-dashboard-ui`
+   are injected by next/font on <html>, so these reference them without naming
+   themselves (a self-referential custom property is a cycle and silently drops
+   the font). Existing pages keep their own font-family untouched. */
+:root {
+  --dash-font-display: var(--font-editorial), 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
+  --dash-font-ui: var(--font-dashboard-ui), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+/* Scopes the dashboard type pairing and focus treatment to new screens only.
+   Existing dashboard pages keep their current look until they are migrated. */
+.dash-surface {
+  font-family: var(--dash-font-ui);
+  font-feature-settings: 'ss01', 'cv05';
+  color: var(--dash-ink-1);
+  -webkit-font-smoothing: antialiased;
+}
+
+.dash-surface :focus-visible {
+  outline: 2px solid var(--dash-focus);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
+.dash-display {
+  font-family: var(--dash-font-display);
+  font-weight: 400;
+  letter-spacing: -0.015em;
+}
+
+.dash-num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+.dash-rule {
+  border-color: var(--dash-line);
+}
+
+/* Explicit, opt-in micro transitions. Kept short and only on interaction. */
+.dash-tap {
+  transition: background-color var(--dash-motion-fast) var(--dash-ease),
+    border-color var(--dash-motion-fast) var(--dash-ease),
+    color var(--dash-motion-fast) var(--dash-ease);
+}
+
+.dash-rise {
+  transition: transform var(--dash-motion-base) var(--dash-ease),
+    opacity var(--dash-motion-base) var(--dash-ease);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dash-surface *,
+  .dash-surface *::before,
+  .dash-surface *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .dash-rise:hover {
+    transform: none;
+  }
+}
+
+/* Mobile safe areas: used by sticky dashboard footers and the registration page. */
+.dash-safe-bottom {
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+}
+
+.dash-safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+/* Split layout used by dashboard screens: single column below 1024px. */
+@media (min-width: 1024px) {
+  .dash-split {
+    grid-template-columns: minmax(0, 1fr) var(--dash-split-side, 320px);
+  }
+}

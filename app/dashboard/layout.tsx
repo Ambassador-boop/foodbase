@@ -21,8 +21,11 @@ import {
   ChevronDown,
   Settings,
   Check,
+  Clock,
+  ListChecks,
 } from 'lucide-react';
 import NotificationsIcon from '@/components/dashboard/notifications-icon';
+import { VerifyEmailBanner } from '@/components/dashboard/verify-email-banner';
 import BusinessSwitchOverlay from '@/components/dashboard/business-switch-overlay';
 import { MedianNotificationSetup } from '@/components/dashboard/median-notification-setup';
 import { switchBusiness } from '@/lib/business-switch';
@@ -37,6 +40,8 @@ const navigationItems = [
 { label: 'Drinks', href: '/dashboard/drinks', icon: Droplet },
 { label: 'Popular Dishes', href: '/dashboard/popular', icon: Zap },
 { label: 'Share Business', href: '/dashboard/share', icon: Share2 },
+{ label: 'Opening Hours', href: '/dashboard/hours', icon: Clock },
+{ label: 'Setup', href: '/dashboard/onboarding', icon: ListChecks },
 { label: 'Settings', href: '/dashboard/settings', icon: Settings },
 ];
 
@@ -395,7 +400,10 @@ export default function DashboardLayout({
         </header>
 
         <main className="flex-1 overflow-auto">
-          <div className="p-4 lg:p-6">{children}</div>
+          <div className="p-4 lg:p-6">
+            <VerifyEmailBanner />
+            {children}
+          </div>
         </main>
       </div>
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -14,6 +14,22 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  // Batch 3A: restaurant registration can hand the owner back here when the
+  // session cookie could not be set. Read the flag without useSearchParams so
+  // this page keeps its current rendering behaviour.
+  const [notice, setNotice] = useState('');
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('registered') === '1') {
+      setNotice('Your restaurant is live. Sign in to finish setting it up.');
+    } else if (params.get('email_verified') === '1') {
+      setNotice('Email confirmed. Thank you.');
+    } else if (params.get('email_verified') === 'expired') {
+      setNotice('That confirmation link has expired. You can request a new one from the dashboard.');
+    }
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -109,6 +125,12 @@ export default function LoginPage() {
             Log in to access your dashboard
           </p>
 
+          {notice && !error && (
+            <div className="mb-4 p-3 bg-[var(--success-bg,#E6F6EC)] border border-[#BFE3CD] rounded text-[#1F7D4A] text-sm">
+              {notice}
+            </div>
+          )}
+
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
               {error}
@@ -164,7 +186,16 @@ export default function LoginPage() {
           </form>
 
           <div className="mt-6 pt-6 border-t border-border text-center text-xs text-muted-foreground">
-            <p>Contact your administrator to register a new account</p>
+            <p>
+              New to FoodBase?{' '}
+              <Link
+                href="/register/restaurant"
+                className="font-semibold text-primary underline-offset-4 hover:underline"
+              >
+                Register your restaurant
+              </Link>
+            </p>
+            <p className="mt-2">Contact your administrator to register a new account</p>
           </div>
         </div>
       </div>

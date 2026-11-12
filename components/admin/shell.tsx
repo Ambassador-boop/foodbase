@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   Store,
   TrendingUp,
+  UserPlus,
   Users,
   Wallet,
   X,
@@ -51,6 +52,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Businesses',
     items: [
       { label: 'Businesses', href: '/admin/businesses', icon: Store },
+      { label: 'New registrations', href: '/admin/businesses/registrations', icon: UserPlus },
       { label: 'Performance', href: '/admin/businesses/performance', icon: TrendingUp },
     ],
   },
@@ -72,6 +74,7 @@ const PAGE_TITLES: Array<{ prefix: string; title: string }> = [
   { prefix: '/admin/revenue', title: 'Revenue' },
   { prefix: '/admin/transactions', title: 'Transactions' },
   { prefix: '/admin/withdrawals', title: 'Withdrawals' },
+  { prefix: '/admin/businesses/registrations', title: 'New registrations' },
   { prefix: '/admin/businesses/performance', title: 'Business performance' },
   { prefix: '/admin/businesses/register', title: 'Add business' },
   { prefix: '/admin/businesses/edit', title: 'Edit business' },
