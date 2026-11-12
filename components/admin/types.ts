@@ -195,8 +195,19 @@ export interface RevenueResponse {
     paymentsVolume: number
     paidOrders: number
     net: number
+    /** Batch 2e: Paystack fees recorded on successful payouts in this range. */
+    payoutFees?: number
+    /** Batch 2e: how many successful payouts have a recorded Paystack fee. */
+    payoutFeesRecordedWithdrawals?: number
   }
-  previousComponents: { serviceFees: number; withdrawalFees: number; paystackFees: number; smsSpend: number; net: number } | null
+  previousComponents: {
+    serviceFees: number
+    withdrawalFees: number
+    paystackFees: number
+    smsSpend: number
+    net: number
+    payoutFees?: number
+  } | null
   dailyBreakdown: Array<{ date: string; transaction_count: number; daily_revenue: number }>
   topRestaurants: Array<{ id: string; name: string; transaction_count: number; restaurant_revenue: number }>
   recentTransactions: Array<{
@@ -214,6 +225,32 @@ export interface RevenueResponse {
     successCount: number
     feeRevenue: number
   }
+  /** Batch 2e: read-only "ledger vs derived" check. Null when it could not be read. */
+  reconciliation?: RevenueReconciliation | null
+}
+
+export interface RevenueLedgerKind {
+  kind: string
+  amount: number
+  count: number
+}
+
+export interface RevenueReconciliation {
+  available: boolean
+  ledgerScope: 'period' | 'all_time'
+  ledgerTotal: number
+  derivedTotal: number
+  remainder: number
+  matches: boolean
+  ledgerByKind: RevenueLedgerKind[]
+  derived: {
+    serviceFees: number
+    withdrawalFees: number
+    paymentFees: number
+    payoutFees: number
+  }
+  uncreditedWithdrawals: number
+  uncreditedFees: number
 }
 
 export interface TransactionsResponse {

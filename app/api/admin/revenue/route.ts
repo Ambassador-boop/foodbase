@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getTokenFromRequest, verifyToken } from '@/lib/auth'
 import { getOne, query } from '@/lib/db'
 import { AdminPeriod, periodSqlParams, resolveAdminPeriod, serialisePeriod } from '@/lib/admin-period'
-import { getPaidSummary, getSmsSummary, getWithdrawalSummary, num, round2 } from '@/lib/admin-analytics'
+import { getPaidSummary, getRevenueReconciliation, getSmsSummary, getWithdrawalSummary, num, round2 } from '@/lib/admin-analytics'
 
 export const dynamic = 'force-dynamic'
 
@@ -87,6 +87,13 @@ export async function GET(request: NextRequest) {
 
     const rowsOf = (value: any): Record<string, unknown>[] => (Array.isArray(value) ? value : value?.rows ?? [])
 
+    // Read-only ledger check. Never allowed to break the revenue page: a failure
+    // reports the card as unavailable instead of failing the whole response.
+    const reconciliation = await getRevenueReconciliation(period).catch((error) => {
+      console.error('[admin] reconciliation failed', error)
+      return null
+    })
+
     const components = {
       serviceFees: paid.serviceFees,
       withdrawalFees: withdrawals.feeRevenue,
@@ -96,7 +103,10 @@ export async function GET(request: NextRequest) {
       smsSpend: sms.spend,
       paymentsVolume: paid.volume,
       paidOrders: paid.paidOrders,
-      net: round2(paid.serviceFees + withdrawals.feeRevenue - paid.paystackFees - sms.spend),
+      // Added in 2e: the Paystack fee the platform paid to send successful payouts.
+      payoutFees: withdrawals.payoutFees,
+      payoutFeesRecordedWithdrawals: withdrawals.payoutFeesRecorded,
+      net: round2(paid.serviceFees + withdrawals.feeRevenue - paid.paystackFees - sms.spend - withdrawals.payoutFees),
     }
 
     const previousComponents = previousPaid && previousWithdrawals
@@ -105,7 +115,8 @@ export async function GET(request: NextRequest) {
           withdrawalFees: previousWithdrawals.feeRevenue,
           paystackFees: previousPaid.paystackFees,
           smsSpend: 0,
-          net: round2(previousPaid.serviceFees + previousWithdrawals.feeRevenue - previousPaid.paystackFees),
+          payoutFees: previousWithdrawals.payoutFees,
+          net: round2(previousPaid.serviceFees + previousWithdrawals.feeRevenue - previousPaid.paystackFees - previousWithdrawals.payoutFees),
         }
       : null
 
@@ -127,6 +138,7 @@ export async function GET(request: NextRequest) {
       dailyBreakdown: rowsOf(dailyResult),
       topRestaurants: rowsOf(topResult),
       recentTransactions: rowsOf(recentResult),
+      reconciliation,
       withdrawals: {
         byStatus: withdrawals.byStatus,
         successAmount: withdrawals.successAmount,

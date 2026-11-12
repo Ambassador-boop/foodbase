@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { db } from '@/lib/db';
+import { settleWithdrawalSuccess } from '@/lib/withdrawals';
 import { recordAdminTransferFee } from '@/lib/admin-transfers';
 import { settlePaystackPayment } from '@/lib/payments/settle';
 import { sendOrderStatusNotification } from '@/lib/notification-service';
@@ -37,7 +38,8 @@ export async function POST(req: NextRequest) {
         const withdrawal = rowsOf(foundRaw)[0];
         if (withdrawal) {
           await db.query(`UPDATE withdrawals SET status=$1::withdrawal_status, processed_at=CASE WHEN $1 IN ('success','failed','reversed') THEN COALESCE(processed_at,NOW()) ELSE processed_at END, gateway_response=COALESCE($2,gateway_response), updated_at=NOW() WHERE id=$3`, [status, event.data?.reason ?? null, withdrawal.id]);
-          if (status === 'success') await db.query('SELECT fb_credit_withdrawal_fee($1) AS result', [withdrawal.id]);
+          // Fee revenue + the provider's payout fee, exactly once, whichever path got here first.
+          if (status === 'success') await settleWithdrawalSuccess(withdrawal.id, event.data);
           else await db.query('SELECT fb_reverse_failed_withdrawal($1) AS result', [withdrawal.id]);
         } else {
           const adminRaw: any = await db.query('SELECT id FROM admin_transfers WHERE reference=$1 OR paystack_transfer_code=$2 LIMIT 1', [String(reference ?? ''), String(transferCode ?? '')]);

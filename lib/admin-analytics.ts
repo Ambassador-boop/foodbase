@@ -245,6 +245,10 @@ export interface WithdrawalSummary {
   pendingAmount: number
   failedCount: number
   failedAmount: number
+  /** Paystack fees recorded on successful payouts in this range (a cost). */
+  payoutFees: number
+  /** How many successful payouts have a recorded Paystack fee. */
+  payoutFeesRecorded: number
 }
 
 export async function getWithdrawalSummary(period: AdminPeriod): Promise<WithdrawalSummary> {
@@ -272,6 +276,25 @@ export async function getWithdrawalSummary(period: AdminPeriod): Promise<Withdra
   const success = find(['success', 'completed', 'processed'])
   const pending = find(['pending', 'processing', 'otp', 'received', 'queued', 'approved'])
   const failed = find(['failed', 'rejected', 'abandoned', 'blocked', 'reversed'])
+  // Paystack fees recorded on the same successful payouts. The column arrives with
+  // batch 2e; before it exists this stays 0 instead of failing the dashboard.
+  let payoutFees = 0
+  let payoutFeesRecorded = 0
+  try {
+    const fees = await queryRow<Record<string, unknown>>(
+      `SELECT COALESCE(sum(COALESCE(provider_fee, 0)), 0)::float8 AS fees,
+              count(*) FILTER (WHERE COALESCE(provider_fee, 0) > 0)::int AS recorded
+         FROM withdrawals
+        WHERE lower(status::text) IN ('success', 'completed', 'processed')
+          AND ${naiveRange('coalesce(processed_at, created_at)')}`,
+      [start, end],
+    )
+    payoutFees = round2(num(fees?.fees))
+    payoutFeesRecorded = num(fees?.recorded)
+  } catch (error) {
+    console.error('[admin] withdrawals.provider_fee unavailable; net revenue excludes payout fees', error)
+  }
+
   return {
     byStatus,
     successCount: sumOf(success, 'count'),
@@ -282,6 +305,8 @@ export async function getWithdrawalSummary(period: AdminPeriod): Promise<Withdra
     pendingAmount: sumOf(pending, 'amount'),
     failedCount: sumOf(failed, 'count'),
     failedAmount: sumOf(failed, 'amount'),
+    payoutFees,
+    payoutFeesRecorded,
   }
 }
 
@@ -1034,4 +1059,208 @@ export async function getBusinessPerformance(period: AdminPeriod): Promise<Busin
       last_paid_at: row.last_paid_at ? new Date(String(row.last_paid_at)).toISOString() : null,
     }
   })
+}
+
+/* -------------------------------------------------------------------------- */
+/* Ledger vs derived                                                          */
+/* -------------------------------------------------------------------------- */
+
+export interface LedgerKindRow {
+  kind: string
+  amount: number
+  count: number
+}
+
+export interface RevenueReconciliation {
+  /** False when the revenue ledger could not be read at all (SQL not applied yet). */
+  available: boolean
+  /** 'period' when the ledger has a timestamp column to filter on, else 'all_time'. */
+  ledgerScope: 'period' | 'all_time'
+  /** Everything the ledger booked in scope, signed. */
+  ledgerTotal: number
+  /** Everything the payment data explains in the same scope, signed. */
+  derivedTotal: number
+  /** ledgerTotal - derivedTotal. Anything beyond N1 is unexplained. */
+  remainder: number
+  /** True when |remainder| <= 1. */
+  matches: boolean
+  ledgerByKind: LedgerKindRow[]
+  derived: {
+    serviceFees: number
+    withdrawalFees: number
+    /** Paystack fees recorded on customer payments (a cost). */
+    paymentFees: number
+    /** Paystack fees recorded on money leaving the platform (a cost). */
+    payoutFees: number
+  }
+  /** Successful withdrawals whose own fee is still not credited. Should be 0 after 2e. */
+  uncreditedWithdrawals: number
+  uncreditedFees: number
+}
+
+/** The ledger table has no guaranteed timestamp column, so only try once per process. */
+let ledgerHasTimestamp: boolean | null = null
+
+const RECONCILIATION_TOLERANCE = 1
+
+/**
+ * Read-only comparison of what the revenue ledger booked against what the payment
+ * data independently explains.
+ *
+ * Derived, for the same scope:
+ *   + service fees on paid orders            (orders.service_fee_amount)
+ *   + fees on successful withdrawals         (withdrawals.withdrawal_fee)
+ *   - Paystack fees on customer payments     (transactions.provider_fee)
+ *   - fees recorded on payouts leaving the platform
+ *         (withdrawals.provider_fee + admin_transfers.provider_fee)
+ *
+ * Every named component is returned so a non-zero remainder can be traced in the
+ * UI instead of being waved through. Nothing here writes.
+ */
+export async function getRevenueReconciliation(period: AdminPeriod): Promise<RevenueReconciliation> {
+  const [start, end] = periodSqlParams(period)
+
+  const empty: RevenueReconciliation = {
+    available: false,
+    ledgerScope: 'period',
+    ledgerTotal: 0,
+    derivedTotal: 0,
+    remainder: 0,
+    matches: true,
+    ledgerByKind: [],
+    derived: { serviceFees: 0, withdrawalFees: 0, paymentFees: 0, payoutFees: 0 },
+    uncreditedWithdrawals: 0,
+    uncreditedFees: 0,
+  }
+
+  const sumOr = async (text: string, params: unknown[]): Promise<number> => {
+    try {
+      const row = await queryRow<Record<string, unknown>>(text, params)
+      return round2(num(row?.total))
+    } catch (error) {
+      console.error('[admin] reconciliation component unavailable:', error)
+      return 0
+    }
+  }
+
+  // 1. Ledger, grouped by kind. Filtered by period when it can be.
+  const ledgerSql = (withRange: boolean) => `SELECT kind,
+            COALESCE(sum(amount), 0)::float8 AS amount,
+            count(*)::int AS count
+       FROM admin_revenue_entries
+      ${withRange ? "WHERE created_at >= $1::timestamptz AT TIME ZONE 'UTC' AND created_at < $2::timestamptz AT TIME ZONE 'UTC'" : ''}
+      GROUP BY kind
+      ORDER BY abs(sum(amount)) DESC`
+
+  let ledgerRows: Record<string, unknown>[] = []
+  let scope: 'period' | 'all_time' = 'period'
+  let available = true
+
+  if (ledgerHasTimestamp !== false) {
+    try {
+      ledgerRows = await queryRows<Record<string, unknown>>(ledgerSql(true), [start, end])
+      ledgerHasTimestamp = true
+    } catch (error) {
+      ledgerHasTimestamp = false
+      console.error('[admin] revenue ledger has no created_at; reconciliation falls back to all time:', error)
+    }
+  }
+  if (ledgerHasTimestamp === false) {
+    scope = 'all_time'
+    try {
+      ledgerRows = await queryRows<Record<string, unknown>>(ledgerSql(false), [])
+    } catch (error) {
+      console.error('[admin] revenue ledger unreadable; reconciliation card will report unavailable:', error)
+      available = false
+    }
+  }
+
+  const ledgerByKind: LedgerKindRow[] = ledgerRows.map((row) => ({
+    kind: String(row.kind ?? 'unknown'),
+    amount: round2(num(row.amount)),
+    count: num(row.count),
+  }))
+  const ledgerTotal = round2(ledgerByKind.reduce((total, row) => total + row.amount, 0))
+
+  // 2. Derived, in the same scope as the ledger.
+  const periodOrders = scope === 'period' ? `AND ${naiveRange('coalesce(o.paid_at, o.created_at)')}` : ''
+  const params = scope === 'period' ? [start, end] : []
+
+  const withdrawalRange = scope === 'period'
+    ? `AND ${naiveRange('coalesce(processed_at, created_at)')}`
+    : ''
+
+  const serviceFees = await sumOr(
+    `SELECT COALESCE(sum(o.service_fee_amount), 0)::float8 AS total
+       FROM orders o
+      WHERE ${PAID_ORDER_CONDITION} ${periodOrders}`,
+    params,
+  )
+
+  const withdrawalFees = await sumOr(
+    `SELECT COALESCE(sum(w.withdrawal_fee), 0)::float8 AS total
+       FROM withdrawals w
+      WHERE lower(w.status::text) IN ('success', 'completed', 'processed')
+        AND COALESCE(w.withdrawal_fee, 0) > 0 ${withdrawalRange}`,
+    params,
+  )
+
+  const paymentFees = await sumOr(
+    `SELECT COALESCE(sum(t.provider_fee), 0)::float8 AS total
+       FROM transactions t
+       JOIN orders o ON o.id = t.order_id
+      WHERE t.transaction_type = 'payment' AND t.status = 'completed'
+        AND ${PAID_ORDER_CONDITION} ${periodOrders}`,
+    params,
+  )
+
+  // Each of these columns arrives with its own batch; a database without them
+  // simply contributes 0 instead of failing the card.
+  const withdrawalPayoutFees = await sumOr(
+    `SELECT COALESCE(sum(w.provider_fee), 0)::float8 AS total
+       FROM withdrawals w
+      WHERE lower(w.status::text) IN ('success', 'completed', 'processed') ${withdrawalRange}`,
+    params,
+  )
+  const transferPayoutFees = await sumOr(
+    `SELECT COALESCE(sum(provider_fee), 0)::float8 AS total
+       FROM admin_transfers
+      WHERE lower(status::text) IN ('success', 'completed') ${withdrawalRange}`,
+    params,
+  )
+  const payoutFees = round2(withdrawalPayoutFees + transferPayoutFees)
+
+  const derivedTotal = round2(serviceFees + withdrawalFees - paymentFees - payoutFees)
+  const remainder = round2(ledgerTotal - derivedTotal)
+
+  // 3. Payouts that completed but were never credited — the 2e symptom.
+  let uncreditedWithdrawals = 0
+  let uncreditedFees = 0
+  try {
+    const row = await queryRow<Record<string, unknown>>(
+      `SELECT count(*)::int AS total,
+              COALESCE(sum(COALESCE(withdrawal_fee, 0)), 0)::float8 AS fees
+         FROM withdrawals
+        WHERE lower(status::text) IN ('success', 'completed', 'processed')
+          AND COALESCE(fee_credited, false) = false
+          AND COALESCE(withdrawal_fee, 0) > 0`,
+    )
+    uncreditedWithdrawals = num(row?.total)
+    uncreditedFees = round2(num(row?.fees))
+  } catch (error) {
+    console.error('[admin] uncredited withdrawal count unavailable:', error)
+  }
+
+  return {
+    available,
+    ledgerScope: scope,
+    ledgerTotal,
+    derivedTotal,
+    remainder,
+    matches: Math.abs(remainder) <= RECONCILIATION_TOLERANCE,
+    ledgerByKind,
+    derived: { serviceFees, withdrawalFees, paymentFees, payoutFees },
+    uncreditedWithdrawals,
+    uncreditedFees,
+  }
 }
