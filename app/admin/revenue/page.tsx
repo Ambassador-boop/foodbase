@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import Link from 'next/link'
-import { ArrowRight, ArrowUpRight, Download, Info } from 'lucide-react'
+import { AlertTriangle, ArrowRight, ArrowUpRight, Download, Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DataTable,
@@ -187,6 +187,14 @@ export default function RevenuePage() {
                   value={<Money value={-components.paystackFees} signed />}
                   tone="danger"
                 />
+                {(components.payoutFees ?? 0) > 0 ? (
+                  <KeyValue
+                    label="Payout fees"
+                    hint={`Paystack, on ${count(components.payoutFeesRecordedWithdrawals ?? 0)} successful payouts`}
+                    value={<Money value={-(components.payoutFees ?? 0)} signed />}
+                    tone="danger"
+                  />
+                ) : null}
                 <KeyValue label="SMS wallet" hint="Platform top-ups" value={<Money value={-components.smsSpend} signed />} tone="danger" border={false} />
                 <div className="mt-1 flex items-center justify-between gap-3 border-t border-border pt-2.5">
                   <span className="text-[13px] font-medium text-foreground">Net revenue</span>
@@ -203,6 +211,120 @@ export default function RevenuePage() {
               ) : null}
             </Panel>
           </div>
+
+          {data.reconciliation ? (
+            <Panel
+              title="Ledger vs derived"
+              description="What the revenue ledger booked, against what the payment data independently explains. Read-only."
+              action={
+                <span
+                  className={
+                    data.reconciliation.matches
+                      ? 'rounded-full border border-border px-2 py-0.5 text-[11px] font-medium text-muted-foreground'
+                      : 'rounded-full border border-[var(--danger)]/40 bg-[var(--danger)]/10 px-2 py-0.5 text-[11px] font-medium text-[var(--danger)]'
+                  }
+                >
+                  {data.reconciliation.matches ? 'Reconciled' : 'Needs review'}
+                </span>
+              }
+            >
+              <div className="grid gap-x-6 sm:grid-cols-2">
+                <div className="min-w-0">
+                  <KeyValue
+                    label="Ledger total"
+                    hint={
+                      data.reconciliation.ledgerScope === 'all_time'
+                        ? 'Every entry the ledger has booked'
+                        : 'Entries booked in this range'
+                    }
+                    value={<Money value={data.reconciliation.ledgerTotal} />}
+                  />
+                  <KeyValue
+                    label="Derived total"
+                    hint="Same scope, from payment data"
+                    value={<Money value={data.reconciliation.derivedTotal} />}
+                  />
+                  <KeyValue
+                    label="Unexplained remainder"
+                    hint={data.reconciliation.matches ? 'Within ₦1' : 'The ledger and the data disagree'}
+                    value={<Money value={data.reconciliation.remainder} signed />}
+                    tone={data.reconciliation.matches ? undefined : 'danger'}
+                    border={false}
+                  />
+                </div>
+                <div className="min-w-0">
+                  <KeyValue label="Service fees" hint="Paid orders" value={<Money value={data.reconciliation.derived.serviceFees} />} />
+                  <KeyValue
+                    label="Withdrawal fees"
+                    hint="Successful payouts"
+                    value={<Money value={data.reconciliation.derived.withdrawalFees} />}
+                  />
+                  <KeyValue
+                    label="Payment fees"
+                    hint="Paystack, on customer payments"
+                    value={<Money value={-data.reconciliation.derived.paymentFees} signed />}
+                    tone="danger"
+                  />
+                  <KeyValue
+                    label="Payout fees"
+                    hint="Paystack, on money leaving the platform"
+                    value={<Money value={-data.reconciliation.derived.payoutFees} signed />}
+                    tone="danger"
+                    border={false}
+                  />
+                </div>
+              </div>
+
+              {data.reconciliation.ledgerByKind.length > 0 ? (
+                <div className="mt-3 rounded-md bg-muted/60 px-2.5 py-2">
+                  <p className="text-[11px] font-medium text-muted-foreground">Ledger entries by kind</p>
+                  <ul className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+                    {data.reconciliation.ledgerByKind.slice(0, 6).map((entry) => (
+                      <li key={entry.kind} className="text-[11px] text-muted-foreground">
+                        <span className="font-mono">{entry.kind}</span>{' '}
+                        <span className="num text-foreground">{money(entry.amount)}</span>{' '}
+                        <span>({count(entry.count)})</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              {data.reconciliation.available === false ||
+              !data.reconciliation.matches ||
+              data.reconciliation.uncreditedWithdrawals > 0 ? (
+                <div className="mt-3 space-y-1.5">
+                  {!data.reconciliation.matches ? (
+                    <p className="flex items-start gap-1.5 rounded-md border border-[var(--danger)]/40 bg-[var(--danger)]/10 px-2.5 py-2 text-[11px] leading-4 text-[var(--danger)]">
+                      <AlertTriangle className="mt-0.5 size-3 shrink-0" aria-hidden="true" />
+                      <span>
+                        <span className="font-medium">Alerts</span> · {money(Math.abs(data.reconciliation.remainder))} is booked in
+                        the ledger but not explained by payment data.
+                      </span>
+                    </p>
+                  ) : null}
+                  {data.reconciliation.uncreditedWithdrawals > 0 ? (
+                    <p className="flex items-start gap-1.5 rounded-md border border-[var(--danger)]/40 bg-[var(--danger)]/10 px-2.5 py-2 text-[11px] leading-4 text-[var(--danger)]">
+                      <AlertTriangle className="mt-0.5 size-3 shrink-0" aria-hidden="true" />
+                      <span>
+                        <span className="font-medium">Alerts</span> · {count(data.reconciliation.uncreditedWithdrawals)} successful
+                        payouts still have an uncredited fee worth {money(data.reconciliation.uncreditedFees)}.
+                      </span>
+                    </p>
+                  ) : null}
+                  {data.reconciliation.available === false ? (
+                    <p className="flex items-start gap-1.5 rounded-md border border-border bg-muted/60 px-2.5 py-2 text-[11px] leading-4 text-muted-foreground">
+                      <AlertTriangle className="mt-0.5 size-3 shrink-0" aria-hidden="true" />
+                      <span>
+                        <span className="font-medium">Alerts</span> · the revenue ledger could not be read here, so this card
+                        cannot confirm the totals match.
+                      </span>
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+            </Panel>
+          ) : null}
 
           <div className="grid gap-4 xl:grid-cols-3">
             <Panel className="xl:col-span-2" title="Top businesses by fee revenue" description="Service fees contributed in this range.">
