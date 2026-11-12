@@ -25,6 +25,7 @@ import {
   ListChecks,
   MapPin,
   Table2,
+  ChefHat,
 } from 'lucide-react';
 import NotificationsIcon from '@/components/dashboard/notifications-icon';
 import { VerifyEmailBanner } from '@/components/dashboard/verify-email-banner';
@@ -36,6 +37,7 @@ import { editorialFontClassName, useEditorialFontRoot } from '@/lib/editorial-fo
 const navigationItems = [
 { label: 'Dashboard', href: '/dashboard', icon: BarChart3 },
 { label: 'Orders', href: '/dashboard/orders', icon: ShoppingCart },
+{ label: 'Kitchen', href: '/dashboard/kitchen', icon: ChefHat },
 { label: 'Finance', href: '/dashboard/finance', icon: DollarSign },
 { label: 'Menu Items', href: '/dashboard/menu', icon: Utensils },
 { label: 'Categories', href: '/dashboard/categories', icon: FolderOpen },
