@@ -1,17 +1,29 @@
-import Link from 'next/link'
-import { ArrowDownLeft, ArrowUpRight, Landmark, Undo2 } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
-import { Card } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
-import { formatNaira } from '@/lib/finance'
-
-export const NGN = (value: number | null | undefined) => <span className="num whitespace-nowrap">{formatNaira(value)}</span>
-const statusLabel = (value: string) => { const s=value.toLowerCase().replace(/_/g,'-'); if (s==='settlement'||s==='settled') return 'Settled'; if (['success','processed','completed'].includes(s)) return 'Completed'; if (['pending','processing','queued','otp','received','needs-attention'].includes(s)) return 'Pending'; if (['failed','rejected','abandoned','blocked','reversed'].includes(s)) return 'Failed'; return 'Pending' }
-export function StatusBadge({ status, children, variant: requested }: { status: string; children?: React.ReactNode; variant?: 'success'|'warning'|'danger'|'neutral' }) { const normalized=statusLabel(status); const variant=requested || (normalized==='Failed'?'danger':normalized==='Pending'?'warning':'success'); return <Badge variant={variant as any}>{children || normalized}</Badge> }
-export function FinanceHero({ available, pending, nextSettlement, onWithdraw }: { available:number; pending:number; nextSettlement?:string|null; onWithdraw?:()=>void }) { return <section className="rounded-2xl bg-[var(--primary)] p-5 text-white md:p-6"><div className="flex items-start justify-between gap-4"><div><p className="text-xs text-white/75">Available balance</p><p className="mt-2 text-3xl font-semibold num">{available<0?'-':''}{NGN(Math.abs(available))}</p>{available<0&&<span className="mt-2 inline-flex rounded-full bg-white/20 px-2 py-1 text-xs">Deficit</span>}<p className="mt-3 text-sm text-white/80">Pending {NGN(pending)}{nextSettlement?` · settles ${nextSettlement}`:''}</p></div><Button variant="secondary" onClick={onWithdraw}>Withdraw</Button></div></section> }
-export function StatCard({ label, value, icon: Icon }: { label:string; value:React.ReactNode; icon:React.ElementType }) { return <Card className="min-w-0 gap-1 p-2 sm:gap-2 sm:p-4"><span className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-accent text-primary"><Icon className="size-3.5" strokeWidth={1.75}/></span><p className="min-w-0 text-[12px] leading-4 text-muted-foreground">{label}</p><p className="min-w-0 whitespace-nowrap text-[15px] font-semibold sm:text-xl">{value}</p></Card> }
-export function ActivityRow({ kind, title, subtitle, amount, status, href, meta }: any) { const Icon=kind==='income'?ArrowDownLeft:kind==='withdrawal'?ArrowUpRight:kind==='refund'?Undo2:Landmark; const failedRefund=kind==='refund'&&['failed','rejected'].includes(String(status).toLowerCase()); const tone=failedRefund?'text-muted-foreground':kind==='income'?'text-[#1F9D55]':kind==='refund'?'text-[#D64545]':'text-foreground'; return <Link href={href||'#'} className="flex items-start gap-3 border-b border-border py-4 last:border-0"><span className={cn('mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-xl',failedRefund||kind==='settlement'?'bg-[#EEF2F7] text-[#475569]':kind==='income'?'bg-[#E6F6EC] text-[#1F9D55]':kind==='refund'?'bg-[#FDE9E7] text-[#D64545]':'bg-[#FFF4D6] text-[#B7791F]')}><Icon className="size-4" strokeWidth={1.75}/></span><span className="min-w-0 flex-1"><span className="block line-clamp-2 text-sm font-medium">{title}</span><span className="block line-clamp-2 text-xs text-muted-foreground">{subtitle}{meta?` · ${meta}`:''}</span>{failedRefund&&<span className="mt-1 block"><StatusBadge status="failed" variant="neutral">Failed, returned to your balance</StatusBadge></span>}</span><span className="shrink-0 text-right"><span className={cn('block text-sm font-semibold num',tone,failedRefund&&'line-through')}>{failedRefund?'':amount}</span>{status&&!failedRefund&&<StatusBadge status={status}/>}</span></Link> }
-export function DayGroup({ label, children }: {label:string; children:React.ReactNode}) { return <section><h3 className="mb-2 text-xs font-semibold text-muted-foreground">{label}</h3>{children}</section> }
-export function PendingSettlementCard({ groups }: { groups: Array<{label:string; total:number; count:number; orders?: any[]}> }) { return <Card className="p-5"><div className="flex items-center justify-between"><div><h2 className="font-semibold">Awaiting settlement</h2><p className="text-xs text-muted-foreground">Pending payments grouped by settlement day</p></div><Landmark className="size-5 text-muted-foreground"/></div><div className="mt-4 space-y-3">{groups.map(g=><div key={g.label} className="rounded-xl bg-muted p-3"><p className="text-sm font-medium">Settles {g.label} · {NGN(g.total)} · {g.count} {g.count === 1 ? 'order' : 'orders'}</p>{g.orders?.map((o:any)=><div key={o.order_id} className="mt-2 flex justify-between text-xs text-muted-foreground"><span>Order {String(o.order_id).slice(0,8)}</span><span>{o.refunded>0&&<StatusBadge status="completed">Refunded {NGN(o.refunded)}</StatusBadge>}</span></div>)}</div>)}</div></Card> }
-export function SettlementRow({ row, settlementDate }: {row:any; settlementDate?:string}) { return <Link href={`/dashboard/finance/transaction/${row.order_id}`} className="flex items-center justify-between gap-3 border-b border-border py-4"><div><p className="text-sm font-medium">Order {String(row.order_id).slice(0,8)}</p><p className="text-xs text-muted-foreground">{row.customer_first_name || 'Customer'}</p></div><div className="text-right text-xs"><p>Received <span className="num">{NGN(row.received)}</span></p><p className="text-muted-foreground">Refunded <span className="num">{NGN(row.refunded)}</span> · Settled <span className="num">{NGN(row.settled)}</span></p><StatusBadge status={row.state}>{row.state === 'partly_refunded' ? 'Partly refunded' : row.state === 'fully_refunded' ? 'Fully refunded' : 'Settled'}</StatusBadge></div></Link> }
+/**
+ * Public surface of the finance components.
+ *
+ * Every component that existed before the settlement redesign is still
+ * exported from this module under the same name, so existing imports keep
+ * working unchanged.
+ */
+export { NGN } from '@/components/finance/money'
+export { StatusBadge, SettlementStatusBadge } from '@/components/finance/status-badge'
+export { FinanceHero } from '@/components/finance/hero'
+export { StatCard } from '@/components/finance/stat-card'
+export { ActivityRow, DayGroup, FeedTabs, FeedSearch } from '@/components/finance/activity'
+export type { ActivityKind } from '@/components/finance/activity'
+export { PendingSettlementCard } from '@/components/finance/pending-settlements'
+export type { PendingGroup, PendingOrder, PendingRefund } from '@/components/finance/pending-settlements'
+export { SettlementRow, settlementBadgeState, settlementRefundState } from '@/components/finance/settlement-row'
+export type { SettlementRowData } from '@/components/finance/settlement-row'
+export {
+  SettlementBadge,
+  RefundBadge,
+  RefundedAmount,
+  settlementStateOf,
+  refundStateOf,
+  isFailedRefund,
+  isRefundInProgress,
+  isProcessedRefund,
+  SETTLEMENT_LABEL,
+} from '@/components/finance/settlement-status'
+export type { SettlementState, RefundState } from '@/components/finance/settlement-status'

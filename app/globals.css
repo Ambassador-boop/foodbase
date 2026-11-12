@@ -189,3 +189,26 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/*
+ * Settlement semantics (additive).
+ *
+ * Settlement is neither a credit nor a debit: money the business already
+ * earned is simply moved from "pending" to "available". Green (credit) and
+ * red (debit) are reserved for money actually entering or leaving the
+ * business, so settlements get their own calm, warm slate tone and refunds
+ * get a neutral one with an explicit minus sign.
+ */
+:root {
+  --settle: #5A4636;
+  --settle-bg: #F3EBE3;
+  --settle-border: #E5D6C7;
+  --settle-muted: #7A6F66;
+}
+
+.dark {
+  --settle: #E4D3C4;
+  --settle-bg: #2A2420;
+  --settle-border: #3B322B;
+  --settle-muted: #A79A8E;
+}

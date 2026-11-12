@@ -22,6 +22,11 @@ const badgeVariants = cva(
         danger: 'border-transparent bg-[#FDE9E7] text-[#D64545]',
         neutral: 'border-transparent bg-[#EEF2F7] text-[#475569]',
         brand: 'border-transparent bg-[#FFEDE0] text-primary',
+        // Settlements are a transfer, not a credit: warm slate, never green.
+        settled:
+          'border-transparent bg-[var(--settle-bg)] text-[var(--settle)]',
+        // Informational state (e.g. a refund still in flight): calm blue.
+        info: 'border-transparent bg-[var(--info-bg)] text-[var(--info)]',
       },
     },
     defaultVariants: {

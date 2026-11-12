@@ -16,10 +16,15 @@ import {
   Phone,
   Receipt,
   RefreshCw,
+  RotateCcw,
+  Timer,
   Undo2,
   User,
   XCircle,
 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { isRefundInProgress, refundStateOf } from '@/components/finance/settlement-status';
+import { formatNaira } from '@/lib/finance';
 import { formatWat } from '@/lib/wat';
 
 interface OrderItem {
@@ -60,7 +65,17 @@ interface Resp {
   items: OrderItem[];
   refunds: RefundEntry[];
   payment: { status: 'success' | 'pending' | 'failed' | 'abandoned' | 'reversed'; method_label: string; paid_at: string | null };
-  settlement: { net_received: number | null; balance_bucket: string | null; settlement_status: string | null; available_at: string | null; settled_at: string | null };
+  settlement: {
+    net_received: number | null;
+    balance_bucket: string | null;
+    settlement_status: string | null;
+    available_at: string | null;
+    settled_at: string | null;
+    refunded_processed?: number;
+    refunded_in_progress?: number;
+    refunded_total?: number;
+    net_after_refunds?: number | null;
+  };
 }
 
 const NGN = (n: number) =>
@@ -159,6 +174,24 @@ export default function TransactionDetailPage() {
         .reduce((s, r) => s + Number(r.amount || 0), 0),
     [refunds],
   );
+
+  const refundedInProgress = useMemo(
+    () =>
+      refunds
+        .filter((r) => isRefundInProgress(r.status))
+        .reduce((s, r) => s + Number(r.amount || 0), 0),
+    [refunds],
+  );
+
+  /**
+   * What this payment settles at once refunds are applied. The API already
+   * nets refunds the provider is still processing out of the settlement, so
+   * this is the figure that will actually reach the available balance.
+   */
+  const netAfterRefunds =
+    data?.settlement.net_after_refunds != null
+      ? Number(data.settlement.net_after_refunds)
+      : null;
 
   const fullyRefunded = refundable <= 0;
 
@@ -369,9 +402,41 @@ export default function TransactionDetailPage() {
           <Stat label="Order total" value={NGN(order.total_amount)} />
           <Stat label="Service fee" value={NGN(order.service_fee_amount)} />
           {totalRefunded > 0 && <Stat label="Refunded" value={NGN(totalRefunded)} tone="rose" />}
-          <Stat label="You receive" value={NGN(Number(data?.settlement.net_received || 0) - totalRefunded)} tone="emerald" />
+          <Stat
+            label="You receive"
+            value={NGN(
+              data?.settlement.net_after_refunds != null
+                ? data.settlement.net_after_refunds
+                : Number(data?.settlement.net_received || 0) - totalRefunded,
+            )}
+            tone="settle"
+          />
         </div>
-        {data?.settlement.settlement_status === 'pending' && data.settlement.available_at && <p className="mt-3 text-xs text-muted-foreground">Settles {formatWat(data.settlement.available_at, { dateStyle: 'medium', timeStyle: 'short' })} WAT</p>}
+        {data?.settlement.settlement_status === 'pending' &&
+          data.settlement.available_at && (
+            <p className="mt-3 text-xs text-muted-foreground">
+              Settles{' '}
+              {formatWat(data.settlement.available_at, {
+                dateStyle: 'medium',
+                timeStyle: 'short',
+              })}{' '}
+              WAT
+              {netAfterRefunds != null ? (
+                <>
+                  , net after refunds{' '}
+                  <span className="font-medium text-foreground num">
+                    {formatNaira(netAfterRefunds)}
+                  </span>
+                </>
+              ) : null}
+            </p>
+          )}
+        {data?.settlement.settlement_status === 'pending' && refundedInProgress > 0 && (
+          <p className="mt-1 text-xs text-muted-foreground">
+            {formatNaira(refundedInProgress)} of refunds is in progress and is held out
+            of this settlement until the provider confirms it.
+          </p>
+        )}
         {data?.settlement.settlement_status === 'settled' && data.settlement.settled_at && <p className="mt-3 text-xs text-muted-foreground">Settled {formatWat(data.settlement.settled_at, { dateStyle: 'medium', timeStyle: 'short' })} WAT</p>}
       </section>
 
@@ -450,16 +515,14 @@ export default function TransactionDetailPage() {
                   href={`/dashboard/finance/refunds/${r.id}`}
                   className="flex items-center gap-3 -mx-2 rounded-lg px-2 py-1 hover:bg-muted/40"
                 >
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-rose-100 text-rose-700">
-                    <Undo2 className="h-4 w-4" />
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--settle-bg)] text-[var(--settle)]">
+                    <Undo2 className="h-4 w-4" aria-hidden="true" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium">
-                      {NGN(r.amount)} ·{' '}
-                      <span className="capitalize text-muted-foreground">
-                        {String(r.status).replace(/-/g, ' ')}
-                      </span>
-                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-sm font-medium num">{NGN(r.amount)}</p>
+                      <RefundStatusLabel status={r.status} amount={Number(r.amount)} />
+                    </div>
                     <p className="text-xs text-muted-foreground">
                           {formatWat(r.created_at, {
                             year: 'numeric',
@@ -576,14 +639,16 @@ function Stat({
 }: {
   label: string;
   value: string;
-  tone?: 'emerald' | 'rose';
+  tone?: 'emerald' | 'rose' | 'settle';
 }) {
   const cls =
     tone === 'emerald'
       ? 'text-emerald-700'
       : tone === 'rose'
         ? 'text-rose-700'
-        : 'text-foreground';
+        : tone === 'settle'
+          ? 'text-[var(--settle)]'
+          : 'text-foreground';
   return (
     <div className="rounded-xl border border-border bg-muted/20 p-3">
       <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
@@ -621,6 +686,51 @@ function Row({
         </p>
       </div>
     </div>
+  );
+}
+
+/**
+ * Refund status on a transaction. Neutral by design: a refund is money moving
+ * back to the customer, never a credit to the business.
+ */
+function RefundStatusLabel({
+  status,
+  amount,
+}: {
+  status: string;
+  amount: number;
+}) {
+  const state = refundStateOf([status]);
+  if (state === 'none') return null;
+
+  const config = {
+    in_progress: {
+      label: 'Refund in progress',
+      variant: 'info' as const,
+      Icon: Timer,
+    },
+    processed: {
+      label: `Refunded ${formatNaira(amount)}`,
+      variant: 'neutral' as const,
+      Icon: Undo2,
+    },
+    failed: {
+      label: 'Refund failed, returned to your balance',
+      variant: 'neutral' as const,
+      Icon: RotateCcw,
+    },
+    mixed: {
+      label: `Refunded ${formatNaira(amount)}`,
+      variant: 'neutral' as const,
+      Icon: Undo2,
+    },
+  }[state];
+
+  return (
+    <Badge variant={config.variant} className="gap-1.5">
+      <config.Icon className="size-3.5 shrink-0" aria-hidden="true" />
+      <span className="truncate">{config.label}</span>
+    </Badge>
   );
 }
 
