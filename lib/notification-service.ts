@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { getOne } from '@/lib/db';
 import { generateAlphanumericId } from '@/lib/utils';
+import { getSchemaSupport } from '@/lib/delivery/storage';
 
 const ONESIGNAL_API_URL = 'https://onesignal.com/api/v1/notifications';
 const ONESIGNAL_APP_ID = process.env.NEXT_PUBLIC_ONESIGNAL_APP_ID;
@@ -24,6 +25,9 @@ interface Order {
   notes: string;
   total_amount: number;
   created_at: string;
+  /** Batch 3B, present only when the additive columns exist. */
+  table_label?: string | null;
+  delivery_fee?: number | string | null;
 }
 
 /**
@@ -31,8 +35,14 @@ interface Order {
  */
 async function getOrderDetails(orderId: string): Promise<{ order: Order; items: OrderItem[] } | null> {
   try {
+    // Batch 3B: read the additive columns only when they exist, so this query
+    // keeps working on a database where the migration has not been run.
+    const support = await getSchemaSupport();
+    const extra = [support.orderTableLabel ? 'table_label' : null, support.orderDelivery ? 'delivery_fee' : null]
+      .filter(Boolean)
+      .join(', ');
     const order = await getOne(
-      'SELECT id, business_id, customer_name, customer_email, customer_phone, payment_status, address, notes, total_amount, created_at FROM orders WHERE id = $1',
+      `SELECT id, business_id, customer_name, customer_email, customer_phone, payment_status, address, notes, total_amount, created_at${extra ? `, ${extra}` : ''} FROM orders WHERE id = $1`,
       [orderId]
     );
 
@@ -117,9 +127,15 @@ export async function sendNewOrderNotification(
 
     // Build rich notification content
     const itemsSummary = formatOrderItems(items);
-    const notificationTitle = `New Order from ${order.customer_name}`;
-    const notificationBody = `Order #${orderId.slice(0, 8)} - ${itemsSummary}`;
-    const shortBody = `Order #${orderId.slice(0, 8)} - ₦${order.total_amount.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} - ${order.payment_status}`;
+    // Batch 3B: a dine-in order leads with its table, because that is the one
+    // fact a runner needs before anything else.
+    const tableLabel = typeof order.table_label === 'string' ? order.table_label.trim() : '';
+    const tablePrefix = tableLabel ? `${tableLabel} - ` : '';
+    const notificationTitle = tableLabel
+      ? `New order for ${tableLabel} from ${order.customer_name}`
+      : `New Order from ${order.customer_name}`;
+    const notificationBody = `${tablePrefix}Order #${orderId.slice(0, 8)} - ${itemsSummary}`;
+    const shortBody = `${tablePrefix}Order #${orderId.slice(0, 8)} - ₦${order.total_amount.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} - ${order.payment_status}`;
 
     console.log('[v0] Building new order notification:', {
       orderId,
@@ -138,6 +154,7 @@ export async function sendNewOrderNotification(
       paymentStatus: order.payment_status,
       totalAmount: order.total_amount.toString(),
       itemCount: items.length.toString(),
+      ...(tableLabel ? { tableLabel } : {}),
     };
 
     // Send OneSignal notification via REST API

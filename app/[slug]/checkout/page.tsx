@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -20,14 +20,19 @@ import {
   User,
   StickyNote,
   ImageIcon,
+  UtensilsCrossed,
+  Clock,
+  Check,
 } from 'lucide-react';
 import { calculateServiceFee } from '@/lib/service-fee';
-import { DELIVERY_FEE } from '@/lib/pricing';
 import { isOrderingPaused, type StorefrontHours } from '@/lib/hours-shared';
 import {
   OrderingPausedButtonNote,
   OrderingPausedNotice,
 } from '@/components/storefront/ordering-paused-notice';
+import { AddressSearch, type AddressResult } from '@/components/delivery/address-search';
+import { PinMap } from '@/components/delivery/pin-map';
+import type { DeliveryQuote, LatLng } from '@/lib/delivery/types';
 
 interface Restaurant {
   id: string;
@@ -37,6 +42,16 @@ interface Restaurant {
   logo_url?: string;
   /** Batch 3A-fix: opening hours, used to mirror the server's ordering gate. */
   hours?: StorefrontHours | null;
+  /** Batch 3B: delivery configuration, additive. */
+  delivery?: {
+    configured: boolean;
+    hasAreas: boolean;
+    activeAreaCount: number;
+    prepTimeMinutes: number;
+    mapboxConfigured: boolean;
+  } | null;
+  /** Batch 3B: active dine-in labels, additive. Empty when none are configured. */
+  tableLabels?: Array<{ id: string; label: string }> | null;
 }
 
 interface ServiceFeeConfig {
@@ -54,6 +69,8 @@ interface CartItem {
   quantity: number;
   addons?: { id: string; name: string; price: number; image_url?: string }[];
 }
+
+const round2 = (value: number) => Math.round((Number(value) || 0) * 100) / 100;
 
 export default function CheckoutPage() {
   const params = useParams();
@@ -80,6 +97,23 @@ export default function CheckoutPage() {
   const [closedByServer, setClosedByServer] = useState(false);
   const [serverOpensAt, setServerOpensAt] = useState<string | null>(null);
 
+  /* ------------------------- Batch 3B delivery state ------------------------- */
+  const [addressPoint, setAddressPoint] = useState<LatLng | null>(null);
+  const [quote, setQuote] = useState<DeliveryQuote | null>(null);
+  const [quoteLoading, setQuoteLoading] = useState(false);
+  const [quoteError, setQuoteError] = useState('');
+  /** Table chosen in the storefront (QR link) or here. */
+  const [selectedTable, setSelectedTable] = useState('');
+  const quoteRequest = useRef(0);
+
+  const tableLabels = useMemo(
+    () => (restaurant?.tableLabels ?? []).filter((label) => label?.label),
+    [restaurant?.tableLabels],
+  );
+  const deliveryConfig = restaurant?.delivery ?? null;
+  const areasConfigured = Boolean(deliveryConfig?.hasAreas);
+  const schemaConfigured = Boolean(deliveryConfig?.configured);
+
   useEffect(() => {
     const storedCart = sessionStorage.getItem(`cart_${slug}`);
     if (storedCart) {
@@ -90,6 +124,10 @@ export default function CheckoutPage() {
         setCartItems([]);
       }
     }
+
+    // A table chosen from a QR code on an earlier screen survives to checkout.
+    const storedTable = sessionStorage.getItem(`table_${slug}`);
+    if (storedTable) setSelectedTable(storedTable);
 
     const fetchData = async () => {
       try {
@@ -122,12 +160,78 @@ export default function CheckoutPage() {
     [cartItems]
   );
 
-  const deliveryFee = deliveryType === 'delivery' ? DELIVERY_FEE : 0;
   const serviceFee = useMemo(
     () => calculateServiceFee(subtotal, serviceFeeConfig),
     [subtotal, serviceFeeConfig]
   );
-  const cartTotal = Math.round((subtotal + deliveryFee + serviceFee) * 100) / 100;
+
+  /**
+   * Ask the server what delivery costs for this point.
+   *
+   * This is a read: the order API runs the same resolver again and refuses the
+   * order if anything moved, so a stale answer here can cost a retry but never
+   * a wrong charge.
+   */
+  const fetchQuote = useCallback(
+    async (point: LatLng | null): Promise<DeliveryQuote | null> => {
+      if (!restaurant?.id) return null;
+      const requestId = ++quoteRequest.current;
+      setQuoteLoading(true);
+      setQuoteError('');
+      try {
+        const response = await fetch('/api/delivery/quote', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            businessId: restaurant.id,
+            deliveryType: 'delivery',
+            subtotal,
+            lat: point?.lat ?? null,
+            lng: point?.lng ?? null,
+          }),
+        });
+        const data = await response.json();
+        if (requestId !== quoteRequest.current) return null;
+        if (!response.ok || !data?.quote) {
+          setQuoteError(data?.error || 'Could not check delivery for that address.');
+          return null;
+        }
+        setQuote(data.quote);
+        return data.quote as DeliveryQuote;
+      } catch {
+        if (requestId === quoteRequest.current) {
+          setQuoteError('Could not check delivery for that address.');
+        }
+        return null;
+      } finally {
+        if (requestId === quoteRequest.current) setQuoteLoading(false);
+      }
+    },
+    [restaurant?.id, subtotal],
+  );
+
+  // Re-price delivery when the address or the basket changes.
+  useEffect(() => {
+    if (deliveryType !== 'delivery' || !restaurant?.id) {
+      setQuote(null);
+      setQuoteError('');
+      return;
+    }
+    if (!addressPoint) {
+      setQuote(null);
+      return;
+    }
+    const timer = setTimeout(() => {
+      void fetchQuote(addressPoint);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [deliveryType, addressPoint, restaurant?.id, fetchQuote]);
+
+  const quoteFee =
+    deliveryType === 'delivery' && quote?.deliverable ? quote.fee : 0;
+  const deliveryFee = deliveryType === 'delivery' ? quoteFee : 0;
+
+  const cartTotal = round2(subtotal + deliveryFee + serviceFee);
   const totalItemCount = cartItems.reduce((n, i) => n + i.quantity, 0);
 
   // Mirrors the server gate in /api/orders. closedByServer covers the case where
@@ -143,6 +247,15 @@ export default function CheckoutPage() {
     }).format(Number(amount) || 0);
 
   const isValidEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim());
+
+  const handleAddressSelect = (result: AddressResult) => {
+    const point = { lat: result.lat, lng: result.lng };
+    setAddressPoint(point);
+    setFormData((current) => ({
+      ...current,
+      address: result.placeName || result.name,
+    }));
+  };
 
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -163,6 +276,12 @@ export default function CheckoutPage() {
     else if (!isValidEmail(formData.email)) missing.push('A valid email');
     if (!formData.phone.trim()) missing.push('Phone number');
     if (deliveryType === 'delivery' && !formData.address.trim()) missing.push('Delivery address');
+    if (deliveryType === 'delivery' && areasConfigured && !addressPoint) {
+      missing.push('An address chosen from the search results');
+    }
+    if (deliveryType !== 'delivery' && tableLabels.length > 0 && !selectedTable) {
+      missing.push('Your table');
+    }
     if (cartItems.length === 0) missing.push('Cart items');
     if (!restaurant?.id) missing.push('Restaurant info');
 
@@ -174,6 +293,35 @@ export default function CheckoutPage() {
     setLoading(true);
 
     try {
+      // Re-quote immediately before creating the order, so the total the server
+      // compares against is the total it will charge.
+      let feeForThisOrder = 0;
+      if (deliveryType === 'delivery') {
+        const fresh = await fetchQuote(addressPoint);
+        if (!fresh) {
+          setError(
+            quoteError ||
+              'We could not confirm delivery for that address. Check it and try again.',
+          );
+          return;
+        }
+        if (!fresh.deliverable) {
+          setError(fresh.message);
+          return;
+        }
+        if (fresh.belowMinimum) {
+          setError(
+            `Add ${formatCurrency(fresh.remainingForMinimum ?? 0)} more to order from ${
+              fresh.areaName ? `the ${fresh.areaName} area` : 'this delivery area'
+            }.`,
+          );
+          return;
+        }
+        feeForThisOrder = fresh.fee;
+      }
+
+      const totalForOrder = round2(subtotal + serviceFee + feeForThisOrder);
+
       const orderResponse = await fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -186,6 +334,13 @@ export default function CheckoutPage() {
             deliveryType === 'delivery' ? formData.address.trim() : 'At Restaurant',
           deliveryType,
           notes: formData.notes.trim(),
+          // Batch 3B: coordinates and table are advisory here and verified
+          // server-side; the fee sent below is only compared, never charged.
+          deliveryLat: deliveryType === 'delivery' ? addressPoint?.lat ?? null : null,
+          deliveryLng: deliveryType === 'delivery' ? addressPoint?.lng ?? null : null,
+          deliveryAddressText:
+            deliveryType === 'delivery' ? formData.address.trim() : null,
+          tableLabel: deliveryType === 'delivery' ? null : selectedTable || null,
           items: cartItems.map((item) => {
             const basePrice = Number(item.price) || 0;
             return {
@@ -198,10 +353,10 @@ export default function CheckoutPage() {
             };
           }),
           subtotal,
-          deliveryFee,
+          deliveryFee: feeForThisOrder,
           serviceFee,
           serviceFeeType: 'tiered',
-          total: cartTotal,
+          total: totalForOrder,
         }),
       });
 
@@ -212,6 +367,23 @@ export default function CheckoutPage() {
       // Show its message and stay on this page instead of going to payment.
       if (orderData?.code === 'PRICE_MISMATCH') {
         setError(orderData.error || 'Prices have changed. Please review your cart.');
+        if (deliveryType === 'delivery') void fetchQuote(addressPoint);
+        return;
+      }
+
+      // Batch 3B refusals: the address moved out of area, the table was
+      // disabled, or the basket fell under the area minimum.
+      if (
+        orderData?.code === 'OUTSIDE_AREA' ||
+        orderData?.code === 'COORDS_REQUIRED' ||
+        orderData?.code === 'BELOW_MINIMUM' ||
+        orderData?.code === 'INVALID_TABLE' ||
+        orderData?.code === 'TABLE_REQUIRED'
+      ) {
+        setError(orderData.error || 'This order could not be placed. Please check the details.');
+        if (orderData?.code === 'OUTSIDE_AREA' || orderData?.code === 'COORDS_REQUIRED') {
+          void fetchQuote(addressPoint);
+        }
         return;
       }
 
@@ -233,6 +405,11 @@ export default function CheckoutPage() {
       if (!orderResponse.ok) {
         setError(orderData.error || 'Failed to create order');
         return;
+      }
+
+      // The table has been used for this order; the next customer starts fresh.
+      if (deliveryType !== 'delivery' && selectedTable) {
+        sessionStorage.removeItem(`table_${slug}`);
       }
 
       // Initialize Paystack with the CUSTOMER email
@@ -292,6 +469,15 @@ export default function CheckoutPage() {
     );
   }
 
+  const deliverySummary = buildDeliverySummary({
+    deliveryType,
+    areasConfigured,
+    schemaConfigured,
+    quote,
+    quoteLoading,
+    formatCurrency,
+  });
+
   return (
     <div
       className={`min-h-screen bg-background lg:pb-12 ${
@@ -342,17 +528,102 @@ export default function CheckoutPage() {
                   active={deliveryType === 'restaurant'}
                   icon={<Home className="w-4 h-4" />}
                   title="At Restaurant"
-                  subtitle="Pick up · No delivery fee"
+                  subtitle="Dine-in or pick up · No delivery fee"
                   onClick={() => setDeliveryType('restaurant')}
                 />
                 <DeliveryOption
                   active={deliveryType === 'delivery'}
                   icon={<MapPin className="w-4 h-4" />}
                   title="Delivery"
-                  subtitle={`Different address · ${formatCurrency(DELIVERY_FEE)}`}
+                  subtitle={deliveryOptionSubtitle({
+                    areasConfigured,
+                    schemaConfigured,
+                    quote,
+                    formatCurrency,
+                  })}
                   onClick={() => setDeliveryType('delivery')}
                 />
               </div>
+
+              {deliveryType === 'delivery' && (
+                <div className="space-y-3 rounded-xl bg-muted/30 p-3">
+                  {areasConfigured && deliveryConfig?.mapboxConfigured && (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold">
+                        Find your address
+                      </Label>
+                      <AddressSearch
+                        onSelect={handleAddressSelect}
+                        proximity={null}
+                        placeholder="Street, estate or landmark in Nigeria"
+                      />
+                      <p className="text-[11px] text-muted-foreground">
+                        We check the address against {deliveryConfig.activeAreaCount}{' '}
+                        {deliveryConfig.activeAreaCount === 1 ? 'delivery area' : 'delivery areas'} before
+                        you pay.
+                      </p>
+                    </div>
+                  )}
+
+                  {areasConfigured && addressPoint && (
+                    <PinMap center={addressPoint} onChange={(point) => setAddressPoint(point)} height={190} />
+                  )}
+
+                  {areasConfigured && (
+                    <DeliveryQuotePanel
+                      quote={quote}
+                      loading={quoteLoading}
+                      error={quoteError}
+                      hasPoint={Boolean(addressPoint)}
+                      formatCurrency={formatCurrency}
+                    />
+                  )}
+                </div>
+              )}
+
+              {/* Dine-in table, only when the restaurant has labels. */}
+              {deliveryType !== 'delivery' && tableLabels.length > 0 && (
+                <div className="space-y-2 rounded-xl bg-muted/30 p-3">
+                  <div className="flex items-center gap-1.5">
+                    <UtensilsCrossed className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
+                    <Label className="text-xs font-semibold">
+                      Your table <span className="text-destructive">*</span>
+                    </Label>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Your order goes straight to the right table. Ask a member of staff if you are not
+                    sure which one is yours.
+                  </p>
+                  <div
+                    role="group"
+                    aria-label="Choose your table"
+                    className="grid grid-cols-3 gap-1.5 sm:grid-cols-4"
+                  >
+                    {tableLabels.map((table) => {
+                      const active = selectedTable === table.label;
+                      return (
+                        <button
+                          key={table.id}
+                          type="button"
+                          aria-pressed={active}
+                          onClick={() => {
+                            setSelectedTable(table.label);
+                            sessionStorage.setItem(`table_${slug}`, table.label);
+                          }}
+                          className={`flex h-11 min-w-0 items-center justify-center gap-1 rounded-lg border px-2 text-xs font-semibold transition-colors ${
+                            active
+                              ? 'border-primary bg-primary text-primary-foreground'
+                              : 'border-border bg-card text-foreground hover:bg-muted'
+                          }`}
+                        >
+                          {active && <Check className="h-3 w-3 flex-shrink-0" aria-hidden="true" />}
+                          <span className="truncate">{table.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </section>
 
             {/* Contact details */}
@@ -422,11 +693,26 @@ export default function CheckoutPage() {
                     id="address"
                     placeholder="Street, area, landmark, city"
                     value={formData.address}
-                    onChange={(e) =>
-                      setFormData({ ...formData, address: e.target.value })
-                    }
+                    onChange={(e) => {
+                      setFormData({ ...formData, address: e.target.value });
+                      // The typed line is the address the rider reads; the pin
+                      // is what decides the fee. Editing the text does not move
+                      // the pin, so the two cannot silently disagree.
+                    }}
                     className="text-sm min-h-20"
                   />
+                  {areasConfigured && addressPoint && (
+                    <p className="text-[11px] text-muted-foreground">
+                      Pin set at {addressPoint.lat.toFixed(5)}, {addressPoint.lng.toFixed(5)}.
+                      {formData.address.trim() &&
+                        ' Edit the text above if the rider needs a landmark, or move the pin on the map.'}
+                    </p>
+                  )}
+                  {areasConfigured && !formData.address.trim() && (
+                    <p className="text-[11px] text-muted-foreground">
+                      Search above and pick the exact address, then adjust the pin.
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -473,6 +759,9 @@ export default function CheckoutPage() {
               subtotal={subtotal}
               serviceFee={serviceFee}
               deliveryFee={deliveryFee}
+              deliveryNote={deliverySummary.note}
+              deliveryFeeIsEstimate={deliverySummary.pending}
+              tableLabel={deliveryType !== 'delivery' ? selectedTable : ''}
               total={cartTotal}
               formatCurrency={formatCurrency}
             />
@@ -486,6 +775,9 @@ export default function CheckoutPage() {
               subtotal={subtotal}
               serviceFee={serviceFee}
               deliveryFee={deliveryFee}
+              deliveryNote={deliverySummary.note}
+              deliveryFeeIsEstimate={deliverySummary.pending}
+              tableLabel={deliveryType !== 'delivery' ? selectedTable : ''}
               total={cartTotal}
               formatCurrency={formatCurrency}
             />
@@ -533,7 +825,181 @@ export default function CheckoutPage() {
   );
 }
 
+/* ------------------------------- delivery copy ------------------------------- */
+
+/** The one-line promise under the Delivery option. */
+function deliveryOptionSubtitle({
+  areasConfigured,
+  schemaConfigured,
+  quote,
+  formatCurrency,
+}: {
+  areasConfigured: boolean;
+  schemaConfigured: boolean;
+  quote: DeliveryQuote | null;
+  formatCurrency: (n: number) => string;
+}) {
+  if (areasConfigured) {
+    if (quote?.deliverable) {
+      if (quote.belowMinimum) return 'Add more to reach the minimum order';
+      return quote.fee > 0 ? `To your address · ${formatCurrency(quote.fee)}` : 'To your address · Free';
+    }
+    return 'Set by your address';
+  }
+  // No areas: delivery exists and costs nothing. Before the schema is migrated
+  // the server still charges the old flat fee, so do not promise "free".
+  if (!schemaConfigured) return 'Different address';
+  return 'Different address · No delivery fee';
+}
+
+/** A short note for the summary line, so the fee is never unexplained. */
+function buildDeliverySummary({
+  deliveryType,
+  areasConfigured,
+  schemaConfigured,
+  quote,
+  quoteLoading,
+  formatCurrency,
+}: {
+  deliveryType: 'restaurant' | 'delivery';
+  areasConfigured: boolean;
+  schemaConfigured: boolean;
+  quote: DeliveryQuote | null;
+  quoteLoading: boolean;
+  formatCurrency: (n: number) => string;
+}): { note: string; pending: boolean } {
+  if (deliveryType !== 'delivery') return { note: 'Dine-in or pick up', pending: false };
+  if (!areasConfigured) {
+    return {
+      note: schemaConfigured ? 'No delivery fee set by this restaurant' : 'Charged at the restaurant rate',
+      pending: false,
+    };
+  }
+  if (quoteLoading && !quote) return { note: 'Checking your address', pending: true };
+  if (!quote) return { note: 'Choose your address', pending: false };
+  if (!quote.deliverable) return { note: 'This restaurant does not deliver there', pending: false };
+  if (quote.belowMinimum) return { note: `Minimum order ${formatCurrency(quote.minOrder ?? 0)}`, pending: false };
+  if (quote.estimatedMinutes) {
+    return {
+      note: `${quote.areaName ?? 'Delivery area'} · ${quote.estimatedMinutes.min}–${quote.estimatedMinutes.max} min`,
+      pending: false,
+    };
+  }
+  return { note: quote.areaName ?? 'Delivery area', pending: false };
+}
+
 /* ------------------------------- subcomponents ------------------------------- */
+
+function DeliveryQuotePanel({
+  quote,
+  loading,
+  error,
+  hasPoint,
+  formatCurrency,
+}: {
+  quote: DeliveryQuote | null;
+  loading: boolean;
+  error: string;
+  hasPoint: boolean;
+  formatCurrency: (n: number) => string;
+}) {
+  if (error) {
+    return (
+      <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-2.5 text-[11px] text-destructive">
+        <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" aria-hidden="true" />
+        <span>{error}</span>
+      </div>
+    );
+  }
+
+  if (!hasPoint) {
+    return (
+      <p className="flex items-start gap-2 text-[11px] text-muted-foreground">
+        <MapPin className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" aria-hidden="true" />
+        <span>Search your address to see the delivery fee and time before you pay.</span>
+      </p>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="space-y-1.5" aria-live="polite">
+        <div className="h-3 w-40 animate-pulse rounded bg-muted" />
+        <div className="h-3 w-28 animate-pulse rounded bg-muted" />
+        <p className="sr-only">Checking delivery for this address</p>
+      </div>
+    );
+  }
+
+  if (!quote) return null;
+
+  if (!quote.deliverable) {
+    return (
+      <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-2.5 text-[11px] text-destructive">
+        <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" aria-hidden="true" />
+        <div>
+          <p className="font-semibold">This restaurant does not deliver to that address.</p>
+          <p className="mt-0.5">Move the pin closer, try a nearby landmark, or choose At Restaurant.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (quote.belowMinimum) {
+    return (
+      <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-50 p-2.5 text-[11px] text-amber-900">
+        <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" aria-hidden="true" />
+        <div>
+          <p className="font-semibold">
+            Add {formatCurrency(quote.remainingForMinimum ?? 0)} more to order
+            {quote.areaName ? ` from ${quote.areaName}` : ''}.
+          </p>
+          <p className="mt-0.5">
+            Minimum order here is {formatCurrency(quote.minOrder ?? 0)}.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-1.5 rounded-lg border border-border bg-card p-2.5 text-[11px]" aria-live="polite">
+      <div className="flex items-center justify-between gap-3">
+        <span className="font-semibold text-foreground">
+          {quote.areaName ?? (quote.legacy ? 'Delivery' : 'Your address')}
+        </span>
+        <span className="tabular-nums font-semibold text-foreground">
+          {quote.fee > 0 ? formatCurrency(quote.fee) : 'Free delivery'}
+        </span>
+      </div>
+
+      {quote.feeWaived && (
+        <p className="text-emerald-700">
+          Free delivery applied on a {formatCurrency(quote.baseFee)} fee.
+        </p>
+      )}
+
+      {quote.estimatedMinutes && (
+        <p className="flex items-center gap-1.5 text-muted-foreground">
+          <Clock className="w-3 h-3" aria-hidden="true" />
+          Arrives in about {quote.estimatedMinutes.min}–{quote.estimatedMinutes.max} minutes
+        </p>
+      )}
+
+      {quote.remainingForFreeDelivery != null && quote.remainingForFreeDelivery > 0 && (
+        <p className="text-muted-foreground">
+          Add {formatCurrency(quote.remainingForFreeDelivery)} more for free delivery.
+        </p>
+      )}
+
+      {quote.freeDeliveryThreshold != null && quote.fee === 0 && (
+        <p className="text-emerald-700">
+          Free delivery on orders from {formatCurrency(quote.freeDeliveryThreshold)}.
+        </p>
+      )}
+    </div>
+  );
+}
 
 function DeliveryOption({
   active,
@@ -611,6 +1077,9 @@ function SummaryCard({
   subtotal,
   serviceFee,
   deliveryFee,
+  deliveryNote,
+  deliveryFeeIsEstimate,
+  tableLabel,
   total,
   formatCurrency,
 }: {
@@ -619,6 +1088,9 @@ function SummaryCard({
   subtotal: number;
   serviceFee: number;
   deliveryFee: number;
+  deliveryNote?: string;
+  deliveryFeeIsEstimate?: boolean;
+  tableLabel?: string;
   total: number;
   formatCurrency: (n: number) => string;
 }) {
@@ -666,15 +1138,31 @@ function SummaryCard({
         })}
       </ul>
 
+      {tableLabel && (
+        <div className="flex items-center justify-between rounded-lg bg-muted/60 px-2.5 py-1.5 text-[11px]">
+          <span className="text-muted-foreground">Table</span>
+          <span className="font-semibold">{tableLabel}</span>
+        </div>
+      )}
+
       <div className="pt-3 border-t border-border space-y-2 text-sm">
         <Row label="Subtotal" value={formatCurrency(subtotal)} muted formatted />
         <Row label="Service Fee" value={`+${formatCurrency(serviceFee)}`} muted formatted />
         <Row
           label="Delivery"
-          value={deliveryFee > 0 ? `+${formatCurrency(deliveryFee)}` : 'Free'}
+          value={
+            deliveryFeeIsEstimate
+              ? '—'
+              : deliveryFee > 0
+                ? `+${formatCurrency(deliveryFee)}`
+                : 'Free'
+          }
           muted
           formatted
         />
+        {deliveryNote && (
+          <p className="text-[10.5px] text-muted-foreground -mt-1">{deliveryNote}</p>
+        )}
       </div>
 
       <div className="pt-3 border-t border-border flex items-center justify-between">

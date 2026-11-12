@@ -8,8 +8,14 @@ import {
   calculateServiceFee,
   saveOrderServiceFee,
 } from '@/lib/service-fee';
-import { DELIVERY_FEE, DRINK_ID_PREFIX, round2 } from '@/lib/pricing';
+import { DRINK_ID_PREFIX, round2 } from '@/lib/pricing';
 import { getOrderingStatus } from '@/lib/business-hours';
+import { resolveDelivery } from '@/lib/delivery/pricing';
+import {
+  activeLabels,
+  getSchemaSupport,
+  loadTableLabels,
+} from '@/lib/delivery/storage';
 
 /**
  * Order creation endpoint.
@@ -163,6 +169,10 @@ export async function POST(request: NextRequest) {
       serviceFeeType,
       deliveryFee,
       total,
+      tableLabel,
+      deliveryLat,
+      deliveryLng,
+      deliveryAddressText,
     } = body;
 
     console.log('[v0] Order API: Creating order with fields:', {
@@ -364,7 +374,89 @@ export async function POST(request: NextRequest) {
     const serviceFeeConfig = await getServiceFeeConfig();
     const serverServiceFee = round2(calculateServiceFee(serverSubtotal, serviceFeeConfig));
 
-    const serverDeliveryFee = deliveryType === 'delivery' ? DELIVERY_FEE : 0;
+    // ------------------------------------------------------------------
+    // Delivery (Batch 3B).
+    //
+    // The fee is resolved here from coordinates, never from the browser.
+    // `body.deliveryFee` is read above only so the client's number can be
+    // compared for the mismatch check; it is never charged and never stored.
+    //
+    // With the delivery tables migrated and no active area, delivery is free.
+    // With the tables absent, this falls back to the legacy flat fee so today's
+    // pricing is untouched until the SQL has been run.
+    // ------------------------------------------------------------------
+    // `Number(null)` is 0, and (0, 0) is in the Gulf of Guinea: a missing
+    // coordinate must never become a real-looking point.
+    const latValue = typeof deliveryLat === 'number' || typeof deliveryLat === 'string' ? Number(deliveryLat) : NaN;
+    const lngValue = typeof deliveryLng === 'number' || typeof deliveryLng === 'string' ? Number(deliveryLng) : NaN;
+    const resolvedPoint =
+      Number.isFinite(latValue) && Number.isFinite(lngValue) && !(latValue === 0 && lngValue === 0)
+        ? { lat: latValue, lng: lngValue }
+        : null;
+
+    const delivery = await resolveDelivery({
+      businessId: cleanBusinessId,
+      deliveryType,
+      point: resolvedPoint,
+      subtotal: serverSubtotal,
+    });
+
+    if (!delivery.ok) {
+      console.log('[v0] Order API: Delivery refused', {
+        code: delivery.code,
+        deliveryType,
+      });
+      return NextResponse.json(
+        {
+          error: delivery.message,
+          code: delivery.code,
+          minOrder: delivery.minOrder ?? null,
+          remainingForMinimum: delivery.remainingForMinimum ?? null,
+        },
+        { status: delivery.code === 'OUTSIDE_AREA' ? 422 : 400 },
+      );
+    }
+
+    const serverDeliveryFee = delivery.fee;
+
+    // ------------------------------------------------------------------
+    // Table label (Batch 3B).
+    //
+    // A dine-in order with labels configured must name a live table. When no
+    // labels exist, whatever the client sends is ignored and nothing about the
+    // order changes.
+    // ------------------------------------------------------------------
+    const [support, allLabels] = await Promise.all([getSchemaSupport(), loadTableLabels(cleanBusinessId)]);
+    const labels = activeLabels(allLabels);
+    let resolvedTableLabel: string | null = null;
+
+    if (deliveryType !== 'delivery' && labels.length > 0) {
+      const requested = typeof tableLabel === 'string' ? tableLabel.trim() : '';
+      if (!requested) {
+        return NextResponse.json(
+          {
+            error: 'Choose your table so the order reaches the right one.',
+            code: 'TABLE_REQUIRED',
+            tables: labels.map((label) => label.label),
+          },
+          { status: 400 },
+        );
+      }
+      const match = labels.find(
+        (label) => label.label.trim().toLowerCase() === requested.toLowerCase(),
+      );
+      if (!match) {
+        return NextResponse.json(
+          {
+            error: 'That table is no longer available. Choose another one.',
+            code: 'INVALID_TABLE',
+            tables: labels.map((label) => label.label),
+          },
+          { status: 400 },
+        );
+      }
+      resolvedTableLabel = match.label;
+    }
 
     const serverTotal = round2(serverSubtotal + serverServiceFee + serverDeliveryFee);
 
@@ -405,24 +497,71 @@ export async function POST(request: NextRequest) {
     let orderResult;
 
     try {
+      // Additive columns are written only when the migration has run, so an
+      // un-migrated database keeps taking orders exactly as it does today.
+      const columns = [
+        'id',
+        'business_id',
+        'customer_name',
+        'customer_email',
+        'customer_phone',
+        'address',
+        'notes',
+        'total_amount',
+        'service_fee_amount',
+        'payment_status',
+        'status',
+      ];
+      const allValues: any[] = [
+        orderId,
+        businessId,
+        customerName,
+        email,
+        phone,
+        address,
+        notes || null,
+        serverTotal,
+        serverServiceFee,
+        'pending',
+        'pending',
+      ];
+
+      if (support.orderDelivery) {
+        columns.push(
+          'delivery_fee',
+          'delivery_area_id',
+          'delivery_lat',
+          'delivery_lng',
+          'estimated_delivery_minutes',
+          'delivery_address_text',
+        );
+        allValues.push(
+          serverDeliveryFee,
+          delivery.area?.id ?? null,
+          resolvedPoint?.lat ?? null,
+          resolvedPoint?.lng ?? null,
+          delivery.estimate?.max ?? null,
+          typeof deliveryAddressText === 'string' && deliveryAddressText.trim()
+            ? deliveryAddressText.trim().slice(0, 500)
+            : null,
+        );
+      }
+
+      if (support.orderTableLabel) {
+        columns.push('table_label');
+        allValues.push(resolvedTableLabel);
+      }
+
+      columns.push('created_at');
+      const placeholders = allValues.map((_, index) => `$${index + 1}`);
+      placeholders.push('NOW()');
+
       orderResult = await db.query(
-        `INSERT INTO orders 
-     (id, business_id, customer_name, customer_email, customer_phone, address, notes, total_amount, service_fee_amount, payment_status, status, created_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11, NOW())
+        `INSERT INTO orders
+     (${columns.join(', ')})
+     VALUES (${placeholders.join(', ')})
      RETURNING id, total_amount`,
-        [
-          orderId,
-          businessId,
-          customerName,
-          email,
-          phone,
-          address,
-          notes || null,
-          serverTotal,
-          serverServiceFee,
-          'pending',
-          'pending',
-        ]
+        allValues,
       );
     } catch (err) {
       console.error('[v0] Order insert failed:', err);
@@ -544,6 +683,11 @@ export async function POST(request: NextRequest) {
       subtotal: serverSubtotal,
       serviceFee: serverServiceFee,
       deliveryFee: serverDeliveryFee,
+      // Added in batch 3b.
+      deliveryAreaId: delivery.area?.id ?? null,
+      deliveryAreaName: delivery.area?.name ?? null,
+      estimatedDeliveryMinutes: delivery.estimate?.max ?? null,
+      tableLabel: resolvedTableLabel,
     });
   } catch (error) {
     console.error('[v0] Order creation error:', error);

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db, query } from '@/lib/db';
+import { getSchemaSupport } from '@/lib/delivery/storage';
 
 export async function GET(
   request: NextRequest,
@@ -16,6 +17,18 @@ export async function GET(
       );
     }
 
+    // Batch 3B columns are read only when the migration has run, so this
+    // endpoint keeps working unchanged on a pre-3B database.
+    const support = await getSchemaSupport();
+    const extraColumns = [
+      support.orderDelivery
+        ? 'o.delivery_fee, o.delivery_area_id, o.delivery_lat, o.delivery_lng, o.estimated_delivery_minutes, o.delivery_address_text'
+        : null,
+      support.orderTableLabel ? 'o.table_label' : null,
+    ]
+      .filter(Boolean)
+      .join(', ');
+
     // Fetch complete order data with order items
     const orderResult = await query(
       `SELECT 
@@ -31,7 +44,8 @@ export async function GET(
         o.service_fee_amount,
         o.notes,
         o.created_at,
-        o.completed_at,
+        o.completed_at${extraColumns ? `,
+        ${extraColumns}` : ''},
         b.name as business_name,
         b.logo_url
       FROM orders o
@@ -113,7 +127,13 @@ export async function GET(
     }, 0);
 
     const total = parseFloat(order.total_amount) || subtotal;
-    const serviceFee = parseFloat(order.service_fee_amount) || Math.max(0, total - subtotal);
+    const storedServiceFee = parseFloat(order.service_fee_amount);
+    // Batch 3B: the delivery fee is a stored fact, so it is never inferred from
+    // whatever is left over in the total.
+    const deliveryFee = support.orderDelivery ? parseFloat(order.delivery_fee) || 0 : 0;
+    const serviceFee = Number.isFinite(storedServiceFee)
+      ? storedServiceFee
+      : Math.max(0, total - subtotal - deliveryFee);
 
     return NextResponse.json({
       order: {
@@ -130,11 +150,22 @@ export async function GET(
         notes: order.notes,
         created_at: order.created_at,
         completed_at: order.completed_at,
+        // Batch 3B, additive. Null on orders placed before this batch.
+        table_label: support.orderTableLabel ? order.table_label ?? null : null,
+        delivery_fee: support.orderDelivery ? deliveryFee : null,
+        delivery_area_id: support.orderDelivery ? order.delivery_area_id ?? null : null,
+        delivery_lat: support.orderDelivery ? order.delivery_lat ?? null : null,
+        delivery_lng: support.orderDelivery ? order.delivery_lng ?? null : null,
+        delivery_address_text: support.orderDelivery ? order.delivery_address_text ?? null : null,
+        estimated_delivery_minutes: support.orderDelivery
+          ? order.estimated_delivery_minutes ?? null
+          : null,
       },
       items,
       calculations: {
         subtotal: Math.round(subtotal * 100) / 100,
         serviceFee: serviceFee,
+        deliveryFee: Math.round(deliveryFee * 100) / 100,
         total: Math.round(total * 100) / 100,
       },
     });

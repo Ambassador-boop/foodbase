@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getOne, getAll } from '@/lib/db';
 import {
+  activeLabels,
+  getSchemaSupport,
+  loadActiveAreas,
+  loadPrepTimeMinutes,
+  loadTableLabels,
+} from '@/lib/delivery/storage';
+import { prepMinutesOr } from '@/lib/delivery/estimate';
+import { mapboxConfigured } from '@/lib/mapbox/server';
+import {
   getBusinessHours,
   isOpenAt,
   describeToday,
@@ -200,6 +209,38 @@ export async function GET(
       console.error('[menu] hours unavailable', hoursError);
     }
 
+    // -------- Delivery and table labels (Batch 3B, additive) --------
+    // Never let this break the menu: a failure or an un-migrated database just
+    // means "no areas configured", which is today's behaviour.
+    let delivery: {
+      configured: boolean;
+      hasAreas: boolean;
+      activeAreaCount: number;
+      prepTimeMinutes: number;
+      mapboxConfigured: boolean;
+    } | null = null;
+    let tableLabels: Array<{ id: string; label: string }> = [];
+    try {
+      const support = await getSchemaSupport();
+      const [activeAreas, prep] = await Promise.all([
+        loadActiveAreas(business.id),
+        loadPrepTimeMinutes(business.id),
+      ]);
+      delivery = {
+        configured: support.deliveryAreas,
+        hasAreas: activeAreas.length > 0,
+        activeAreaCount: activeAreas.length,
+        prepTimeMinutes: prepMinutesOr(prep),
+        mapboxConfigured: mapboxConfigured(),
+      };
+      if (support.tableLabels) {
+        const labels = await loadTableLabels(business.id);
+        tableLabels = activeLabels(labels).map((label) => ({ id: label.id, label: label.label }));
+      }
+    } catch (deliveryError) {
+      console.error('[menu] delivery config unavailable', deliveryError);
+    }
+
     const response = {
       success: true,
       business: {
@@ -222,6 +263,9 @@ export async function GET(
           typeof business.accept_orders_outside_hours === 'boolean'
             ? business.accept_orders_outside_hours
             : true,
+        // Batch 3B, additive.
+        delivery,
+        tableLabels,
       },
       categories,
       menuItems: menuItemsWithAddons,

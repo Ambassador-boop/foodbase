@@ -29,6 +29,7 @@ import {
   StickyNote,
   Truck,
   User,
+  UtensilsCrossed,
   X,
 } from 'lucide-react';
 
@@ -63,11 +64,17 @@ interface OrderData {
     notes?: string;
     created_at: string;
     completed_at?: string;
+    /** Batch 3B, additive: null on orders placed before it. */
+    table_label?: string | null;
+    delivery_fee?: number | null;
+    estimated_delivery_minutes?: number | null;
+    delivery_area_id?: string | null;
   };
   items: OrderItem[];
   calculations: {
     subtotal: number;
     serviceFee: number;
+    deliveryFee?: number;
     total: number;
   };
 }
@@ -597,6 +604,25 @@ export default function OrderDetailsPage() {
                   + {formatCurrency(orderData.calculations.serviceFee)}
                 </dd>
               </div>
+              {/* Batch 3B: delivery is always its own line, including when free. */}
+              {orderData.order.delivery_fee != null && (
+                <div className="flex justify-between">
+                  <dt className="text-muted-foreground">Delivery</dt>
+                  <dd className="font-medium tabular-nums">
+                    {Number(orderData.order.delivery_fee) > 0
+                      ? `+ ${formatCurrency(Number(orderData.order.delivery_fee))}`
+                      : 'Free'}
+                  </dd>
+                </div>
+              )}
+              {orderData.order.estimated_delivery_minutes ? (
+                <div className="flex justify-between">
+                  <dt className="text-muted-foreground">Estimated arrival</dt>
+                  <dd className="font-medium tabular-nums">
+                    {orderData.order.estimated_delivery_minutes} min
+                  </dd>
+                </div>
+              ) : null}
               <div className="my-2 h-px bg-border" />
               <div className="flex items-center justify-between">
                 <dt className="text-base font-semibold text-foreground">
@@ -638,6 +664,13 @@ export default function OrderDetailsPage() {
                 label="Name"
                 value={orderData.order.customer_name || '—'}
               />
+              {orderData.order.table_label && (
+                <InfoRow
+                  icon={<UtensilsCrossed className="h-3.5 w-3.5" />}
+                  label="Table"
+                  value={orderData.order.table_label}
+                />
+              )}
               <InfoRow
                 icon={<Phone className="h-3.5 w-3.5" />}
                 label="Phone"

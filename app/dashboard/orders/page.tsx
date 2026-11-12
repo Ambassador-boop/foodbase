@@ -34,6 +34,9 @@ interface Order {
   business_id?: string;
   business_name?: string;
   menu_items?: Array<{ name: string; quantity: number }>;
+  /** Batch 3B, additive: the dine-in table the order belongs to. */
+  table_label?: string | null;
+  delivery_fee?: number | string | null;
 }
 
 type StatusFilter = 'all' | 'pending' | 'preparing' | 'completed' | 'cancelled';
@@ -606,9 +609,16 @@ function OrderCard({ order }: { order: Order }) {
     >
       <div className="flex items-start justify-between gap-3 mb-2">
         <div className="min-w-0">
-          <p className="font-semibold text-sm truncate">
-            {order.customer_name}
-          </p>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <p className="font-semibold text-sm truncate">
+              {order.customer_name}
+            </p>
+            {order.table_label && (
+              <span className="inline-flex flex-shrink-0 items-center rounded-full bg-primary/10 px-2 py-0.5 text-[10.5px] font-bold text-primary">
+                {order.table_label}
+              </span>
+            )}
+          </div>
           <p className="text-[11px] text-muted-foreground">
             #{order.id.slice(0, 8)} •{' '}
             {formatWat(order.created_at, {
@@ -656,7 +666,14 @@ function OrderRow({ order }: { order: Order }) {
   return (
     <tr className="hover:bg-muted/30 transition-colors">
       <td className="px-4 py-3">
-        <p className="font-medium text-sm">{order.customer_name}</p>
+        <div className="flex items-center gap-1.5">
+          <p className="font-medium text-sm">{order.customer_name}</p>
+          {order.table_label && (
+            <span className="inline-flex flex-shrink-0 items-center rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary">
+              {order.table_label}
+            </span>
+          )}
+        </div>
         <p className="text-[11px] text-muted-foreground">
           #{order.id.slice(0, 8)}
         </p>

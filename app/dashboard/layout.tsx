@@ -23,6 +23,8 @@ import {
   Check,
   Clock,
   ListChecks,
+  MapPin,
+  Table2,
 } from 'lucide-react';
 import NotificationsIcon from '@/components/dashboard/notifications-icon';
 import { VerifyEmailBanner } from '@/components/dashboard/verify-email-banner';
@@ -42,6 +44,8 @@ const navigationItems = [
 { label: 'Popular Dishes', href: '/dashboard/popular', icon: Zap },
 { label: 'Share Business', href: '/dashboard/share', icon: Share2 },
 { label: 'Opening Hours', href: '/dashboard/hours', icon: Clock },
+{ label: 'Delivery Areas', href: '/dashboard/delivery', icon: MapPin },
+{ label: 'Tables', href: '/dashboard/tables', icon: Table2 },
 { label: 'Setup', href: '/dashboard/onboarding', icon: ListChecks },
 { label: 'Settings', href: '/dashboard/settings', icon: Settings },
 ];

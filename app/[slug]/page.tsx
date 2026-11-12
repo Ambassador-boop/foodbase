@@ -132,6 +132,19 @@ export default function RestaurantPage() {
     sessionStorage.setItem(`cart_${slug}`, JSON.stringify(cartItems));
   }, [cartItems, slug]);
 
+  // Batch 3B: a table scanned from a QR code travels with the order. The value
+  // is only a preselection; the server validates it against the live labels.
+  useEffect(() => {
+    try {
+      const table = new URLSearchParams(window.location.search).get('table');
+      if (table && table.trim()) {
+        sessionStorage.setItem(`table_${slug}`, table.trim().slice(0, 24));
+      }
+    } catch {
+      /* ignore malformed links */
+    }
+  }, [slug]);
+
   const fetchRestaurantData = async () => {
     try {
       const response = await fetch(`/api/restaurants/${slug}/menu`);

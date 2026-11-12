@@ -96,12 +96,29 @@ async function skippedSteps(businessId: string): Promise<Set<string>> {
 export async function buildOnboarding(business: BusinessRow, userId: string): Promise<OnboardingSummary> {
   const businessId = business.id
 
-  const [categoryCount, itemCount, openDays, skippedKeys, pin] = await Promise.all([
+  const [
+    categoryCount,
+    itemCount,
+    openDays,
+    skippedKeys,
+    pin,
+    // Batch 3B: null means "the table is not there yet", which reads as "not done".
+    deliveryAreaCount,
+    tableLabelCount,
+  ] = await Promise.all([
     countRows('SELECT COUNT(*)::int AS n FROM categories WHERE business_id = $1', [businessId]),
     countRows('SELECT COUNT(*)::int AS n FROM menu_items WHERE business_id = $1', [businessId]),
     countRows('SELECT COUNT(*)::int AS n FROM business_hours WHERE business_id = $1 AND is_closed = false', [businessId]),
     skippedSteps(businessId),
     getPinStatus(userId).catch(() => ({ hasPin: false, locked: false, lockedUntil: null })),
+    countRows(
+      'SELECT COUNT(*)::int AS n FROM delivery_areas WHERE business_id = $1 AND is_active = true',
+      [businessId],
+    ),
+    countRows(
+      'SELECT COUNT(*)::int AS n FROM table_labels WHERE business_id = $1 AND is_active = true',
+      [businessId],
+    ),
   ])
 
   const profileDone = Boolean(
@@ -171,7 +188,8 @@ export async function buildOnboarding(business: BusinessRow, userId: string): Pr
       why: 'A delivery fee per area is more accurate than one flat fee. It also stops orders from streets you cannot reach in time.',
       minutes: 4,
       critical: false,
-      done: false,
+      href: '/dashboard/delivery',
+      done: (deliveryAreaCount ?? 0) > 0,
       locked: !deliveryAvailable,
       lockedReason: deliveryAvailable
         ? undefined
@@ -184,7 +202,8 @@ export async function buildOnboarding(business: BusinessRow, userId: string): Pr
       why: 'Labels let a dine-in order name the table it belongs to, so runners do not have to guess.',
       minutes: 2,
       critical: false,
-      done: false,
+      href: '/dashboard/tables',
+      done: (tableLabelCount ?? 0) > 0,
       locked: !tablesAvailable,
       lockedReason: tablesAvailable ? undefined : 'Table labels arrive with the dine-in tools.',
       batch: tablesAvailable ? undefined : featureBatch('tableLabels'),
