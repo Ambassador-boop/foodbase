@@ -264,6 +264,10 @@ export interface SmsFundingRecord {
   status: SmsFundingStatus
   createdAt: string
   failureReason: string | null
+  /** Paystack's transfer fee + stamp duty on this transfer, once it succeeded. */
+  providerFee?: number
+  /** amount + providerFee: what the transfer actually cost the platform. */
+  totalCost?: number
 }
 
 export interface SmsWalletResponse {

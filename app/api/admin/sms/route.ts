@@ -7,16 +7,62 @@ import { reconcileAdminTransfers, rowsOf } from '@/lib/admin-transfers';
 
 export const dynamic = 'force-dynamic';
 
-type TransferRow = { id: string; amount: unknown; status: string; created_at: string; failure_reason: string | null };
+type TransferRow = {
+  id: string;
+  amount: unknown;
+  status: string;
+  created_at: string;
+  failure_reason: string | null;
+  provider_fee?: unknown;
+};
 
 function recentFunding(row: TransferRow) {
+  const amount = Number(row.amount ?? 0);
+  const providerFee = Number(row.provider_fee ?? 0) || 0;
   return {
     id: row.id,
-    amount: Number(row.amount ?? 0),
+    amount,
     status: String(row.status ?? 'pending').toLowerCase(),
     createdAt: row.created_at,
     failureReason: row.failure_reason ?? null,
+    // Paystack's transfer fee + stamp duty, recorded when the transfer succeeded.
+    providerFee,
+    totalCost: Math.round((amount + providerFee) * 100) / 100,
   };
+}
+
+const RECENT_FUNDING_COLUMNS = 'id, amount, status, created_at, failure_reason';
+
+/**
+ * The recent fundings, with the provider fee when the column is there. A database
+ * that has not had docs/sql/2d-transfer-fee.sql applied yet still renders the panel;
+ * it just shows no fee.
+ */
+async function recentFundings(limit = 5): Promise<TransferRow[]> {
+  try {
+    return rowsOf(
+      await query(
+        `SELECT ${RECENT_FUNDING_COLUMNS}, provider_fee
+           FROM admin_transfers
+          WHERE kind = $1
+          ORDER BY created_at DESC
+          LIMIT ${Number(limit)}`,
+        ['sms_funding'],
+      ),
+    ) as TransferRow[];
+  } catch (error) {
+    console.error('[admin/sms] provider_fee unavailable; recent fundings show no fee', error);
+    return rowsOf(
+      await query(
+        `SELECT ${RECENT_FUNDING_COLUMNS}
+           FROM admin_transfers
+          WHERE kind = $1
+          ORDER BY created_at DESC
+          LIMIT ${Number(limit)}`,
+        ['sms_funding'],
+      ),
+    ) as TransferRow[];
+  }
 }
 
 export async function GET(req: NextRequest) {
@@ -31,15 +77,7 @@ export async function GET(req: NextRequest) {
     const revenue = await getOne('SELECT available_balance FROM admin_revenue LIMIT 1');
     const [funding, setup] = await Promise.all([getFundingTarget(), getFundingSetupCheck()]);
 
-    const recentRaw = await query(
-      `SELECT id, amount, status, created_at, failure_reason
-         FROM admin_transfers
-        WHERE kind = $1
-        ORDER BY created_at DESC
-        LIMIT 5`,
-      ['sms_funding'],
-    );
-    const recent = rowsOf(recentRaw).map((row) => recentFunding(row as TransferRow));
+    const recent = (await recentFundings(5)).map((row) => recentFunding(row));
 
     const lastSuccess = await getOne(
       `SELECT created_at FROM admin_transfers

@@ -2,12 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { verifyJWT } from '@/lib/auth';
 import { maskEmail } from '@/lib/mask';
-import { generateAlphanumericId } from '@/lib/utils';
+import { refundAmountNaira } from '@/lib/refund-amount';
 
 const PAYSTACK_API_KEY = process.env.PAYSTACK_SECRET_KEY;
 const PAYSTACK_BASE = 'https://api.paystack.co';
-
-const TERMINAL_FAILED = new Set(['failed', 'rejected']);
 
 async function syncRefundFromPaystack(paystackRefundId: string, refundId: string) {
   if (!PAYSTACK_API_KEY || !paystackRefundId) return null;
@@ -48,81 +46,49 @@ async function syncRefundFromPaystack(paystackRefundId: string, refundId: string
 }
 
 /**
- * If a refund has hit a terminal failure status AND we previously debited
- * the business's balance for it, restore the funds to the same bucket
- * that was originally affected. Idempotent — once processed, refunds.amount
- * is left alone but a per-record marker is set via failure_reason updates.
+ * Reverse a refund the provider rejected, crediting the business exactly once.
  *
- * To keep the operation idempotent we use a small guard table keyed by
- * refund id; that way repeated GETs after the failure don't keep crediting.
+ * There is one reversal implementation: the database function
+ * fb_reverse_failed_refund. It locks the refund row, refuses any refund that is
+ * not failed/rejected, refuses one whose `balance_reversed` flag is already set,
+ * and credits whichever bucket the transaction sits in *now* (so a refund that
+ * failed after settlement is credited to available, where it can be used).
+ *
+ * That makes this safe from the webhook, from this GET, from both at the same
+ * time, or twice in a row: the row lock serialises callers and the flag makes
+ * every call after the first a no-op.
+ *
+ * This function used to carry a second TypeScript implementation that moved the
+ * balance and wrote a finance_records row itself. It never set
+ * refunds.balance_reversed, so a webhook arriving afterwards credited the same
+ * money a second time, and it used refunds.balance_affected instead of the
+ * transaction's current bucket, so a refund that failed after settlement could
+ * land back in a pending balance with no transaction left to settle it. Both
+ * have been removed; the SQL function is the only path.
+ *
+ * Returns null when the database call cannot be made, and the function's own
+ * result otherwise: { status: 'reversed' | 'already_reversed' | 'not_failed' |
+ * 'not_found' | 'nothing_to_reverse' }.
  */
 async function ensureFailedRefundReversed(refundId: string) {
-  // Check current refund row + see if we've already reversed
-  const r: any = await db.query(
-    `SELECT r.id, r.status, r.refund_amount, r.amount,
-            r.balance_affected, r.business_id,
-            EXISTS (
-              SELECT 1 FROM finance_records fr
-               WHERE fr.related_id = r.id
-                 AND fr.record_type = 'refund_reversed'
-            ) AS already_reversed
-       FROM refunds r
-      WHERE r.id = $1`,
-    [refundId],
-  );
-  const row = (Array.isArray(r) ? r : r?.rows ?? [])[0];
-  if (!row) return;
-
-  const status = String(row.status || '').toLowerCase();
-  if (!TERMINAL_FAILED.has(status)) return;
-  if (row.already_reversed) return;
-
-  const amount = Number(row.refund_amount ?? row.amount ?? 0) || 0;
-  if (amount <= 0) return;
-
-  // balance_affected may be NULL on legacy rows — default to 'available'
-  const bucket =
-    String(row.balance_affected || 'available').toLowerCase() === 'pending'
-      ? 'pending'
-      : 'available';
-
   try {
-    if (bucket === 'pending') {
-      await db.query(
-        `UPDATE businesses
-            SET pending_balance = COALESCE(pending_balance, 0) + $1,
-                updated_at = NOW()
-          WHERE id = $2`,
-        [amount, row.business_id],
-      );
-    } else {
-      await db.query(
-        `UPDATE businesses
-            SET available_balance = COALESCE(available_balance, 0) + $1,
-                updated_at = NOW()
-          WHERE id = $2`,
-        [amount, row.business_id],
+    const raw: any = await db.query(
+      'SELECT fb_reverse_failed_refund($1) AS result',
+      [refundId],
+    );
+    const row = (Array.isArray(raw) ? raw : raw?.rows ?? [])[0];
+    const result = typeof row?.result === 'string' ? JSON.parse(row.result) : row?.result ?? null;
+    if (result?.status === 'reversed') {
+      console.log(
+        `[v0] Refund reversed: ${refundId} credited ${result.amount} back to ${result.bucket}`,
       );
     }
-
-    await db.query(
-      `INSERT INTO finance_records
-         (id, business_id, record_type, bucket, direction, amount,
-          related_id, reference, description, created_at)
-       VALUES ($1, $2, 'refund_reversed', $3, 'in', $4, $5, NULL,
-               'Refund failed at gateway — funds restored', NOW())`,
-      [
-        `fr_${generateAlphanumericId()}`,
-        row.business_id,
-        bucket,
-        amount,
-        row.id,
-      ],
-    );
-
-    console.log('[v0] Refund reversed on failed sync:', refundId);
-  } catch (err) {
-    console.error('[v0] Refund reversal failed:', err);
+    return result;
+  } catch (error) {
+    // Never fail the page because a reversal could not be recorded: the webhook
+    // retries the same call, and fb_reverse_failed_refund is idempotent.
+    console.error('[v0] Refund reversal failed:', error);
+    return null;
   }
 }
 
@@ -198,7 +164,7 @@ export async function GET(
       id: row.id,
 
       reference: row.payment_reference || null,
-      amount: Number(row.refund_amount ?? row.legacy_amount ?? 0),
+      amount: refundAmountNaira({ refund_amount: row.refund_amount, amount: row.legacy_amount }),
       original_amount: Number(row.original_amount ?? row.order_total ?? 0),
       currency: 'NGN',
 
