@@ -1,0 +1,170 @@
+/**
+ * Print styles for the table QR sheet (Batch 3B).
+ *
+ * The sheet lives in the dashboard so the owner can print it from the same
+ * screen they configure tables on. Printing hides the whole app chrome and
+ * lifts the sheet to a clean white page: three cards per row on A4, no browser
+ * headers, no dashboard navigation bleeding into the paper.
+ */
+
+.qr-print-area {
+  /* Screen: out of the flow but still measurable, so the print layout has a
+     real size to work from. */
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+  }
+
+  /* Hide the application, keep the sheet. visibility (not display) is used on
+     ancestors so the sheet's own box is still laid out. */
+  body * {
+    visibility: hidden !important;
+  }
+
+  .qr-print-area,
+  .qr-print-area * {
+    visibility: visible !important;
+  }
+
+  .qr-print-area {
+    display: block !important;
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 9999 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #ffffff !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .qr-sheet {
+    color: #141210;
+  }
+}
+
+.qr-sheet {
+  padding: 0;
+}
+
+.qr-sheet-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1.5px solid #141210;
+  padding-bottom: 10px;
+  margin-bottom: 14px;
+}
+
+.qr-sheet-eyebrow {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #8e3800;
+  margin: 0 0 4px;
+}
+
+.qr-sheet-title {
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  margin: 0;
+  line-height: 1.15;
+}
+
+.qr-sheet-note {
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: #5f594f;
+  max-width: 46mm;
+  text-align: right;
+  margin: 0;
+}
+
+.qr-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6mm;
+}
+
+.qr-card {
+  border: 1px solid #d9d3c7;
+  border-radius: 3mm;
+  padding: 5mm 4mm 4mm;
+  text-align: center;
+  break-inside: avoid;
+  page-break-inside: avoid;
+  background: #ffffff;
+}
+
+.qr-card-eyebrow {
+  font-size: 7.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #7a7367;
+  margin: 0 0 3mm;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.qr-card-table {
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  margin: 0 0 3.5mm;
+  word-break: break-word;
+}
+
+.qr-card-code {
+  display: flex;
+  justify-content: center;
+  padding: 2mm;
+}
+
+.qr-card-cta {
+  margin: 3mm 0 1mm;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #8e3800;
+}
+
+.qr-card-url {
+  margin: 0;
+  font-size: 8px;
+  color: #7a7367;
+  word-break: break-all;
+}
+
+.qr-sheet-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10mm;
+  padding-top: 3mm;
+  border-top: 1px solid #e4dfd4;
+  font-size: 8.5px;
+  color: #7a7367;
+}
+
+@media (max-width: 640px) {
+  .qr-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

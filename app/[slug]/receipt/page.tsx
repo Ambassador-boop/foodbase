@@ -61,11 +61,16 @@ interface OrderData {
     notes?: string;
     created_at: string;
     completed_at?: string;
+    /** Batch 3B, additive. */
+    table_label?: string | null;
+    delivery_fee?: number | null;
+    estimated_delivery_minutes?: number | null;
   };
   items: OrderItem[];
   calculations: {
     subtotal: number;
     serviceFee: number;
+    deliveryFee?: number;
     total: number;
   };
 }
@@ -731,6 +736,16 @@ const ReceiptDocument = ({
             value={`+ ${formatCurrency(calculations.serviceFee)}`}
             colors={C}
           />
+          {/* Batch 3B: delivery is its own line, never folded into the total. */}
+          {Number(calculations.deliveryFee) > 0 ? (
+            <Row
+              label="Delivery"
+              value={`+ ${formatCurrency(Number(calculations.deliveryFee))}`}
+              colors={C}
+            />
+          ) : order.delivery_fee != null ? (
+            <Row label="Delivery" value="Free" colors={C} />
+          ) : null}
           <div className="h-px my-1" style={{ backgroundColor: C.line }} />
           <div className="flex items-center justify-between pt-1">
             <span className="text-base font-semibold" style={{ color: C.ink }}>
@@ -756,6 +771,17 @@ const ReceiptDocument = ({
             Customer
           </h3>
 
+          {order.table_label && (
+            <div
+              className="inline-flex items-center gap-1.5 rounded-full px-3 py-1"
+              style={{ backgroundColor: C.soft, color: C.ink }}
+            >
+              <span className="text-[10.5px] font-semibold uppercase tracking-wide" style={{ color: C.sub }}>
+                Table
+              </span>
+              <span className="text-xs font-bold">{order.table_label}</span>
+            </div>
+          )}
           <InfoLine
             icon={<ShoppingBag className="w-3.5 h-3.5" />}
             label="Name"
@@ -786,6 +812,14 @@ const ReceiptDocument = ({
               colors={C}
             />
           )}
+          {order.estimated_delivery_minutes ? (
+            <InfoLine
+              icon={<Clock className="w-3.5 h-3.5" />}
+              label="Estimated"
+              value={`about ${order.estimated_delivery_minutes} minutes`}
+              colors={C}
+            />
+          ) : null}
           {order.notes && (
             <div
               className="rounded-lg px-3 py-2 mt-2"

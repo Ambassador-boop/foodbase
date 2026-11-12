@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { AlertCircle, ChevronLeft, Edit2, Trash2 } from 'lucide-react';
+import { AlertCircle, ChevronLeft, Edit2, MapPin, Table2, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 
@@ -37,6 +37,12 @@ export default function BusinessDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [deleting, setDeleting] = useState(false);
+  // Batch 3B: read-only support view of a restaurant's delivery pricing.
+  const [delivery, setDelivery] = useState<{
+    areas: any[];
+    tableLabels: any[];
+    schema: { deliveryAreas: boolean; tableLabels: boolean };
+  } | null>(null);
 
   useEffect(() => {
     const fetchBusiness = async () => {
@@ -56,6 +62,28 @@ export default function BusinessDetailPage() {
     };
 
     fetchBusiness();
+  }, [businessId]);
+
+  // Loaded separately: an unsupported schema must not break the page above.
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/admin/businesses/${businessId}/delivery-areas`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload) => {
+        if (!cancelled && payload?.success) {
+          setDelivery({
+            areas: payload.areas ?? [],
+            tableLabels: payload.tableLabels ?? [],
+            schema: payload.schema ?? { deliveryAreas: false, tableLabels: false },
+          });
+        }
+      })
+      .catch(() => {
+        /* support view is optional */
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [businessId]);
 
   const handleDelete = async () => {
@@ -242,6 +270,65 @@ export default function BusinessDetailPage() {
                     </span>
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* Delivery areas (read-only, Batch 3B) */}
+          {delivery?.schema.deliveryAreas && (
+            <div className="bg-white border border-border rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
+                <h3 className="text-sm font-semibold">Delivery areas</h3>
+                <span className="ml-auto text-[10px] uppercase tracking-wide text-muted-foreground">
+                  Read only
+                </span>
+              </div>
+              {delivery.areas.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  No areas configured. Delivery has no fee for this business.
+                </p>
+              ) : (
+                <ul className="space-y-2 text-xs">
+                  {delivery.areas.map((area) => (
+                    <li key={area.id} className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate font-medium text-foreground">{area.name}</p>
+                        <p className="text-muted-foreground">
+                          {area.area_type}
+                          {area.min_order != null ? ` · min ₦${Number(area.min_order).toLocaleString()}` : ''}
+                          {!area.is_active ? ' · paused' : ''}
+                        </p>
+                      </div>
+                      <span className="flex-shrink-0 font-semibold tabular-nums">
+                        ₦{Number(area.fee).toLocaleString()}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+
+          {/* Table labels (read-only, Batch 3B) */}
+          {delivery?.schema.tableLabels && delivery.tableLabels.length > 0 && (
+            <div className="bg-white border border-border rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Table2 className="w-3.5 h-3.5 text-muted-foreground" />
+                <h3 className="text-sm font-semibold">Tables</h3>
+                <span className="ml-auto text-[10px] uppercase tracking-wide text-muted-foreground">
+                  {delivery.tableLabels.length}
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {delivery.tableLabels.map((label) => (
+                  <span
+                    key={label.id}
+                    className="rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground"
+                  >
+                    {label.label}
+                  </span>
+                ))}
               </div>
             </div>
           )}
