@@ -9,6 +9,7 @@ import { PageHeader, Panel, StatTile, Delta, Money, StatusPill, ErrorState, Pane
 import { RevenueTrendChart, VolumeTrendChart, FunnelBreakdown, WithdrawalStatusChart, RankedBars } from '@/components/admin/charts'
 import { useAdminRange } from '@/components/admin/range'
 import { useAdminData } from '@/components/admin/use-admin-data'
+import { SmsLowBalanceBanner } from '@/components/admin/sms-funding'
 import { count, dateTimeWat, money, percent, timeWat } from '@/components/admin/format'
 import type { OverviewResponse } from '@/components/admin/types'
 
@@ -85,6 +86,8 @@ export default function AdminOverviewPage() {
           </>
         }
       />
+
+      <SmsLowBalanceBanner />
 
       {error && !data ? <ErrorState message={error} onRetry={reload} /> : null}
 
