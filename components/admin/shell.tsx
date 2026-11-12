@@ -7,6 +7,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import {
   Bell,
   LayoutDashboard,
+  MessageSquare,
   LogOut,
   Menu,
   ReceiptText,
@@ -58,6 +59,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: 'Alerts', href: '/admin/attention', icon: Bell, badge: true },
       { label: 'Users', href: '/admin/users', icon: Users },
+      { label: 'SMS wallet', href: '/admin/sms', icon: MessageSquare },
       { label: 'Settings', href: '/admin/settings', icon: Settings },
       { label: 'Security', href: '/admin/security', icon: ShieldCheck },
     ],
@@ -78,6 +80,7 @@ const PAGE_TITLES: Array<{ prefix: string; title: string }> = [
   { prefix: '/admin/users/new', title: 'Add user' },
   { prefix: '/admin/users/edit', title: 'Edit user' },
   { prefix: '/admin/users', title: 'Users' },
+  { prefix: '/admin/sms', title: 'SMS wallet' },
   { prefix: '/admin/settings', title: 'Settings' },
   { prefix: '/admin/security', title: 'Security' },
   { prefix: '/admin', title: 'Dashboard' },

@@ -255,3 +255,48 @@ export interface FeeTransactionsResponse {
   }>
   pagination: { page: number; limit: number; total: number; totalPages: number }
 }
+
+export type SmsFundingStatus = 'pending' | 'otp' | 'success' | 'failed' | 'reversed' | string
+
+export interface SmsFundingRecord {
+  id: string
+  amount: number
+  status: SmsFundingStatus
+  createdAt: string
+  failureReason: string | null
+}
+
+export interface SmsWalletResponse {
+  /** Live KudiSMS wallet figure. Null whenever the provider lookup failed. */
+  balance: number | null
+  balanceAvailable: boolean
+  balanceUnavailable: boolean
+  balanceStale: boolean
+  balanceUpdatedAt: string | null
+  lastKnownBalance: number | null
+  lowThreshold: number
+  isLow: boolean
+  minFunding: number
+  vatRate: number
+  pendingWindowMinutes: number
+  funding: {
+    configured: boolean
+    bankName?: string
+    bankCode?: string
+    accountNumberMasked?: string
+    accountName?: string
+    error?: string
+  }
+  setup: {
+    configured: boolean
+    accountNumber: { set: boolean; valid: boolean; masked: string | null }
+    expectedName: { set: boolean; masked: string | null }
+    resolved: { ok: boolean; masked: string | null; bankName: string | null; error: string | null }
+    nameMatches: 'match' | 'mismatch' | 'not_configured' | 'unresolved'
+  }
+  adminAvailable: number
+  lastFundedAt: string | null
+  recent: SmsFundingRecord[]
+  inFlight: SmsFundingRecord | null
+  generatedAt: string
+}
