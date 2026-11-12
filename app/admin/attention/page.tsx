@@ -175,6 +175,29 @@ export default function AlertsPage() {
         </div>
       ) : null}
 
+      {/* Batch 3A: registrations are not an alert. They get their own strip so the
+          financial categories above keep their exact meaning and counts. */}
+      {typeof data?.newRegistrations === 'number' ? (
+        <Link
+          href="/admin/businesses/registrations"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3 transition-colors hover:bg-muted/40"
+        >
+          <div className="min-w-0">
+            <p className="text-[13px] font-medium text-foreground">
+              {count(data.newRegistrations ?? 0)} new restaurant registration
+              {data.newRegistrations === 1 ? '' : 's'} in the last 7 days
+            </p>
+            <p className="text-[12px] text-muted-foreground">
+              Accounts are already active. Review owner details, email confirmation and suspend if needed.
+            </p>
+          </div>
+          <span className="inline-flex items-center gap-1 text-[12px] font-medium text-primary">
+            Open list
+            <ArrowRight className="size-3.5" aria-hidden="true" />
+          </span>
+        </Link>
+      ) : null}
+
       <section aria-label="Alert categories" className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
         <button
           type="button"

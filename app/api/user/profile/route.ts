@@ -7,7 +7,19 @@ function tokenOf(request: NextRequest) { return request.headers.get('authorizati
 function rowsOf(raw: any): any[] { return Array.isArray(raw) ? raw : raw?.rows ?? [] }
 async function auth(request: NextRequest) { const token = tokenOf(request); return token ? verifyJWT(token) : null }
 export async function GET(request: NextRequest) {
-  try { const payload = await auth(request); if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 }); const rows = rowsOf(await db.query('SELECT id, email, first_name, last_name, phone, profile_picture_url FROM users WHERE id = $1', [payload.userId])); return rows.length ? NextResponse.json({ user: rows[0] }) : NextResponse.json({ error: 'User not found' }, { status: 404 }); }
+  try {
+    const payload = await auth(request); if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // Batch 3A: include the email verification flag so the (non-blocking) banner
+    // can decide whether to appear. Falls back when the additive column has not
+    // been migrated yet, so this route never breaks on an older database.
+    let rows: any[] = [];
+    try {
+      rows = rowsOf(await db.query('SELECT id, email, first_name, last_name, phone, profile_picture_url, email_verified FROM users WHERE id = $1', [payload.userId]));
+    } catch {
+      rows = rowsOf(await db.query('SELECT id, email, first_name, last_name, phone, profile_picture_url FROM users WHERE id = $1', [payload.userId]));
+    }
+    return rows.length ? NextResponse.json({ user: rows[0] }) : NextResponse.json({ error: 'User not found' }, { status: 404 });
+  }
   catch { return NextResponse.json({ error: 'Internal server error' }, { status: 500 }) }
 }
 export async function PATCH(request: NextRequest) {

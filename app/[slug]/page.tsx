@@ -69,6 +69,13 @@ interface Restaurant {
   state?: string;
   country?: string;
   availability?: any | null;
+  // Batch 3A: open/closed information rendered from opening hours.
+  hours?: {
+    isOpenNow: boolean;
+    today: string;
+    acceptOrdersOutsideHours: boolean;
+  } | null;
+  accept_orders_outside_hours?: boolean;
 }
 
 interface Category {
@@ -587,6 +594,7 @@ function RestaurantHero({
                   {restaurant.description}
                 </p>
               )}
+              <OpenStatus hours={restaurant.hours} accentColor={accentColor} />
             </div>
           </div>
         </div>
@@ -640,9 +648,56 @@ function RestaurantHero({
               </span>
             </div>
           )}
+
+          {restaurant.hours && (
+            <div className="mt-3 flex justify-center">
+              <OpenStatus hours={restaurant.hours} accentColor={accentColor} />
+            </div>
+          )}
         </div>
       </div>
     </div>
+  );
+}
+
+/* ============================ Open status ============================ */
+
+/**
+ * Open/closed badge for the storefront hero.
+ *
+ * Deliberately solid (no blur, no gradient) so it stays legible on any cover
+ * photo. When the restaurant has not set hours yet it renders nothing rather
+ * than guessing.
+ */
+function OpenStatus({
+  hours,
+  accentColor,
+}: {
+  hours: Restaurant['hours'];
+  accentColor: string;
+}) {
+  if (!hours) return null;
+  const open = hours.isOpenNow;
+  return (
+    <span
+      className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-[11.5px] font-semibold shadow-sm"
+      style={{ color: '#1D1A17' }}
+    >
+      <span
+        className="h-1.5 w-1.5 rounded-full"
+        style={{ backgroundColor: open ? '#1F7A47' : '#8B7D71' }}
+        aria-hidden="true"
+      />
+      {open ? 'Open now' : 'Closed now'}
+      <span className="font-normal" style={{ color: '#6B5D52' }}>
+        &middot; {hours.today}
+      </span>
+      {!open && hours.acceptOrdersOutsideHours === false ? (
+        <span className="font-normal" style={{ color: accentColor }}>
+          &middot; orders paused
+        </span>
+      ) : null}
+    </span>
   );
 }
 

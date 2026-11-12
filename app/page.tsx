@@ -21,6 +21,13 @@ export default function HomePage() {
             <span className="text-primary">FoodBase</span>
           </Link>
           <div className="flex items-center gap-3">
+            <Link
+              href="/register/restaurant"
+              className="inline-flex min-h-[44px] items-center rounded-md px-2 text-xs font-medium text-foreground underline-offset-4 hover:text-primary hover:underline sm:min-h-[36px]"
+            >
+              <span className="sm:hidden">Register</span>
+              <span className="hidden sm:inline">Register your restaurant</span>
+            </Link>
             <Link href="/login">
               <Button variant="outline" className="h-8 text-xs">
                 Log In

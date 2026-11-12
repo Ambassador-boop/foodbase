@@ -19,6 +19,19 @@ export async function GET(request: NextRequest) {
 
     const countsOnly = request.nextUrl.searchParams.get('countsOnly') === '1'
     const queue = await getAttentionQueue({ includeRows: !countsOnly })
+
+    // Batch 3A: self-registrations from the last 7 days. A separate count, so the
+    // financial alert total and every existing badge stay exactly as they are.
+    let newRegistrations = 0
+    try {
+      const rows: any = await query(
+        "SELECT COUNT(*)::int AS n FROM businesses WHERE created_at >= NOW() - INTERVAL '7 days'",
+      )
+      const row = Array.isArray(rows) ? rows[0] : rows?.rows?.[0]
+      newRegistrations = Number(row?.n ?? 0)
+    } catch (countError) {
+      console.error('[admin] registration count failed', countError)
+    }
     return NextResponse.json({
       ...queue,
       counts: {
@@ -27,6 +40,7 @@ export async function GET(request: NextRequest) {
         stuckRefunds: queue.stuckRefunds,
         pendingTransfers: queue.pendingTransfers,
         paidWithoutTransaction: queue.paidWithoutTransaction,
+        newRegistrations,
       },
     })
   } catch (error) {

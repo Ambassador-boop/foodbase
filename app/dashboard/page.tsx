@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
+import { SetupProgressCard } from '@/components/dashboard/setup-progress-card';
 import {
   TrendingUp,
   TrendingDown,
@@ -171,6 +172,9 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-5 pb-8">
+      {/* Batch 3A: compact setup progress. Renders nothing once setup is done. */}
+      <SetupProgressCard />
+
       {/* Page header */}
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">

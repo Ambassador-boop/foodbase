@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getOne, getAll } from '@/lib/db';
+import { getBusinessHours, isOpenAt, describeToday, type DayHours } from '@/lib/business-hours';
 
 /**
  * Restaurant storefront menu endpoint.
@@ -162,6 +163,22 @@ export async function GET(
       }
     }
 
+    // -------- Opening hours (Batch 3A, additive) --------
+    // Never let hours break the menu: a failure here just omits the field.
+    let hours: { days: DayHours[]; isOpenNow: boolean; acceptOrdersOutsideHours: boolean; today: string } | null = null;
+    try {
+      const hoursState = await getBusinessHours(business.id);
+      const now = new Date();
+      hours = {
+        days: hoursState.days,
+        isOpenNow: isOpenAt(hoursState.days, now),
+        acceptOrdersOutsideHours: hoursState.acceptOrdersOutsideHours,
+        today: describeToday(hoursState.days, now),
+      };
+    } catch (hoursError) {
+      console.error('[menu] hours unavailable', hoursError);
+    }
+
     const response = {
       success: true,
       business: {
@@ -178,6 +195,12 @@ export async function GET(
         state: business.state,
         country: business.country,
         availability: business.availability ?? null,
+        // Additive: open/closed for the storefront badge. Null when unknown.
+        hours,
+        accept_orders_outside_hours:
+          typeof business.accept_orders_outside_hours === 'boolean'
+            ? business.accept_orders_outside_hours
+            : true,
       },
       categories,
       menuItems: menuItemsWithAddons,
