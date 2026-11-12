@@ -9,6 +9,7 @@ import {
   saveOrderServiceFee,
 } from '@/lib/service-fee';
 import { DELIVERY_FEE, DRINK_ID_PREFIX, round2 } from '@/lib/pricing';
+import { getOrderingStatus } from '@/lib/business-hours';
 
 /**
  * Order creation endpoint.
@@ -218,6 +219,40 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('[v0] Order API: Business verified:', businessRows[0].name);
+
+    // ------------------------------------------------------------------
+    // Opening hours (Batch 3A-fix).
+    //
+    // This is the only place the "accept orders outside opening hours"
+    // setting is enforced. It runs after the business is verified and
+    // before a single price is read or a row is written, so a closed
+    // restaurant can never reach pricing, order_items or payment.
+    //
+    // Missing data never blocks: getOrderingStatus answers "allowed" when
+    // the schedule is empty, the additive columns are absent, or the
+    // lookup itself fails. With the setting on (the default) nothing here
+    // changes behaviour at all.
+    // ------------------------------------------------------------------
+    try {
+      const ordering = await getOrderingStatus(cleanBusinessId);
+      if (!ordering.allowed) {
+        console.log('[v0] Order API: Refusing order, restaurant is closed', {
+          businessId: cleanBusinessId,
+          opensAt: ordering.opensAt,
+        });
+        return NextResponse.json(
+          {
+            error: 'This restaurant is not taking orders right now.',
+            code: 'RESTAURANT_CLOSED',
+            opensAt: ordering.opensAt,
+          },
+          { status: 409 }
+        );
+      }
+    } catch (hoursError) {
+      // An hours problem must never cost a customer their order.
+      console.warn('[v0] Order API: Hours check failed, allowing the order', hoursError);
+    }
 
     // ------------------------------------------------------------------
     // Server-side re-pricing. Nothing below trusts a number from the browser.

@@ -16,6 +16,11 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { calculateServiceFee } from '@/lib/service-fee';
+import { isOrderingPaused, type StorefrontHours } from '@/lib/hours-shared';
+import {
+  OrderingPausedButtonNote,
+  OrderingPausedNotice,
+} from '@/components/storefront/ordering-paused-notice';
 
 interface CartItem {
   id: string;
@@ -33,6 +38,8 @@ interface Restaurant {
   name: string;
   slug: string;
   logo_url?: string;
+  /** Batch 3A-fix: opening hours, used to mirror the server's ordering gate. */
+  hours?: StorefrontHours | null;
 }
 
 interface ServiceFeeConfig {
@@ -51,6 +58,7 @@ export default function CartPage() {
   const [error, setError] = useState('');
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [serviceFeeConfig, setServiceFeeConfig] = useState<ServiceFeeConfig[]>([]);
+  const [hours, setHours] = useState<StorefrontHours | null>(null);
 
   useEffect(() => {
     const storedCart = sessionStorage.getItem(`cart_${slug}`);
@@ -76,6 +84,7 @@ export default function CartPage() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Failed to fetch menu');
       setRestaurant(data.business);
+      setHours(data.business?.hours ?? null);
 
       const configResponse = await fetch('/api/admin/service-fee');
       const configData = await configResponse.json();
@@ -129,6 +138,12 @@ export default function CartPage() {
   const cartTotal = Math.round((subtotal + serviceFee) * 100) / 100;
   const totalItemCount = cartItems.reduce((n, i) => n + i.quantity, 0);
 
+  // Mirrors the server gate in /api/orders: paused only when the restaurant
+  // turned off orders outside its hours and is closed right now. Editing the
+  // cart stays available either way.
+  const orderingPaused = isOrderingPaused(hours);
+  const opensAt = hours?.opensAt ?? null;
+
   const formatCurrency = (amount: number) => {
     const num = Number(amount) || 0;
     return new Intl.NumberFormat('en-NG', {
@@ -161,7 +176,11 @@ export default function CartPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-32 lg:pb-0">
+    <div
+      className={`min-h-screen bg-background lg:pb-0 ${
+        orderingPaused ? 'pb-44' : 'pb-32'
+      }`}
+    >
       {/* Header */}
       <header className="bg-card border-b border-border sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
@@ -191,43 +210,51 @@ export default function CartPage() {
         {cartItems.length === 0 ? (
           <EmptyCart slug={slug} />
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6">
-            {/* Cart Items */}
-            <section className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h2 className="text-sm font-bold">
-                  Order Items
-                  <span className="ml-2 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-primary/10 text-primary text-[11px] font-semibold">
-                    {totalItemCount}
-                  </span>
-                </h2>
-              </div>
+          <div className="space-y-4">
+            {orderingPaused && (
+              <OrderingPausedNotice restaurantName={restaurant.name} opensAt={opensAt} />
+            )}
 
-              <div className="space-y-3">
-                {cartItems.map((cartItem, index) => (
-                  <CartItemCard
-                    key={`${cartItem.id}-${index}`}
-                    item={cartItem}
-                    formatCurrency={formatCurrency}
-                    getAddonQuantity={getAddonQuantity}
-                    onIncrement={() => updateQuantity(index, cartItem.quantity + 1)}
-                    onDecrement={() => updateQuantity(index, cartItem.quantity - 1)}
-                    onRemove={() => removeFromCart(index)}
-                  />
-                ))}
-              </div>
-            </section>
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6">
+              {/* Cart Items */}
+              <section className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-sm font-bold">
+                    Order Items
+                    <span className="ml-2 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-primary/10 text-primary text-[11px] font-semibold">
+                      {totalItemCount}
+                    </span>
+                  </h2>
+                </div>
 
-            {/* Order Summary (desktop sidebar) */}
-            <aside className="hidden lg:block">
-              <SummaryCard
-                subtotal={subtotal}
-                serviceFee={serviceFee}
-                total={cartTotal}
-                slug={slug}
-                formatCurrency={formatCurrency}
-              />
-            </aside>
+                <div className="space-y-3">
+                  {cartItems.map((cartItem, index) => (
+                    <CartItemCard
+                      key={`${cartItem.id}-${index}`}
+                      item={cartItem}
+                      formatCurrency={formatCurrency}
+                      getAddonQuantity={getAddonQuantity}
+                      onIncrement={() => updateQuantity(index, cartItem.quantity + 1)}
+                      onDecrement={() => updateQuantity(index, cartItem.quantity - 1)}
+                      onRemove={() => removeFromCart(index)}
+                    />
+                  ))}
+                </div>
+              </section>
+
+              {/* Order Summary (desktop sidebar) */}
+              <aside className="hidden lg:block">
+                <SummaryCard
+                  subtotal={subtotal}
+                  serviceFee={serviceFee}
+                  total={cartTotal}
+                  slug={slug}
+                  formatCurrency={formatCurrency}
+                  orderingPaused={orderingPaused}
+                  opensAt={opensAt}
+                />
+              </aside>
+            </div>
           </div>
         )}
       </div>
@@ -250,12 +277,16 @@ export default function CartPage() {
                 <span className="text-primary">{formatCurrency(cartTotal)}</span>
               </div>
             </div>
-            <Button
-              onClick={() => router.push(`/${slug}/checkout`)}
-              className="w-full h-11 font-semibold"
-            >
-              Proceed to Checkout
-            </Button>
+            <div className="space-y-1.5">
+              <Button
+                onClick={() => router.push(`/${slug}/checkout`)}
+                disabled={orderingPaused}
+                className="w-full h-11 font-semibold"
+              >
+                Proceed to Checkout
+              </Button>
+              {orderingPaused && <OrderingPausedButtonNote opensAt={opensAt} />}
+            </div>
           </div>
         </div>
       )}
@@ -400,12 +431,16 @@ function SummaryCard({
   total,
   slug,
   formatCurrency,
+  orderingPaused,
+  opensAt,
 }: {
   subtotal: number;
   serviceFee: number;
   total: number;
   slug: string;
   formatCurrency: (n: number) => string;
+  orderingPaused: boolean;
+  opensAt: string | null;
 }) {
   return (
     <div className="bg-card border border-border rounded-2xl p-5 sticky top-20 space-y-4">
@@ -428,9 +463,18 @@ function SummaryCard({
         </div>
       </div>
 
-      <Link href={`/${slug}/checkout`} className="block">
-        <Button className="w-full h-11 font-semibold">Proceed to Checkout</Button>
-      </Link>
+      {orderingPaused ? (
+        <div className="space-y-2">
+          <Button disabled className="w-full h-11 font-semibold">
+            Proceed to Checkout
+          </Button>
+          <OrderingPausedButtonNote opensAt={opensAt} />
+        </div>
+      ) : (
+        <Link href={`/${slug}/checkout`} className="block">
+          <Button className="w-full h-11 font-semibold">Proceed to Checkout</Button>
+        </Link>
+      )}
 
       <Link href={`/${slug}`} className="block">
         <Button variant="outline" className="w-full h-10 text-sm">

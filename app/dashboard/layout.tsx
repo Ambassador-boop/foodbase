@@ -29,6 +29,7 @@ import { VerifyEmailBanner } from '@/components/dashboard/verify-email-banner';
 import BusinessSwitchOverlay from '@/components/dashboard/business-switch-overlay';
 import { MedianNotificationSetup } from '@/components/dashboard/median-notification-setup';
 import { switchBusiness } from '@/lib/business-switch';
+import { editorialFontClassName, useEditorialFontRoot } from '@/lib/editorial-fonts';
 
 const navigationItems = [
 { label: 'Dashboard', href: '/dashboard', icon: BarChart3 },
@@ -58,6 +59,10 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Dashboard screens use the Batch 3A editorial pairing; this makes it available
+  // to portalled dialogs and toasts too (see lib/editorial-fonts.tsx).
+  useEditorialFontRoot();
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [currentBusiness, setCurrentBusiness] = useState<Business | null>(null);
   const [businessDropdownOpen, setBusinessDropdownOpen] = useState(false);
@@ -187,7 +192,7 @@ export default function DashboardLayout({
   };
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className={`${editorialFontClassName} flex h-screen bg-background`}>
       {/* Mobile menu overlay */}
       {sidebarOpen && (
         <div

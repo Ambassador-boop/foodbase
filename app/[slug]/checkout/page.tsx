@@ -23,6 +23,11 @@ import {
 } from 'lucide-react';
 import { calculateServiceFee } from '@/lib/service-fee';
 import { DELIVERY_FEE } from '@/lib/pricing';
+import { isOrderingPaused, type StorefrontHours } from '@/lib/hours-shared';
+import {
+  OrderingPausedButtonNote,
+  OrderingPausedNotice,
+} from '@/components/storefront/ordering-paused-notice';
 
 interface Restaurant {
   id: string;
@@ -30,6 +35,8 @@ interface Restaurant {
   email: string;
   phone?: string;
   logo_url?: string;
+  /** Batch 3A-fix: opening hours, used to mirror the server's ordering gate. */
+  hours?: StorefrontHours | null;
 }
 
 interface ServiceFeeConfig {
@@ -68,6 +75,10 @@ export default function CheckoutPage() {
   const [loadingPage, setLoadingPage] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [hours, setHours] = useState<StorefrontHours | null>(null);
+  /** Set when the server itself refused the order with RESTAURANT_CLOSED. */
+  const [closedByServer, setClosedByServer] = useState(false);
+  const [serverOpensAt, setServerOpensAt] = useState<string | null>(null);
 
   useEffect(() => {
     const storedCart = sessionStorage.getItem(`cart_${slug}`);
@@ -85,6 +96,7 @@ export default function CheckoutPage() {
         const response = await fetch(`/api/restaurants/${slug}/menu`);
         const data = await response.json();
         setRestaurant(data.business);
+        setHours(data.business?.hours ?? null);
 
         const configResponse = await fetch('/api/admin/service-fee');
         const configData = await configResponse.json();
@@ -118,6 +130,11 @@ export default function CheckoutPage() {
   const cartTotal = Math.round((subtotal + deliveryFee + serviceFee) * 100) / 100;
   const totalItemCount = cartItems.reduce((n, i) => n + i.quantity, 0);
 
+  // Mirrors the server gate in /api/orders. closedByServer covers the case where
+  // the restaurant closed (or turned the setting off) after this page loaded.
+  const orderingPaused = closedByServer || isOrderingPaused(hours);
+  const opensAt = serverOpensAt ?? hours?.opensAt ?? null;
+
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat('en-NG', {
       style: 'currency',
@@ -130,6 +147,15 @@ export default function CheckoutPage() {
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    if (orderingPaused) {
+      setError(
+        opensAt
+          ? `This restaurant is not taking orders right now. ${opensAt}.`
+          : 'This restaurant is not taking orders right now.',
+      );
+      return;
+    }
 
     const missing: string[] = [];
     if (!formData.customerName.trim()) missing.push('Full name');
@@ -186,6 +212,21 @@ export default function CheckoutPage() {
       // Show its message and stay on this page instead of going to payment.
       if (orderData?.code === 'PRICE_MISMATCH') {
         setError(orderData.error || 'Prices have changed. Please review your cart.');
+        return;
+      }
+
+      // The restaurant stopped taking orders between page load and this click.
+      // Show the same message the notice uses and keep the button disabled.
+      if (orderData?.code === 'RESTAURANT_CLOSED') {
+        const nextOpening: string | null =
+          typeof orderData.opensAt === 'string' ? orderData.opensAt : null;
+        setClosedByServer(true);
+        setServerOpensAt(nextOpening);
+        setError(
+          `${orderData.error || 'This restaurant is not taking orders right now.'}${
+            nextOpening ? ` ${nextOpening}.` : ''
+          }`,
+        );
         return;
       }
 
@@ -252,7 +293,11 @@ export default function CheckoutPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-32 lg:pb-12">
+    <div
+      className={`min-h-screen bg-background lg:pb-12 ${
+        orderingPaused ? 'pb-40' : 'pb-32'
+      }`}
+    >
       {/* Header */}
       <header className="bg-card border-b border-border sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
@@ -272,7 +317,13 @@ export default function CheckoutPage() {
         </div>
       </header>
 
-      <div className="max-w-6xl mx-auto p-4">
+      <div className="max-w-6xl mx-auto p-4 space-y-4">
+        {/* Once the server has refused an attempt, the same message sits in the
+            error state beside the button; showing it twice would read as noise. */}
+        {orderingPaused && !closedByServer && (
+          <OrderingPausedNotice restaurantName={restaurant?.name} opensAt={opensAt} />
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6">
           {/* Form */}
           <form onSubmit={handleCheckout} className="space-y-5">
@@ -397,15 +448,20 @@ export default function CheckoutPage() {
             </section>
 
             {/* Submit (desktop) */}
-            <div className="hidden lg:block">
+            <div className="hidden lg:block space-y-2">
               <Button
                 type="submit"
-                disabled={loading}
+                disabled={loading || orderingPaused}
                 className="w-full h-12 font-semibold flex items-center justify-center gap-2"
               >
                 {loading && <Loader className="w-4 h-4 animate-spin" />}
-                {loading ? 'Processing...' : `Pay ${formatCurrency(cartTotal)}`}
+                {loading
+                  ? 'Processing...'
+                  : orderingPaused
+                    ? 'Ordering paused'
+                    : `Pay ${formatCurrency(cartTotal)}`}
               </Button>
+              {orderingPaused && <OrderingPausedButtonNote opensAt={opensAt} />}
             </div>
           </form>
 
@@ -451,21 +507,26 @@ export default function CheckoutPage() {
 
       {/* Sticky bottom CTA (mobile) */}
       <div className="lg:hidden fixed bottom-0 inset-x-0 z-50 border-t border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
-        <div className="max-w-6xl mx-auto p-3 flex items-center gap-3">
-          <div className="flex-1 min-w-0">
-            <p className="text-[11px] text-muted-foreground leading-none">Total</p>
-            <p className="text-base font-bold text-primary tabular-nums leading-tight">
-              {formatCurrency(cartTotal)}
-            </p>
+        <div className="max-w-6xl mx-auto p-3 space-y-1.5">
+          {orderingPaused && (
+            <OrderingPausedButtonNote opensAt={opensAt} className="text-left" />
+          )}
+          <div className="flex items-center gap-3">
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] text-muted-foreground leading-none">Total</p>
+              <p className="text-base font-bold text-primary tabular-nums leading-tight">
+                {formatCurrency(cartTotal)}
+              </p>
+            </div>
+            <Button
+              onClick={handleCheckout as any}
+              disabled={loading || orderingPaused}
+              className="h-11 px-5 font-semibold flex items-center gap-2"
+            >
+              {loading && <Loader className="w-4 h-4 animate-spin" />}
+              {loading ? 'Processing...' : orderingPaused ? 'Paused' : 'Pay Now'}
+            </Button>
           </div>
-          <Button
-            onClick={handleCheckout as any}
-            disabled={loading}
-            className="h-11 px-5 font-semibold flex items-center gap-2"
-          >
-            {loading && <Loader className="w-4 h-4 animate-spin" />}
-            {loading ? 'Processing...' : 'Pay Now'}
-          </Button>
         </div>
       </div>
     </div>

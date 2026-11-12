@@ -74,6 +74,10 @@ interface Restaurant {
     isOpenNow: boolean;
     today: string;
     acceptOrdersOutsideHours: boolean;
+    /** Batch 3A-fix: false when the owner has not published a schedule yet. */
+    hoursConfigured?: boolean;
+    /** Batch 3A-fix: "Opens today at 10:00 AM", or null when open/unknown. */
+    opensAt?: string | null;
   } | null;
   accept_orders_outside_hours?: boolean;
 }
@@ -677,24 +681,32 @@ function OpenStatus({
   accentColor: string;
 }) {
   if (!hours) return null;
+  // No schedule published yet: claim nothing. Rendering "Closed now" here would
+  // be wrong (and would contradict the fact that orders are still accepted).
+  if (hours.hoursConfigured === false) return null;
   const open = hours.isOpenNow;
+  const ordersPaused = !open && hours.acceptOrdersOutsideHours === false;
+  // While closed, the next opening time is far more useful than "Closed today".
+  const detail = open ? hours.today : hours.opensAt ?? hours.today;
   return (
     <span
-      className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-[11.5px] font-semibold shadow-sm"
+      className="mt-2 inline-flex max-w-full flex-wrap items-center justify-center gap-x-1.5 gap-y-0.5 rounded-full bg-white px-2.5 py-1 text-center text-[11.5px] font-semibold shadow-sm"
       style={{ color: '#1D1A17' }}
     >
       <span
-        className="h-1.5 w-1.5 rounded-full"
+        className="h-1.5 w-1.5 shrink-0 rounded-full"
         style={{ backgroundColor: open ? '#1F7A47' : '#8B7D71' }}
         aria-hidden="true"
       />
       {open ? 'Open now' : 'Closed now'}
-      <span className="font-normal" style={{ color: '#6B5D52' }}>
-        &middot; {hours.today}
-      </span>
-      {!open && hours.acceptOrdersOutsideHours === false ? (
+      {detail ? (
+        <span className="font-normal" style={{ color: '#6B5D52' }}>
+          · {detail}
+        </span>
+      ) : null}
+      {ordersPaused ? (
         <span className="font-normal" style={{ color: accentColor }}>
-          &middot; orders paused
+          · orders paused
         </span>
       ) : null}
     </span>
