@@ -33,6 +33,7 @@ import BusinessSwitchOverlay from '@/components/dashboard/business-switch-overla
 import { MedianNotificationSetup } from '@/components/dashboard/median-notification-setup';
 import { switchBusiness } from '@/lib/business-switch';
 import { editorialFontClassName, useEditorialFontRoot } from '@/lib/editorial-fonts';
+import { Logo } from '@/components/brand/logo';
 
 const navigationItems = [
 { label: 'Dashboard', href: '/dashboard', icon: BarChart3 },
@@ -215,12 +216,7 @@ export default function DashboardLayout({
       >
         <div className="p-4 border-b border-border flex-shrink-0 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <Image
-              src="/foodbase-logo.png"
-              alt="FoodBase"
-              width={28}
-              height={28}
-            />
+            <Logo variant="mark" size={28} tone="brown" />
             <span className="font-bold text-sm text-primary">FoodBase</span>
           </Link>
           <button
@@ -241,7 +237,7 @@ export default function DashboardLayout({
             <div className="relative" ref={dropdownRef}>
               <button
                 onClick={() => setBusinessDropdownOpen(!businessDropdownOpen)}
-                className="w-full text-left p-2.5 rounded-xl bg-gradient-to-br from-primary/5 to-primary/10 hover:from-primary/10 hover:to-primary/15 transition-all flex items-center gap-3 border border-primary/15"
+                className="w-full text-left p-2.5 rounded-xl bg-brand-50 hover:bg-brand-100 transition-colors flex items-center gap-3 border border-line"
                 aria-expanded={businessDropdownOpen}
                 aria-haspopup="listbox"
               >

@@ -3,11 +3,11 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { apiErrorMessage } from '@/lib/api/errors';
+import { Logo } from '@/components/brand/logo';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -82,14 +82,9 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex flex-col lg:flex-row bg-background">
       {/* Left side - Logo and messaging */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary via-primary to-accent p-8 flex-col justify-between text-white">
+      <div className="hidden lg:flex lg:w-1/2 bg-primary p-8 flex-col justify-between text-white">
         <div className="flex items-center gap-3">
-          <Image
-            src="/foodbase-logo.png"
-            alt="FoodBase"
-            width={40}
-            height={40}
-          />
+          <Logo variant="mark" size={40} tone="on-dark" />
           <span className="text-xl font-bold">FoodBase</span>
         </div>
 
@@ -112,12 +107,7 @@ export default function LoginPage() {
         <div className="w-full max-w-md">
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-2 mb-8">
-            <Image
-              src="/foodbase-logo.png"
-              alt="FoodBase"
-              width={32}
-              height={32}
-            />
+            <Logo variant="mark" size={32} tone="brown" />
             <span className="font-bold text-primary">FoodBase</span>
           </div>
 

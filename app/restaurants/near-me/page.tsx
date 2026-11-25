@@ -1,6 +1,6 @@
 import Link from 'next/link';
-import Image from 'next/image';
 import { MapPin, ArrowLeft } from 'lucide-react';
+import { Logo } from '@/components/brand/logo';
 
 export const metadata = {
   title: 'Restaurants near me · FoodBase',
@@ -21,13 +21,7 @@ export default function RestaurantsNearMePage() {
             <ArrowLeft className="w-4 h-4" />
           </Link>
           <div className="flex items-center gap-2">
-            <Image
-              src="/foodbase-logo.png"
-              alt="FoodBase"
-              width={28}
-              height={28}
-              className="rounded-md"
-            />
+            <Logo variant="mark" size={28} tone="brown" />
             <span className="font-bold tracking-tight">FoodBase</span>
           </div>
         </div>

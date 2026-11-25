@@ -1,7 +1,6 @@
 'use client'
 
 import * as React from 'react'
-import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
@@ -24,6 +23,7 @@ import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
 import { AdminRangeProvider, RangeSelector } from '@/components/admin/range'
+import { Logo } from '@/components/brand/logo';
 
 interface NavItem {
   label: string
@@ -201,7 +201,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         <aside className="fixed inset-y-0 left-0 z-30 hidden w-[236px] flex-col border-r border-border bg-card lg:flex">
           <div className="flex h-14 items-center gap-2 border-b border-border px-4">
             <Link href="/admin" className="flex items-center gap-2">
-              <Image src="/foodbase-logo.png" alt="" width={26} height={26} className="rounded-md" />
+              <Logo variant="mark" size={26} tone="brown" />
               <span className="text-[14px] font-semibold tracking-[-0.01em] text-primary">FoodBase</span>
               <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">Admin</span>
             </Link>
@@ -271,7 +271,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           <SheetContent side="left" className="flex w-[280px] flex-col gap-0 p-0">
             <div className="flex h-14 items-center justify-between border-b border-border px-4">
               <SheetTitle className="flex items-center gap-2 text-[14px] font-semibold text-primary">
-                <Image src="/foodbase-logo.png" alt="" width={24} height={24} className="rounded-md" />
+                <Logo variant="mark" size={24} tone="brown" />
                 FoodBase
               </SheetTitle>
               <Button variant="ghost" size="icon" onClick={() => setDrawerOpen(false)} aria-label="Close navigation" className="size-9">

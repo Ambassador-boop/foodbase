@@ -2,11 +2,11 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { apiErrorMessage } from '@/lib/api/errors';
+import { Logo } from '@/components/brand/logo';
 
 type Step = 'email' | 'otp' | 'password' | 'success';
 
@@ -90,12 +90,7 @@ export default function ForgotPasswordPage() {
     <div className="min-h-screen bg-background flex items-center justify-center p-6">
       <div className="w-full max-w-md">
         <Link href="/forgot-password" className="flex items-center gap-2 mb-8">
-          <Image
-            src="/foodbase-logo.png"
-            alt="FoodBase"
-            width={32}
-            height={32}
-          />
+          <Logo variant="mark" size={32} tone="brown" />
           <span className="font-bold text-primary">FoodBase</span>
         </Link>
 

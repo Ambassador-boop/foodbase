@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { MapPin, Store, ArrowRight, Sparkles } from 'lucide-react';
 import type { ColorConfig } from '@/lib/color-config';
+import { Logo } from '@/components/brand/logo';
 
 interface PopularItem {
   name: string;
@@ -185,13 +185,7 @@ export function StorefrontFooter({
             className="flex items-center gap-2"
             aria-label="FoodBase home"
           >
-            <Image
-              src="/foodbase-logo.png"
-              alt="FoodBase"
-              width={28}
-              height={28}
-              className="rounded-md"
-            />
+            <Logo variant="mark" size={28} tone="brown" />
             <span
               className="text-sm font-bold tracking-tight"
               style={{ color: colors.textColor }}
