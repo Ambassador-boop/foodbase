@@ -1,9 +1,10 @@
 import * as React from 'react'
 import { Slot } from '@radix-ui/react-slot'
-import { ChevronRight, MoreHorizontal } from 'lucide-react'
+import { CaretRight, DotsThree } from '@phosphor-icons/react/dist/ssr'
 
 import { cn } from '@/lib/utils'
 
+/** Breadcrumb. 14/20 in muted ink, with the current page in full ink. */
 function Breadcrumb({ ...props }: React.ComponentProps<'nav'>) {
   return <nav aria-label="breadcrumb" data-slot="breadcrumb" {...props} />
 }
@@ -13,7 +14,7 @@ function BreadcrumbList({ className, ...props }: React.ComponentProps<'ol'>) {
     <ol
       data-slot="breadcrumb-list"
       className={cn(
-        'text-muted-foreground flex flex-wrap items-center gap-1.5 text-sm break-words sm:gap-2.5',
+        'flex flex-wrap items-center gap-1.5 type-small break-words text-ink-muted sm:gap-2',
         className,
       )}
       {...props}
@@ -43,7 +44,10 @@ function BreadcrumbLink({
   return (
     <Comp
       data-slot="breadcrumb-link"
-      className={cn('hover:text-foreground transition-colors', className)}
+      className={cn(
+        'rounded-[4px] transition-colors duration-[120ms] ease-brand hover:text-ink hover:underline hover:underline-offset-4',
+        className,
+      )}
       {...props}
     />
   )
@@ -56,7 +60,7 @@ function BreadcrumbPage({ className, ...props }: React.ComponentProps<'span'>) {
       role="link"
       aria-disabled="true"
       aria-current="page"
-      className={cn('text-foreground font-normal', className)}
+      className={cn('font-medium text-ink', className)}
       {...props}
     />
   )
@@ -72,10 +76,10 @@ function BreadcrumbSeparator({
       data-slot="breadcrumb-separator"
       role="presentation"
       aria-hidden="true"
-      className={cn('[&>svg]:size-3.5', className)}
+      className={cn('text-line-strong [&>svg]:size-3.5', className)}
       {...props}
     >
-      {children ?? <ChevronRight />}
+      {children ?? <CaretRight weight="bold" />}
     </li>
   )
 }
@@ -89,10 +93,10 @@ function BreadcrumbEllipsis({
       data-slot="breadcrumb-ellipsis"
       role="presentation"
       aria-hidden="true"
-      className={cn('flex size-9 items-center justify-center', className)}
+      className={cn('flex size-6 items-center justify-center', className)}
       {...props}
     >
-      <MoreHorizontal className="size-4" />
+      <DotsThree className="size-4" weight="bold" />
       <span className="sr-only">More</span>
     </span>
   )

@@ -1,6 +1,6 @@
 import Link from 'next/link';
-import Image from 'next/image';
 import { Button } from '@/components/ui/button';
+import { Logo } from '@/components/brand/logo';
 
 export const metadata = {
   title: 'Refund Policy - FoodBase',
@@ -14,12 +14,7 @@ export default function RefundPolicyPage() {
       <nav className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 font-bold text-lg">
-            <Image
-              src="/foodbase-logo.png"
-              alt="FoodBase"
-              width={32}
-              height={32}
-            />
+            <Logo variant="mark" size={32} tone="brown" />
             <span className="text-primary">FoodBase</span>
           </Link>
           <div className="flex items-center gap-3">
@@ -151,12 +146,7 @@ export default function RefundPolicyPage() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8 pb-8 border-b border-white/10">
             <div>
               <div className="flex items-center gap-2 mb-3">
-                <Image
-                  src="/foodbase-logo.png"
-                  alt="FoodBase"
-                  width={28}
-                  height={28}
-                />
+                <Logo variant="mark" size={28} tone="brown" />
                 <span className="font-bold">FoodBase</span>
               </div>
               <p className="text-xs text-gray-400">

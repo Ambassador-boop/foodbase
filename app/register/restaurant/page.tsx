@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
-import Image from 'next/image'
 import Link from 'next/link'
 import { RegistrationForm } from '@/components/registration/registration-form'
+import { Logo } from '@/components/brand/logo';
 
 export const metadata: Metadata = {
   title: 'Register your restaurant — FoodBase',
@@ -26,7 +26,7 @@ export default function RegisterRestaurantPage() {
       <header className="border-b border-[var(--dash-line)] bg-[var(--dash-cream)]/95 backdrop-blur-[2px]">
         <div className="mx-auto flex min-h-[56px] max-w-[1320px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
           <Link href="/" className="flex items-center gap-2.5" aria-label="FoodBase home">
-            <Image src="/foodbase-logo.png" alt="" width={26} height={26} />
+            <Logo variant="mark" size={26} tone="brown" />
             <span className="text-[15px] font-semibold tracking-[-0.01em] text-[var(--dash-ink-1)]">FoodBase</span>
             <span className="hidden text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--dash-ink-4)] sm:inline">
               for restaurants

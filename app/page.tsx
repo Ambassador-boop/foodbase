@@ -2,6 +2,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Check, Menu, Package, Zap, TrendingUp, Lock, Smartphone, BarChart3 } from 'lucide-react';
+import { Logo } from '@/components/brand/logo';
 
 export default function HomePage() {
   const currentYear = new Date().getFullYear();
@@ -9,15 +10,10 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Navigation */}
-      <nav className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur">
+      <nav className="sticky top-0 z-50 border-b border-border bg-background">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 font-bold text-lg">
-            <Image
-              src="/foodbase-logo.png"
-              alt="FoodBase"
-              width={32}
-              height={32}
-            />
+            <Logo variant="mark" size={32} tone="brown" />
             <span className="text-primary">FoodBase</span>
           </Link>
           <div className="flex items-center gap-3">
@@ -236,7 +232,7 @@ export default function HomePage() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-12 md:py-16 bg-gradient-to-r from-primary to-accent text-white">
+      <section className="py-12 md:py-16 bg-primary text-primary-foreground">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl md:text-4xl font-bold mb-3">Ready to Transform Your Restaurant?</h2>
           <p className="text-base opacity-90 mb-8 max-w-2xl mx-auto">
@@ -261,12 +257,7 @@ export default function HomePage() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8 pb-8 border-b border-white/10">
             <div>
               <div className="flex items-center gap-2 mb-3">
-                <Image
-                  src="/foodbase-logo-black.png"
-                  alt="FoodBase"
-                  width={28}
-                  height={28}
-                />
+                <Logo variant="mark" size={28} tone="on-dark" />
                 <span className="font-bold">FoodBase</span>
               </div>
               <p className="text-xs text-gray-400">

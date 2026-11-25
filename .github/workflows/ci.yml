@@ -49,3 +49,9 @@ jobs:
         run: pnpm test
         env:
           NODE_ENV: test
+
+      # The design system's own gate: every text-on-background and
+      # control-on-background pair in both themes, at 4.5:1 and 3:1. A token
+      # change that breaks AA fails here instead of shipping.
+      - name: Contrast
+        run: pnpm check:contrast
