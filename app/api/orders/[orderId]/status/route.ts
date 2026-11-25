@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { verifyJWT, getAuthCookie } from '@/lib/auth';
+import { env } from '@/lib/env';
 
 export async function PATCH(
   request: NextRequest,
@@ -66,7 +67,7 @@ export async function PATCH(
       const { business_id, customer_name, payment_status } = updateResult[0];
       try {
         await fetch(
-          `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/notifications/send-order`,
+          `${env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/notifications/send-order`,
           {
             method: 'POST',
             headers: {

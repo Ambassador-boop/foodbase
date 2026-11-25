@@ -1,9 +1,10 @@
+import { env } from './env';
 import { db } from '@/lib/db';
 import { nanoid } from 'nanoid';
 import { resolveTransferFee } from '@/lib/paystack-fees';
 
 const PAYSTACK_BASE = 'https://api.paystack.co';
-const PAYSTACK_API_KEY = process.env.PAYSTACK_SECRET_KEY;
+const PAYSTACK_API_KEY = env.PAYSTACK_SECRET_KEY;
 export class ProviderRejected extends Error {}
 export class ProviderUnreachable extends Error {}
 function rowsOf(raw: any): any[] { return Array.isArray(raw) ? raw : raw?.rows ?? []; }

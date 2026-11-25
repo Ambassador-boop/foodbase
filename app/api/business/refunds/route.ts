@@ -3,25 +3,26 @@ import { db } from '@/lib/db';
 import { verifyJWT } from '@/lib/auth';
 import { maskEmail } from '@/lib/mask';
 import { getActiveBusinessForUser } from '@/lib/active-business';
+import { fail } from '@/lib/api';
 
 export async function GET(request: NextRequest) {
   try {
     const authCookie = request.cookies.get('auth_token')?.value;
 
     if (!authCookie) {
-      return NextResponse.json({ error: 'No auth token found' }, { status: 401 });
+      return fail('NO_AUTH_TOKEN', 'No auth token found', 401);
     }
 
     const user = await verifyJWT(authCookie);
 
     if (!user) {
-      return NextResponse.json({ error: 'Invalid auth token' }, { status: 401 });
+      return fail('INVALID_AUTH_TOKEN', 'Invalid auth token', 401);
     }
 
     const userId = (user as any).userId || (user as any).id;
     const business = await getActiveBusinessForUser(userId);
     if (!business) {
-      return NextResponse.json({ error: 'Business not found' }, { status: 404 });
+      return fail('BUSINESS_FOUND', 'Business not found', 404);
     }
 
     // Get all refunds for the business owner's orders. We expose both the
@@ -74,9 +75,6 @@ export async function GET(request: NextRequest) {
     );
   } catch (error) {
     console.error('[v0] Get refunds error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch refunds' },
-      { status: 500 }
-    );
+    return fail('FAILED_FETCH_REFUNDS', 'Failed to fetch refunds', 500);
   }
 }

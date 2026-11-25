@@ -25,6 +25,7 @@ import {
   NIGERIAN_STATES,
   SLUG_MAX,
 } from '@/lib/registration/validation'
+import { apiErrorMessage, apiErrorFields, isApiErrorPayload } from '@/lib/api/errors';
 
 /**
  * Public restaurant registration form.
@@ -118,7 +119,13 @@ export function RegistrationForm() {
           headers: { accept: 'application/json' },
         })
         const data = await response.json()
-        if (data.available) {
+        if (isApiErrorPayload(data)) {
+          // A 429 from the limiter, or a validation failure on the query.
+          setSlugState({
+            status: 'error',
+            message: apiErrorMessage(data, 'Could not check that address right now.'),
+          })
+        } else if (data.available) {
           setSlugState({ status: 'available', message: 'Available' })
         } else {
           setSlugState({
@@ -191,13 +198,17 @@ export function RegistrationForm() {
       const data = await response.json().catch(() => ({}))
 
       if (!response.ok) {
-        if (data?.fields && typeof data.fields === 'object') {
-          setErrors(data.fields as Record<string, string>)
+        // The API answers with { error: { code, message, fields? } }. Each field
+        // carries a list of messages; the form shows the first.
+        const fields = apiErrorFields(data)
+        const firstMessages = Object.fromEntries(
+          Object.entries(fields).map(([key, messages]) => [key, messages[0] ?? '']),
+        )
+        if (Object.keys(firstMessages).length > 0) {
+          setErrors(firstMessages)
         }
         setFormError(
-          typeof data?.error === 'string'
-            ? data.error
-            : 'We could not create the account right now. Try again in a moment.',
+          apiErrorMessage(data, 'We could not create the account right now. Try again in a moment.'),
         )
         requestAnimationFrame(() => errorSummaryRef.current?.focus())
         setSubmitting(false)

@@ -31,7 +31,7 @@ export async function POST(
     const paystackResponse = await verifyPayment(reference);
     if (!paystackResponse?.status) return NextResponse.json({ ok: false, paystackStatus: 'unknown', message: 'Could not reach Paystack' }, { status: 502 });
     if (paystackResponse.data?.status !== 'success') {
-      return NextResponse.json({ ok: false, paystackStatus: paystackResponse.data?.status || 'pending', message: paystackResponse.data?.gateway_response || 'Paystack has not confirmed this payment yet' });
+      return NextResponse.json({ ok: false, paystackStatus: paystackResponse.data?.status || 'pending', message: (paystackResponse.data as { gateway_response?: string } | undefined)?.gateway_response || 'Paystack has not confirmed this payment yet' });
     }
 
     const result = await settlePaystackPayment(paystackResponse.data);

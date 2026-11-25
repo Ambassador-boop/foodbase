@@ -359,9 +359,9 @@ export default function RestaurantPage() {
       <RestaurantHero
         restaurant={restaurant}
         onClose={() => router.push('/')}
-        accentColor={colors.accentColor}
-        textColor={colors.textColor}
-        cardBg={colors.headerColor}
+        accentColor={colors.accentColor ?? DEFAULT_COLORS.accentColor}
+        textColor={colors.textColor ?? DEFAULT_COLORS.textColor}
+        cardBg={colors.headerColor ?? DEFAULT_COLORS.headerColor}
         onInfo={() => setShowInfo(true)}
       />
 

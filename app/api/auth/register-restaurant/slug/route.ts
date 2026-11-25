@@ -1,7 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { getOne } from '@/lib/db'
 import { checkSlugShape, suggestSlug, SLUG_MAX } from '@/lib/registration/validation'
 import { enforceLimit, clientIpFrom, SLUG_CHECK_RULES } from '@/lib/registration/rate-limit'
+import { parseQuery, fail } from '@/lib/api'
+import { RATE_LIMITS, enforceRateLimit } from '@/lib/rate-limit'
+
+/** Only two short strings are ever read here. */
+const SlugQuery = z.object({
+  slug: z.string().max(80).optional(),
+  name: z.string().max(120).optional(),
+})
 
 /**
  * GET /api/auth/register-restaurant/slug?slug=…&name=…
@@ -11,18 +20,22 @@ import { enforceLimit, clientIpFrom, SLUG_CHECK_RULES } from '@/lib/registration
  * It does not reveal who owns a taken slug.
  */
 export async function GET(request: NextRequest) {
+  const parsed = parseQuery(request, SlugQuery, 'That address is too long.')
+  if (!parsed.ok) return parsed.response
+
   const ip = clientIpFrom(request.headers)
   const limit = await enforceLimit('slug', ip, SLUG_CHECK_RULES)
   if (!limit.allowed) {
-    return NextResponse.json(
-      { available: false, message: 'Too many checks. Wait a moment and keep typing.' },
-      { status: 429, headers: { 'Retry-After': String(limit.retryAfterSeconds ?? 60) } },
-    )
+    const response = fail('RATE_LIMITED', 'Too many checks. Wait a moment and keep typing.', 429)
+    response.headers.set('Retry-After', String(limit.retryAfterSeconds ?? 60))
+    return response
   }
+  // The platform-wide limiter: 60 public searches a minute per IP.
+  const limited = await enforceRateLimit(request, RATE_LIMITS.publicSearchIp)
+  if (limited) return limited
 
-  const url = new URL(request.url)
-  const rawSlug = url.searchParams.get('slug') ?? ''
-  const name = url.searchParams.get('name') ?? ''
+  const rawSlug = parsed.data.slug ?? ''
+  const name = parsed.data.name ?? ''
 
   // The form sends either a typed slug or just the name (to get a suggestion).
   const candidate = rawSlug ? rawSlug.trim().toLowerCase() : suggestSlug(name)
@@ -64,11 +77,14 @@ export async function GET(request: NextRequest) {
       preview: `foodbase.ng/${shape.slug}`,
     })
   } catch (error) {
-    console.error('[slug-check] lookup failed', error)
-    return NextResponse.json(
-      { available: false, message: 'Could not check that address right now. You can still continue.' },
-      { status: 200 },
-    )
+    // The form treats this as a soft "cannot check now" and lets the owner carry
+    // on, so it is logged and answered as a 200 with the same shape as a
+    // negative availability result.
+    console.error('[slug-check] lookup failed', error instanceof Error ? error.message : 'unknown error')
+    return NextResponse.json({
+      available: false,
+      message: 'Could not check that address right now. You can still continue.',
+    })
   }
 }
 

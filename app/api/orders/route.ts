@@ -15,6 +15,10 @@ import {
   getSchemaSupport,
   loadTableLabels,
 } from '@/lib/delivery/storage';
+import { z } from 'zod';
+import { parseBody, fail } from '@/lib/api';
+import { handleUnexpected } from '@/lib/api/handler';
+import { RATE_LIMITS, enforceRateLimit } from '@/lib/rate-limit';
 
 /**
  * Order creation endpoint.
@@ -52,9 +56,39 @@ interface ResolvedLine {
   rawConfiguration: unknown;
 }
 
+/**
+ * The order body, as far as types go.
+ *
+ * Item contents are deliberately loose here: each line is re-priced from the
+ * database below, and the per-line rules (whole-number quantity, a real id, an
+ * add-on that belongs to the item) produce better messages than a schema could.
+ * What the schema does is guarantee the top-level fields exist and are strings
+ * before any query runs, and reject an unexpected deliveryType outright.
+ */
+const OrderBody = z.object({
+  businessId: z.string().trim().min(1, 'Business ID is required'),
+  customerName: z.string().trim().min(1, 'Enter the customer name'),
+  email: z.string().trim().min(1, 'Enter an email address').max(320).email('Enter a valid email address'),
+  phone: z.string().trim().min(1, 'Enter a phone number').max(40),
+  address: z.string().trim().min(1, 'Enter an address').max(500),
+  notes: z.string().max(1000).nullish(),
+  items: z.array(z.unknown()),
+  deliveryType: z.enum(['delivery', 'restaurant']).optional(),
+  tableLabel: z.string().max(60).nullish(),
+  deliveryLat: z.union([z.number(), z.string()]).nullish(),
+  deliveryLng: z.union([z.number(), z.string()]).nullish(),
+  deliveryAddressText: z.string().max(500).nullish(),
+  // The client's own arithmetic. Only ever compared with the server's, never charged.
+  subtotal: z.unknown().optional(),
+  serviceFee: z.unknown().optional(),
+  serviceFeeType: z.unknown().optional(),
+  deliveryFee: z.unknown().optional(),
+  total: z.union([z.number(), z.string()]).optional(),
+});
+
 /** Small JSON response helper so every 400 looks the same. */
 function badRequest(error: string) {
-  return NextResponse.json({ error }, { status: 400 });
+  return fail('INVALID_ORDER', error, 400);
 }
 
 /**
@@ -154,7 +188,9 @@ async function resolveAddons(
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const parsed = await parseBody(request, OrderBody, 'Check the delivery details and try again.');
+    if (!parsed.ok) return parsed.response;
+    const body = parsed.data;
     const {
       businessId,
       customerName,
@@ -174,6 +210,11 @@ export async function POST(request: NextRequest) {
       deliveryAddressText,
     } = body;
 
+    // 20 orders per 10 minutes per connection: a real basket is never that fast,
+    // and a script filling the table is.
+    const limited = await enforceRateLimit(request, RATE_LIMITS.orderCreateIp);
+    if (limited) return limited;
+
     console.log('[v0] Order API: Creating order with fields:', {
       businessId,
       customerName,
@@ -183,22 +224,6 @@ export async function POST(request: NextRequest) {
       deliveryFee,
       total,
     });
-
-    if (!businessId) {
-      console.log('[v0] Order API: Missing businessId');
-      return NextResponse.json(
-        { error: 'Business ID is required' },
-        { status: 400 }
-      );
-    }
-
-    if (!customerName || !email || !phone || !address) {
-      console.log('[v0] Order API: Missing required fields');
-      return NextResponse.json(
-        { error: 'Missing required fields: name, email, phone, and address are required' },
-        { status: 400 }
-      );
-    }
 
     // Verify business exists
     const cleanBusinessId = String(businessId).trim();
@@ -212,19 +237,13 @@ export async function POST(request: NextRequest) {
       );
     } catch (err) {
       console.error('[v0] Order API: Database query error:', err);
-      return NextResponse.json(
-        { error: 'Database error while verifying business' },
-        { status: 500 }
-      );
+      return fail('DATABASE_ERROR', 'Database error while verifying business', 500);
     }
 
     if (!businessRows || businessRows.length === 0) {
       console.log('[v0] Order API: Business not found for ID:', cleanBusinessId);
       console.log('[v0] Order API: Query returned:', businessRows);
-      return NextResponse.json(
-        { error: 'Business not found. Please check your restaurant link.' },
-        { status: 404 }
-      );
+      return fail('BUSINESS_NOT_FOUND', 'Business not found. Please check your restaurant link.', 404);
     }
 
     console.log('[v0] Order API: Business verified:', businessRows[0].name);
@@ -249,13 +268,12 @@ export async function POST(request: NextRequest) {
           businessId: cleanBusinessId,
           opensAt: ordering.opensAt,
         });
-        return NextResponse.json(
-          {
-            error: 'This restaurant is not taking orders right now.',
-            code: 'RESTAURANT_CLOSED',
-            opensAt: ordering.opensAt,
-          },
-          { status: 409 }
+        return fail(
+          'RESTAURANT_CLOSED',
+          'This restaurant is not taking orders right now.',
+          409,
+          undefined,
+          { opensAt: ordering.opensAt },
         );
       }
     } catch (hoursError) {
@@ -405,15 +423,10 @@ export async function POST(request: NextRequest) {
         code: delivery.code,
         deliveryType,
       });
-      return NextResponse.json(
-        {
-          error: delivery.message,
-          code: delivery.code,
-          minOrder: delivery.minOrder ?? null,
-          remainingForMinimum: delivery.remainingForMinimum ?? null,
-        },
-        { status: delivery.code === 'OUTSIDE_AREA' ? 422 : 400 },
-      );
+      return fail(delivery.code, delivery.message, delivery.code === 'OUTSIDE_AREA' ? 422 : 400, undefined, {
+        minOrder: delivery.minOrder ?? null,
+        remainingForMinimum: delivery.remainingForMinimum ?? null,
+      });
     }
 
     const serverDeliveryFee = delivery.fee;
@@ -432,27 +445,17 @@ export async function POST(request: NextRequest) {
     if (deliveryType !== 'delivery' && labels.length > 0) {
       const requested = typeof tableLabel === 'string' ? tableLabel.trim() : '';
       if (!requested) {
-        return NextResponse.json(
-          {
-            error: 'Choose your table so the order reaches the right one.',
-            code: 'TABLE_REQUIRED',
-            tables: labels.map((label) => label.label),
-          },
-          { status: 400 },
-        );
+        return fail('TABLE_REQUIRED', 'Choose your table so the order reaches the right one.', 400, undefined, {
+          tables: labels.map((label) => label.label),
+        });
       }
       const match = labels.find(
         (label) => label.label.trim().toLowerCase() === requested.toLowerCase(),
       );
       if (!match) {
-        return NextResponse.json(
-          {
-            error: 'That table is no longer available. Choose another one.',
-            code: 'INVALID_TABLE',
-            tables: labels.map((label) => label.label),
-          },
-          { status: 400 },
-        );
+        return fail('INVALID_TABLE', 'That table is no longer available. Choose another one.', 400, undefined, {
+          tables: labels.map((label) => label.label),
+        });
       }
       resolvedTableLabel = match.label;
     }
@@ -476,17 +479,12 @@ export async function POST(request: NextRequest) {
         clientTotal,
         serverTotal,
       });
-      return NextResponse.json(
-        {
-          error: 'Prices have changed. Please review your cart.',
-          code: 'PRICE_MISMATCH',
-          subtotal: serverSubtotal,
-          serviceFee: serverServiceFee,
-          deliveryFee: serverDeliveryFee,
-          total: serverTotal,
-        },
-        { status: 409 },
-      );
+      return fail('PRICE_MISMATCH', 'Prices have changed. Please review your cart.', 409, undefined, {
+        subtotal: serverSubtotal,
+        serviceFee: serverServiceFee,
+        deliveryFee: serverDeliveryFee,
+        total: serverTotal,
+      });
     }
 
     const orderId = generateAlphanumericId();
@@ -564,18 +562,12 @@ export async function POST(request: NextRequest) {
       );
     } catch (err) {
       console.error('[v0] Order insert failed:', err);
-      return NextResponse.json(
-        { error: 'Database insert failed' },
-        { status: 500 }
-      );
+      return fail('ORDER_INSERT_FAILED', 'Database insert failed', 500);
     }
 
     if (!orderResult || orderResult.length === 0) {
       console.log('[v0] Order API: Failed to insert order');
-      return NextResponse.json(
-        { error: 'Failed to create order' },
-        { status: 500 }
-      );
+      return fail('ORDER_CREATE_FAILED', 'Failed to create order', 500);
     }
 
     console.log('[v0] Order API: Order created successfully with total:', orderResult[0].total_amount);
@@ -679,10 +671,6 @@ export async function POST(request: NextRequest) {
       tableLabel: resolvedTableLabel,
     });
   } catch (error) {
-    console.error('[v0] Order creation error:', error);
-    return NextResponse.json(
-      { error: 'Failed to create order' },
-      { status: 500 }
-    );
+    return handleUnexpected(error, { where: 'POST /api/orders', request });
   }
 }

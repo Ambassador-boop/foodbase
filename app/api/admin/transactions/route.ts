@@ -3,6 +3,7 @@ import { getTokenFromRequest, verifyToken } from '@/lib/auth'
 import { query } from '@/lib/db'
 import { periodSqlParams, resolveAdminPeriod, serialisePeriod } from '@/lib/admin-period'
 import { num, round2 } from '@/lib/admin-analytics'
+import { fail } from '@/lib/api';
 
 export const dynamic = 'force-dynamic'
 
@@ -17,7 +18,7 @@ export async function GET(request: NextRequest) {
   try {
     const token = await getTokenFromRequest(request)
     const user = token ? await verifyToken(token) : null
-    if (!user || user.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (!user || user.role !== 'admin') return fail('FORBIDDEN', 'Forbidden', 403)
 
     const params = request.nextUrl.searchParams
     const page = Math.max(1, num(params.get('page')) || 1)
@@ -111,6 +112,6 @@ export async function GET(request: NextRequest) {
     })
   } catch (error) {
     console.error('[admin] transactions list failed', error)
-    return NextResponse.json({ error: 'Failed to fetch transactions' }, { status: 500 })
+    return fail('FAILED_FETCH_TRANSACTIONS', 'Failed to fetch transactions', 500)
   }
 }

@@ -4,6 +4,7 @@ import { requireAdmin, isAdminAuth } from '@/lib/admin-auth';
 import { getLiveBalance } from '@/lib/kudisms';
 import { getFundingSetupCheck, getFundingTarget, SMS_LOW_BALANCE_THRESHOLD, SMS_MIN_FUNDING, SMS_PENDING_WINDOW_MINUTES } from '@/lib/kudisms-funding';
 import { reconcileAdminTransfers, rowsOf } from '@/lib/admin-transfers';
+import { fail } from '@/lib/api';
 
 export const dynamic = 'force-dynamic';
 
@@ -123,5 +124,5 @@ export async function GET(req: NextRequest) {
       inFlight: inFlightRaw ? recentFunding(inFlightRaw as TransferRow) : null,
       generatedAt: new Date().toISOString(),
     });
-  } catch { return NextResponse.json({ error: 'Internal server error' }, { status: 500 }); }
+  } catch { return fail('INTERNAL_SERVER_ERROR', 'Internal server error', 500); }
 }

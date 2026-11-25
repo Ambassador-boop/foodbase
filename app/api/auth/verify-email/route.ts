@@ -4,6 +4,9 @@ import { getOne, query } from '@/lib/db'
 import { generateId } from '@/lib/utils-extended'
 import { sendEmailVerificationEmail } from '@/lib/email'
 import { enforceLimit, REGISTRATION_EMAIL_RULES } from '@/lib/registration/rate-limit'
+import { env } from '@/lib/env';
+import { fail } from '@/lib/api';
+import { handleUnexpected } from '@/lib/api/handler';
 
 /**
  * Email verification. Non-blocking by design: the dashboard never waits on it.
@@ -15,7 +18,7 @@ import { enforceLimit, REGISTRATION_EMAIL_RULES } from '@/lib/registration/rate-
 const VERIFICATION_TTL_HOURS = 72
 
 function originOf(request: NextRequest): string {
-  return process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin
+  return env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin
 }
 
 function hashToken(token: string): string {
@@ -75,19 +78,22 @@ export async function POST(request: NextRequest) {
   try {
     // Deliberately not importing getCurrentUser: this route only needs the id.
     const token = request.headers.get('authorization')?.replace('Bearer ', '') || request.cookies.get('auth_token')?.value
-    if (!token) return NextResponse.json({ error: 'Sign in to resend the link.' }, { status: 401 })
+    if (!token) return fail('UNAUTHORIZED', 'Sign in to resend the link.', 401)
 
     const { verifyJWT } = await import('@/lib/auth')
     const payload = await verifyJWT(token)
     const userId = payload ? (payload as { userId?: string; id?: string }).userId ?? (payload as { id?: string }).id : null
-    if (!userId) return NextResponse.json({ error: 'Sign in to resend the link.' }, { status: 401 })
+    if (!userId) return fail('UNAUTHORIZED', 'Sign in to resend the link.', 401)
 
     const limit = await enforceLimit('email', `resend:${userId}`, REGISTRATION_EMAIL_RULES)
     if (!limit.allowed) {
-      return NextResponse.json(
-        { error: 'A link was sent recently. Check your inbox, including spam.' },
-        { status: 429, headers: { 'Retry-After': String(limit.retryAfterSeconds ?? 600) } },
+      const response = fail(
+        'RATE_LIMITED',
+        'A link was sent recently. Check your inbox, including spam.',
+        429,
       )
+      response.headers.set('Retry-After', String(limit.retryAfterSeconds ?? 600))
+      return response
     }
 
     const rows: any = await query(
@@ -95,7 +101,7 @@ export async function POST(request: NextRequest) {
       [userId],
     ).catch(() => null)
     const user = Array.isArray(rows) ? rows[0] : rows?.rows?.[0]
-    if (!user) return NextResponse.json({ error: 'Account not found.' }, { status: 404 })
+    if (!user) return fail('NOT_FOUND', 'Account not found.', 404)
     if (user.email_verified === true) return NextResponse.json({ success: true, alreadyVerified: true })
 
     const business: any = await query(
@@ -121,15 +127,11 @@ export async function POST(request: NextRequest) {
     })
 
     if (!sent) {
-      return NextResponse.json(
-        { error: 'The email service is not reachable right now. Try again shortly.' },
-        { status: 502 },
-      )
+      return fail('EMAIL_UNAVAILABLE', 'The email service is not reachable right now. Try again shortly.', 502)
     }
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('[verify-email] resend failed', error)
-    return NextResponse.json({ error: 'Could not send the link right now.' }, { status: 500 })
+    return handleUnexpected(error, { where: 'POST /api/auth/verify-email', request })
   }
 }
 

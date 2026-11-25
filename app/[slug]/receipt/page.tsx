@@ -129,7 +129,11 @@ export default function ReceiptPage() {
     let cancelled = false;
     (async () => {
       try {
-        const c = await fetchColorConfig(businessId);
+        // The receipt passes an empty page type on purpose: the endpoint
+        // rejects a missing pageType, and switching this to 'receipt' would
+        // start applying receipt-specific colours. Left as-is for now; listed
+        // in the batch report as a bug worth fixing deliberately.
+        const c = await fetchColorConfig(businessId, '');
         if (!cancelled) setColors(c);
       } catch {
         /* ignore */

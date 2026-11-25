@@ -1,24 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { getOne, query } from '@/lib/db';
 import { hashPassword } from '@/lib/auth';
+import { parseBody, fail } from '@/lib/api';
+import { handleUnexpected } from '@/lib/api/handler';
+import { RATE_LIMITS, enforceRateLimit } from '@/lib/rate-limit';
+
+const ResetPasswordBody = z.object({
+  otpId: z.string().trim().min(1, 'This reset link is incomplete').max(100),
+  otp: z.string().trim().regex(/^\d{4,8}$/, 'Enter the code from your email'),
+  newPassword: z.string().min(8, 'Password must be at least 8 characters').max(200),
+});
 
 export async function POST(request: NextRequest) {
   try {
-    const { otpId, otp, newPassword } = await request.json();
+    const parsed = await parseBody(request, ResetPasswordBody, 'Check the code and your new password.');
+    if (!parsed.ok) return parsed.response;
+    const { otpId, otp, newPassword } = parsed.data;
 
-    if (!otpId || !otp || !newPassword) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      );
-    }
-
-    if (newPassword.length < 8) {
-      return NextResponse.json(
-        { error: 'Password must be at least 8 characters' },
-        { status: 400 }
-      );
-    }
+    // 10 attempts per 10 minutes per connection, and the same again per reset
+    // request, so neither one IP nor one code can be guessed through.
+    const limitedByIp = await enforceRateLimit(request, RATE_LIMITS.otpVerifyIp);
+    if (limitedByIp) return limitedByIp;
+    const limitedByCode = await enforceRateLimit(request, RATE_LIMITS.otpVerifyEmail, { identifier: otpId });
+    if (limitedByCode) return limitedByCode;
 
     // Get OTP record
     const otpRecord = await getOne(
@@ -28,27 +33,18 @@ export async function POST(request: NextRequest) {
     );
 
     if (!otpRecord) {
-      return NextResponse.json(
-        { error: 'Invalid or already used OTP' },
-        { status: 400 }
-      );
+      return fail('OTP_INVALID', 'Invalid or already used OTP', 400);
     }
 
     // Check if OTP is expired
     const expiresAt = new Date(otpRecord.expires_at);
     if (new Date() > expiresAt) {
-      return NextResponse.json(
-        { error: 'OTP has expired' },
-        { status: 400 }
-      );
+      return fail('OTP_EXPIRED', 'OTP has expired', 400);
     }
 
     // Verify OTP code
     if (otpRecord.otp_code !== otp) {
-      return NextResponse.json(
-        { error: 'Invalid OTP' },
-        { status: 400 }
-      );
+      return fail('OTP_INVALID', 'Invalid OTP', 400);
     }
 
     // Hash new password
@@ -73,10 +69,6 @@ export async function POST(request: NextRequest) {
       { status: 200 }
     );
   } catch (error) {
-    console.error('[v0] Reset password error:', error);
-    return NextResponse.json(
-      { error: 'Failed to reset password' },
-      { status: 500 }
-    );
+    return handleUnexpected(error, { where: 'POST /api/auth/reset-password', request });
   }
 }

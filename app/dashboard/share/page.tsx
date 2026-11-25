@@ -26,7 +26,22 @@ import {
 import Link from 'next/link';
 import { toast } from 'sonner';
 
-const QRCode = dynamic(() => import('qrcode.react'), { ssr: false });
+/**
+ * qrcode.react ships without type declarations (see types/qrcode-react.d.ts),
+ * so `dynamic()` would infer props as `{}`. The props actually passed are
+ * declared here so the component is checked rather than silently `any`.
+ */
+type QRCodeProps = {
+  value: string;
+  size?: number;
+  renderAs?: 'canvas' | 'svg';
+  level?: 'L' | 'M' | 'Q' | 'H';
+  includeMargin?: boolean;
+  fgColor?: string;
+  bgColor?: string;
+  className?: string;
+};
+const QRCode = dynamic<QRCodeProps>(() => import('qrcode.react'), { ssr: false });
 
 interface Business {
   slug: string;

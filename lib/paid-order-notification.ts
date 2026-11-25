@@ -1,3 +1,4 @@
+import { env } from './env';
 /**
  * The restaurant's "new paid order" alert (Batch 3C, item b2).
  *
@@ -29,8 +30,8 @@ import { getKitchenSchema } from '@/lib/kitchen/schema';
 import { pushSoundFields } from '@/lib/onesignal-sound';
 
 const ONESIGNAL_API_URL = 'https://onesignal.com/api/v1/notifications';
-const ONESIGNAL_APP_ID = process.env.NEXT_PUBLIC_ONESIGNAL_APP_ID;
-const ONESIGNAL_API_KEY = process.env.ONESIGNAL_REST_API_KEY;
+const ONESIGNAL_APP_ID = env.NEXT_PUBLIC_ONESIGNAL_APP_ID;
+const ONESIGNAL_API_KEY = env.ONESIGNAL_REST_API_KEY;
 
 export type PaidOrderNotifyStatus =
   | 'sent'

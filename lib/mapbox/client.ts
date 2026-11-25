@@ -1,5 +1,7 @@
 'use client';
 
+import { publicEnv } from '../env-public';
+
 /**
  * Mapbox GL loader (Batch 3B).
  *
@@ -24,7 +26,7 @@ let glPromise: Promise<any | null> | null = null;
 let drawPromise: Promise<any | null> | null = null;
 
 export function mapboxPublicToken(): string | null {
-  const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+  const token = publicEnv.NEXT_PUBLIC_MAPBOX_TOKEN;
   const trimmed = (token ?? '').trim();
   return trimmed.length > 0 ? trimmed : null;
 }

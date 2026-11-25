@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { db, rowsOf } from '@/lib/db';
 import { getOne } from '@/lib/db';
 import { generateAlphanumericId } from '@/lib/utils';
+import { env } from '@/lib/env';
 
 const ONESIGNAL_API_URL = 'https://onesignal.com/api/v1/notifications';
-const ONESIGNAL_APP_ID = process.env.NEXT_PUBLIC_ONESIGNAL_APP_ID;
-const ONESIGNAL_API_KEY = process.env.ONESIGNAL_REST_API_KEY;
+const ONESIGNAL_APP_ID = env.NEXT_PUBLIC_ONESIGNAL_APP_ID;
+const ONESIGNAL_API_KEY = env.ONESIGNAL_REST_API_KEY;
 
 interface OrderItem {
   id: string;
@@ -55,7 +56,7 @@ async function getOrderDetails(orderId: string): Promise<{ order: Order; items: 
     );
 
     // db.query returns rows directly as an array
-    const items = Array.isArray(itemsResult) ? itemsResult : (itemsResult?.rows || []);
+    const items = rowsOf<OrderItem>(itemsResult);
 
     // Normalize numeric values from database (they come back as strings)
     const normalizedOrder = {

@@ -3,6 +3,7 @@ import { getTokenFromRequest, verifyToken } from '@/lib/auth'
 import { query } from '@/lib/db'
 import { periodSqlParams, resolveAdminPeriod, serialisePeriod } from '@/lib/admin-period'
 import { getWithdrawalSummary, num, round2 } from '@/lib/admin-analytics'
+import { fail } from '@/lib/api';
 
 export const dynamic = 'force-dynamic'
 
@@ -22,7 +23,7 @@ export async function GET(request: NextRequest) {
   try {
     const token = await getTokenFromRequest(request)
     const user = token ? await verifyToken(token) : null
-    if (!user || user.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (!user || user.role !== 'admin') return fail('FORBIDDEN', 'Forbidden', 403)
 
     const params = request.nextUrl.searchParams
     const page = Math.max(1, num(params.get('page')) || 1)
@@ -84,6 +85,6 @@ export async function GET(request: NextRequest) {
     })
   } catch (error) {
     console.error('[admin] payouts view failed', error)
-    return NextResponse.json({ error: 'Failed to load withdrawals' }, { status: 500 })
+    return fail('FAILED_LOAD_WITHDRAWALS', 'Failed to load withdrawals', 500)
   }
 }

@@ -1,34 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { verifyPayment } from '@/lib/paystack';
 import { getOne } from '@/lib/db';
 import { settlePaystackPayment } from '@/lib/payments/settle';
 import { sendOrderStatusNotification } from '@/lib/notification-service';
 import { notifyRestaurantPaidOrder } from '@/lib/paid-order-notification';
+import { parseBody, fail } from '@/lib/api';
+import { handleUnexpected } from '@/lib/api/handler';
+
+const VerifyBody = z.object({
+  reference: z.string().trim().min(1, 'Reference is required').max(100),
+});
 
 export async function POST(request: NextRequest) {
   try {
-    const { reference } = await request.json();
-    if (typeof reference !== 'string' || !reference.trim() || reference.length > 100) {
-      return NextResponse.json({ error: 'Reference is required' }, { status: 400 });
-    }
+    const parsed = await parseBody(request, VerifyBody, 'That payment reference is not valid.');
+    if (!parsed.ok) return parsed.response;
+    const { reference } = parsed.data;
 
     const paystackResponse = await verifyPayment(reference);
     if (!paystackResponse?.status || paystackResponse.data?.status !== 'success') {
-      return NextResponse.json(
-        { error: 'Payment was not successful', status: paystackResponse?.data?.status },
-        { status: 400 },
-      );
+      return fail('PAYMENT_NOT_SUCCESSFUL', 'Payment was not successful', 400, undefined, {
+        status: paystackResponse?.data?.status,
+      });
     }
 
     const result = await settlePaystackPayment(paystackResponse.data);
     if (result.status === 'amount_mismatch') {
-      return NextResponse.json({ error: 'Payment amount does not match the order. Contact support with your reference.' }, { status: 400 });
+      return fail('AMOUNT_MISMATCH', 'Payment amount does not match the order. Contact support with your reference.', 400);
     }
     if (result.status === 'order_not_found') {
-      return NextResponse.json({ error: 'Order not found for this reference' }, { status: 404 });
+      return fail('ORDER_NOT_FOUND', 'Order not found for this reference', 404);
     }
     if (result.status !== 'settled' && result.status !== 'already_settled') {
-      return NextResponse.json({ error: 'Payment settlement failed' }, { status: 500 });
+      return fail('SETTLEMENT_FAILED', 'Payment settlement failed', 500);
     }
 
     const orderId = String(result.order_id ?? '');
@@ -36,7 +41,7 @@ export async function POST(request: NextRequest) {
       `SELECT o.total_amount, b.slug FROM orders o JOIN businesses b ON b.id = o.business_id WHERE o.id = $1`,
       [orderId],
     );
-    if (!order) return NextResponse.json({ error: 'Order not found for this reference' }, { status: 404 });
+    if (!order) return fail('ORDER_NOT_FOUND', 'Order not found for this reference', 404);
 
     if (result.status === 'settled') {
       try { await sendOrderStatusNotification(orderId, 'confirmed', 'paid'); } catch (error) {
@@ -65,7 +70,8 @@ export async function POST(request: NextRequest) {
       ...(result.status === 'already_settled' ? { alreadySettled: true } : {}),
     });
   } catch (error) {
-    console.error('[v0] Verify payment error:', error);
-    return NextResponse.json({ error: 'Failed to verify payment', details: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 });
+    // `details` used to carry the raw error message to the browser; it is now
+    // only in the server log, under the request id the customer sees.
+    return handleUnexpected(error, { where: 'POST /api/payments/verify', request });
   }
 }

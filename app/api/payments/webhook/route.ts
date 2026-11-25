@@ -3,27 +3,49 @@ import crypto from 'crypto';
 import { db } from '@/lib/db';
 import { settleWithdrawalSuccess } from '@/lib/withdrawals';
 import { recordAdminTransferFee } from '@/lib/admin-transfers';
-import { settlePaystackPayment } from '@/lib/payments/settle';
+import { settlePaystackPayment, type PaystackPaymentData } from '@/lib/payments/settle';
 import { sendOrderStatusNotification } from '@/lib/notification-service';
 import { notifyRestaurantPaidOrder } from '@/lib/paid-order-notification';
+import { env } from '@/lib/env';
+import { z } from 'zod';
+import { fail } from '@/lib/api';
+import { handleUnexpected } from '@/lib/api/handler';
 
 function rowsOf(raw: any): any[] { return Array.isArray(raw) ? raw : raw?.rows ?? []; }
 
+/**
+ * The event envelope only.
+ *
+ * The contents of `data` differ per event and are read field by field in the
+ * switch below, exactly as before. This schema exists so a signed but
+ * structurally broken payload is refused once, before anything touches the
+ * database. The signature check above is untouched.
+ */
+const WebhookEnvelope = z.object({
+  event: z.string().min(1),
+  data: z.record(z.unknown()),
+});
+
 export async function POST(req: NextRequest) {
-  const secret = process.env.PAYSTACK_SECRET_KEY;
-  if (!secret) return NextResponse.json({ error: 'Webhook is not configured' }, { status: 500 });
+  const secret = env.PAYSTACK_SECRET_KEY;
+  if (!secret) return fail('WEBHOOK_NOT_CONFIGURED', 'Webhook is not configured', 500);
   try {
     const body = await req.text();
     const signature = req.headers.get('x-paystack-signature') ?? '';
     const expected = crypto.createHmac('sha512', secret).update(body).digest();
     const received = Buffer.from(signature, 'hex');
     if (received.length !== expected.length || !crypto.timingSafeEqual(expected, received)) {
-      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+      return fail('INVALID_SIGNATURE', 'Invalid signature', 401);
     }
-    const event = JSON.parse(body);
+    const parsedEvent = WebhookEnvelope.safeParse(JSON.parse(body));
+    if (!parsedEvent.success) return fail('INVALID_EVENT', 'Malformed event payload', 400);
+    const event = parsedEvent.data;
     switch (event.event) {
       case 'charge.success': {
-        const result = await settlePaystackPayment(event.data);
+        // `charge.success` carries a payment object; the envelope check above
+        // only guarantees it is an object, so the payment shape is asserted here
+        // and validated field by field inside fb_settle_payment.
+        const result = await settlePaystackPayment(event.data as PaystackPaymentData);
         if (result.status === 'settled') {
           try { await sendOrderStatusNotification(String(result.order_id), 'confirmed', 'paid'); } catch (error) { console.error('[v0] Webhook notification failed:', error); }
         }
@@ -75,14 +97,13 @@ export async function POST(req: NextRequest) {
       default: return NextResponse.json({ success: true });
     }
   } catch (error) {
-    console.error('[v0] Webhook processing error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return handleUnexpected(error, { where: 'POST /api/payments/webhook', request: req });
   }
 }
 
 export async function GET(req: NextRequest) {
   const reference = req.nextUrl.searchParams.get('reference') || req.nextUrl.searchParams.get('trxref');
   if (reference) return NextResponse.redirect(new URL(`/payment-success?reference=${encodeURIComponent(reference)}`, req.url));
-  return NextResponse.json({ error: 'No reference provided' }, { status: 400 });
+  return fail('REFERENCE_REQUIRED', 'No reference provided', 400);
 }
 

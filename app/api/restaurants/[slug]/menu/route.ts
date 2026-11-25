@@ -142,7 +142,7 @@ export async function GET(
       ...r,
       addons: addonsById.get(r.id) || [],
     }));
-    const hotPickIds = new Set<string>(hotPicks.map((h) => h.id));
+    const hotPickIds = new Set<string>(hotPicks.map((h: any) => h.id));
 
     // -------- Featured (one per category, randomised) --------
     const featured: any[] = [];

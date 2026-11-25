@@ -8,8 +8,31 @@ import { FREE_WITHDRAWALS_PER_MONTH, OVERAGE_FEE_NGN, MIN_WITHDRAWAL_NGN } from 
 import { watMonthStartUtc } from '@/lib/wat';
 import { normalizeAmount, requireTicket } from '@/lib/security/pin';
 import { getBankName } from '@/lib/banks';
+import { z } from 'zod';
+import { parseBody, fail } from '@/lib/api';
+import { handleUnexpected } from '@/lib/api/handler';
+import { RATE_LIMITS, enforceRateLimit } from '@/lib/rate-limit';
+import { env } from '@/lib/env';
 
-const PAYSTACK_API_KEY = process.env.PAYSTACK_SECRET_KEY;
+/**
+ * A payout request.
+ *
+ * `amount` is naira. The two-decimal rule is kept here so the message a business
+ * sees is unchanged; the arithmetic itself still happens in fb_reserve_withdrawal.
+ */
+const WithdrawalBody = z.object({
+  amount: z
+    .number({ invalid_type_error: `Minimum withdrawal is ₦${MIN_WITHDRAWAL_NGN}` })
+    .finite(`Minimum withdrawal is ₦${MIN_WITHDRAWAL_NGN}`)
+    .min(MIN_WITHDRAWAL_NGN, `Minimum withdrawal is ₦${MIN_WITHDRAWAL_NGN}`)
+    .refine((value) => Math.abs(value * 100 - Math.round(value * 100)) <= 1e-6, {
+      message: 'Amount can have at most 2 decimal places',
+    }),
+  notes: z.string().max(500).nullish(),
+  authorizationTicket: z.string().max(200).optional(),
+});
+
+const PAYSTACK_API_KEY = env.PAYSTACK_SECRET_KEY;
 const PAYSTACK_BASE = 'https://api.paystack.co';
 function rowsOf(raw: any): any[] { return Array.isArray(raw) ? raw : raw?.rows ?? []; }
 async function getUserId(req: NextRequest) { const token = req.headers.get('authorization')?.replace('Bearer ', '') || req.cookies.get('auth_token')?.value; if (!token) return null; const p = await verifyJWT(token); return p ? (p as any).userId || (p as any).id : null; }
@@ -28,8 +51,8 @@ async function createRecipient(accountNumber: string, bankCode: string, name: st
 async function initiateTransfer(recipient: string, amount: number, reference: string, reason: string) { return providerJson('/transfer', { method: 'POST', headers: { Authorization: `Bearer ${PAYSTACK_API_KEY}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ source: 'balance', amount: Math.round(amount * 100), recipient, reference, reason }) }); }
 
 export async function GET(req: NextRequest) {
-  const userId = await getUserId(req); if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const business = await getActiveBusinessForUser(userId); if (!business) return NextResponse.json({ error: 'Business not found' }, { status: 404 });
+  const userId = await getUserId(req); if (!userId) return fail('UNAUTHORIZED', 'Unauthorized', 401);
+  const business = await getActiveBusinessForUser(userId); if (!business) return fail('BUSINESS_NOT_FOUND', 'Business not found', 404);
   try { await reconcileBusinessWithdrawals(business.id); } catch (error) { console.error('[v0] withdrawal reconciliation failed:', error); }
   const raw: any = await db.query(`SELECT id,amount,net_amount,status,bank_code,bank_account_number,bank_account_holder,payment_reference,reference,notes,requested_at,processed_at,created_at,updated_at FROM withdrawals WHERE business_id=$1 ORDER BY created_at DESC LIMIT 200`, [business.id]);
   const withdrawals = await Promise.all(
@@ -55,23 +78,31 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const userId = await getUserId(req); if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!PAYSTACK_API_KEY) return NextResponse.json({ error: 'Paystack is not configured on this server.' }, { status: 500 });
-  const business = await getActiveBusinessForUser(userId); if (!business) return NextResponse.json({ error: 'Business not found' }, { status: 404 });
-  const body = await req.json(); const amount = Number(body.amount); const notes = String(body.notes || '').slice(0, 500);
-  if (!Number.isFinite(amount) || amount < MIN_WITHDRAWAL_NGN) return NextResponse.json({ error: `Minimum withdrawal is ₦${MIN_WITHDRAWAL_NGN}` }, { status: 400 });
-  if (Math.abs(amount * 100 - Math.round(amount * 100)) > 1e-6) return NextResponse.json({ error: 'Amount can have at most 2 decimal places' }, { status: 400 });
+  try {
+  const userId = await getUserId(req); if (!userId) return fail('UNAUTHORIZED', 'Unauthorized', 401);
+  if (!PAYSTACK_API_KEY) return fail('PAYSTACK_NOT_CONFIGURED', 'Paystack is not configured on this server.', 500);
+  const business = await getActiveBusinessForUser(userId); if (!business) return fail('BUSINESS_NOT_FOUND', 'Business not found', 404);
+
+  // 10 payout requests an hour per owner, counted before anything is reserved.
+  const limited = await enforceRateLimit(req, RATE_LIMITS.withdrawalUser, { userId: String(userId) });
+  if (limited) return limited;
+
+  const parsed = await parseBody(req, WithdrawalBody, 'Check the amount you entered.');
+  if (!parsed.ok) return parsed.response;
+  const amount = parsed.data.amount;
+  const notes = String(parsed.data.notes || '').slice(0, 500);
+
   const bankRaw: any = await db.query('SELECT bank_code,bank_account_number,bank_account_holder FROM businesses WHERE id=$1', [business.id]); const bank = rowsOf(bankRaw)[0];
-  if (!bank?.bank_code || !bank?.bank_account_number || !bank?.bank_account_holder) return NextResponse.json({ error: 'Add your bank details first' }, { status: 400 });
-  const authorized = await requireTicket({ ticket: body.authorizationTicket, userId, businessId: business.id, action: 'withdrawal', bind: { amount: normalizeAmount(amount), account: `${bank.bank_code}:${bank.bank_account_number}` } });
-  if (!authorized) return NextResponse.json({ error: 'PIN authorization required', code: 'PIN_REQUIRED' }, { status: 403 });
+  if (!bank?.bank_code || !bank?.bank_account_number || !bank?.bank_account_holder) return fail('BANK_DETAILS_REQUIRED', 'Add your bank details first', 400);
+  const authorized = await requireTicket({ ticket: parsed.data.authorizationTicket, userId, businessId: business.id, action: 'withdrawal', bind: { amount: normalizeAmount(amount), account: `${bank.bank_code}:${bank.bank_account_number}` } });
+  if (!authorized) return fail('PIN_REQUIRED', 'PIN authorization required', 403);
   const withdrawalId = `wd_${nanoid(14)}`; const reference = genReference();
   const reserveRaw: any = await db.query('SELECT fb_reserve_withdrawal($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) AS result', [business.id, amount, withdrawalId, reference, bank.bank_code, bank.bank_account_number, bank.bank_account_holder, notes || null, watMonthStartUtc().toISOString(), FREE_WITHDRAWALS_PER_MONTH, OVERAGE_FEE_NGN, MIN_WITHDRAWAL_NGN]);
   const result = rowsOf(reserveRaw)[0]?.result; const reserve = typeof result === 'string' ? JSON.parse(result) : result || {};
-  if (reserve.status === 'below_minimum') return NextResponse.json({ error: `Minimum withdrawal is ₦${MIN_WITHDRAWAL_NGN}` }, { status: 400 });
-  if (reserve.status === 'business_not_found') return NextResponse.json({ error: 'Business not found' }, { status: 404 });
-  if (reserve.status === 'insufficient_balance') return NextResponse.json({ error: reserve.fee > 0 ? 'Insufficient available balance. A ₦500 fee applies from your 4th withdrawal this month' : 'Insufficient available balance' }, { status: 400 });
-  if (reserve.status !== 'reserved') return NextResponse.json({ error: 'Withdrawal could not be reserved' }, { status: 400 });
+  if (reserve.status === 'below_minimum') return fail('BELOW_MINIMUM', `Minimum withdrawal is ₦${MIN_WITHDRAWAL_NGN}`, 400);
+  if (reserve.status === 'business_not_found') return fail('BUSINESS_NOT_FOUND', 'Business not found', 404);
+  if (reserve.status === 'insufficient_balance') return fail('INSUFFICIENT_BALANCE', reserve.fee > 0 ? 'Insufficient available balance. A ₦500 fee applies from your 4th withdrawal this month' : 'Insufficient available balance', 400);
+  if (reserve.status !== 'reserved') return fail('RESERVE_FAILED', 'Withdrawal could not be reserved', 400);
   let recipientRaw: any = await db.query('SELECT id,recipient_code FROM transfer_recipients WHERE business_id=$1 AND account_number=$2 AND bank_code=$3 AND is_active=true LIMIT 1', [business.id, bank.bank_account_number, bank.bank_code]); let recipient = rowsOf(recipientRaw)[0];
   try {
     if (!recipient) { const created = await createRecipient(bank.bank_account_number, bank.bank_code, bank.bank_account_holder); const id = `tr_${nanoid(14)}`; await db.query(`INSERT INTO transfer_recipients (id,business_id,paystack_recipient_id,recipient_code,account_name,account_number,bank_code,account_type,is_active,created_at,updated_at) VALUES ($1,$2,$3,$3,$4,$5,$6,'nuban',true,NOW(),NOW())`, [id, business.id, created.recipient_code, bank.bank_account_holder, bank.bank_account_number, bank.bank_code]); recipient = { id, recipient_code: created.recipient_code }; }
@@ -82,9 +113,12 @@ export async function POST(req: NextRequest) {
     if (status === 'success') await settleWithdrawalSuccess(withdrawalId, transfer);
     return NextResponse.json({ success: true, withdrawalId, reference, status, withdrawalFee: Number(reserve.fee || 0), message: 'Withdrawal initiated' }, { status: 201 });
   } catch (error) {
-    if (error instanceof ProviderRejected) { await db.query(`UPDATE withdrawals SET status='failed'::withdrawal_status,failure_reason=$1,updated_at=NOW() WHERE id=$2`, [error.message, withdrawalId]); await db.query('SELECT fb_reverse_failed_withdrawal($1) AS result', [withdrawalId]); return NextResponse.json({ error: error.message }, { status: 502 }); }
+    if (error instanceof ProviderRejected) { await db.query(`UPDATE withdrawals SET status='failed'::withdrawal_status,failure_reason=$1,updated_at=NOW() WHERE id=$2`, [error.message, withdrawalId]); await db.query('SELECT fb_reverse_failed_withdrawal($1) AS result', [withdrawalId]); return fail('PROVIDER_REJECTED', error.message, 502); }
     const verified = await verifyAndSyncTransfer(reference, withdrawalId);
     if (verified?.notFound) { await db.query(`UPDATE withdrawals SET status='failed'::withdrawal_status,failure_reason=$1,updated_at=NOW() WHERE id=$2`, ['Transfer not found at provider', withdrawalId]); await db.query('SELECT fb_reverse_failed_withdrawal($1) AS result', [withdrawalId]); }
     return NextResponse.json({ success: true, withdrawalId, status: verified?.status || 'pending' }, { status: 202 });
+  }
+  } catch (error) {
+    return handleUnexpected(error, { where: 'POST /api/business/withdrawals', request: req });
   }
 }

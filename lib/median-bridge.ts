@@ -24,6 +24,12 @@ interface MedianBridge {
 declare global {
   interface Window {
     median?: MedianBridge;
+    /**
+     * Exposed by components/dashboard/median-notification-setup.tsx so the app
+     * shell can ask for push permission after a tap. Resolves to whether
+     * permission was granted.
+     */
+    requestMedianPushNotifications?: () => Promise<boolean>;
   }
 }
 

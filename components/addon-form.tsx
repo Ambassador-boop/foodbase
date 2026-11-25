@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { AlertCircle, Upload, X, Trash2 } from 'lucide-react';
 import Image from 'next/image';
+import { publicEnv } from '@/lib/env-public';
 
 interface MenuItem {
   id: string;
@@ -77,7 +78,7 @@ export default function AddonForm({ addon, isEditing = false }: AddonFormProps) 
   const uploadImageToCloudinary = async (file: File): Promise<string | null> => {
     try {
       setUploadingImage(true);
-      const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+      const cloudName = publicEnv.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
       
       if (!cloudName) {
         throw new Error('Cloudinary configuration missing');
@@ -168,7 +169,7 @@ export default function AddonForm({ addon, isEditing = false }: AddonFormProps) 
     }
 
     setSubmitting(true);
-    let imageUrl = formData.imageUrl;
+    let imageUrl: string | null = formData.imageUrl;
 
     // Upload image if selected
     if (formData.imageFile) {
@@ -241,7 +242,7 @@ export default function AddonForm({ addon, isEditing = false }: AddonFormProps) 
     setFormData((prev) => ({
       ...prev,
       pairedMenuItems: prev.pairedMenuItems.includes(menuItemId)
-        ? prev.pairedMenuItems.filter((id) => id !== menuItemId)
+        ? prev.pairedMenuItems.filter((id: string) => id !== menuItemId)
         : [...prev.pairedMenuItems, menuItemId],
     }));
   };

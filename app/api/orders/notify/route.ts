@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getOne } from '@/lib/db';
+import { env } from '@/lib/env';
 
 const ONESIGNAL_API_URL = 'https://onesignal.com/api/v1/notifications';
-const ONESIGNAL_APP_ID = process.env.NEXT_PUBLIC_ONESIGNAL_APP_ID;
-const ONESIGNAL_API_KEY = process.env.ONESIGNAL_REST_API_KEY;
+const ONESIGNAL_APP_ID = env.NEXT_PUBLIC_ONESIGNAL_APP_ID;
+const ONESIGNAL_API_KEY = env.ONESIGNAL_REST_API_KEY;
 
 /**
  * POST /api/orders/notify?orderId=<orderId>

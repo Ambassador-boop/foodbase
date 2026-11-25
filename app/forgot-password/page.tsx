@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { apiErrorMessage } from '@/lib/api/errors';
 
 type Step = 'email' | 'otp' | 'password' | 'success';
 
@@ -34,7 +35,7 @@ export default function ForgotPasswordPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.error || 'Failed to send OTP');
+        setError(apiErrorMessage(data, 'Failed to send OTP'));
         return;
       }
 
@@ -73,7 +74,7 @@ export default function ForgotPasswordPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.error || 'Failed to reset password');
+        setError(apiErrorMessage(data, 'Failed to reset password'));
         return;
       }
 

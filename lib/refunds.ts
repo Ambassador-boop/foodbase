@@ -1,5 +1,6 @@
 import { nanoid } from 'nanoid';
 import { db } from '@/lib/db';
+import { env } from '@/lib/env';
 import { paystackRefund, ProviderRejected, ProviderUnreachable } from '@/lib/paystack';
 
 export async function createAndSendRefund({ orderId, ownerId, amount, reason, notes }: {
@@ -24,7 +25,7 @@ export async function createAndSendRefund({ orderId, ownerId, amount, reason, no
   if (status === 'insufficient_balance') return { response: { error: `Your ${result.bucket} balance (₦${Number(result.balance || 0).toLocaleString()}) is not enough to cover this refund.` }, statusCode: 409 };
   if (status !== 'created') throw new Error(`Unexpected refund status: ${status}`);
 
-  if (!process.env.PAYSTACK_SECRET_KEY || !result.payment_reference) {
+  if (!env.PAYSTACK_SECRET_KEY || !result.payment_reference) {
     await db.query("UPDATE refunds SET status='failed', failure_reason=$1 WHERE id=$2", ['Refund could not be sent to the payment provider', refundId]);
     await db.query('SELECT fb_reverse_failed_refund($1)', [refundId]);
     return { response: { success: false, refundId, status: 'failed', error: 'Refund could not be sent to the payment provider' }, statusCode: 502 };

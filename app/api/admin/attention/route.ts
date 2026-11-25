@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getTokenFromRequest, verifyToken } from '@/lib/auth'
 import { query } from '@/lib/db'
 import { getAttentionQueue } from '@/lib/admin-analytics'
+import { fail } from '@/lib/api';
 
 export const dynamic = 'force-dynamic'
 
@@ -15,7 +16,7 @@ async function requireAdmin(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const user = await requireAdmin(request)
-    if (!user) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (!user) return fail('FORBIDDEN', 'Forbidden', 403)
 
     const countsOnly = request.nextUrl.searchParams.get('countsOnly') === '1'
     const queue = await getAttentionQueue({ includeRows: !countsOnly })
@@ -45,7 +46,7 @@ export async function GET(request: NextRequest) {
     })
   } catch (error) {
     console.error('[admin] attention queue failed', error)
-    return NextResponse.json({ error: 'Failed to load alerts' }, { status: 500 })
+    return fail('FAILED_LOAD_ALERTS', 'Failed to load alerts', 500)
   }
 }
 
@@ -56,7 +57,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const user = await requireAdmin(request)
-    if (!user) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (!user) return fail('FORBIDDEN', 'Forbidden', 403)
 
     const body = await request.json().catch(() => ({}))
     const kind = typeof body?.kind === 'string' ? body.kind : ''
@@ -82,11 +83,11 @@ export async function POST(request: NextRequest) {
     )
     const updatedRows = Array.isArray(updated) ? updated : (updated as any)?.rows ?? []
     if (updatedRows.length === 0) {
-      return NextResponse.json({ error: 'Alert not found or already resolved' }, { status: 404 })
+      return fail('ALERT_FOUND_OR', 'Alert not found or already resolved', 404)
     }
     return NextResponse.json({ success: true, id })
   } catch (error) {
     console.error('[admin] attention resolve failed', error)
-    return NextResponse.json({ error: 'Failed to update alert' }, { status: 500 })
+    return fail('FAILED_UPDATE_ALERT', 'Failed to update alert', 500)
   }
 }

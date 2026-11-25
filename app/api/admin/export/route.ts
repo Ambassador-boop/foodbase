@@ -11,6 +11,7 @@ import {
   num,
   round2,
 } from '@/lib/admin-analytics'
+import { fail } from '@/lib/api';
 
 export const dynamic = 'force-dynamic'
 
@@ -42,7 +43,7 @@ export async function GET(request: NextRequest) {
   try {
     const token = await getTokenFromRequest(request)
     const user = token ? await verifyToken(token) : null
-    if (!user || user.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (!user || user.role !== 'admin') return fail('FORBIDDEN', 'Forbidden', 403)
 
     const params = request.nextUrl.searchParams
     const type = (params.get('type') || 'businesses').toLowerCase()
@@ -144,6 +145,6 @@ export async function GET(request: NextRequest) {
     return fileResponse(body, `foodbase-businesses-${stamp}.csv`)
   } catch (error) {
     console.error('[admin] export failed', error)
-    return NextResponse.json({ error: 'Failed to export data' }, { status: 500 })
+    return fail('FAILED_EXPORT_DATA', 'Failed to export data', 500)
   }
 }

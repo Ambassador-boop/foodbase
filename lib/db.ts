@@ -1,17 +1,46 @@
-import { neon } from '@neondatabase/serverless';
+import { neon, type NeonQueryFunction } from '@neondatabase/serverless';
+import { env } from './env';
 
-if (!process.env.DATABASE_URL) {
-  throw new Error('DATABASE_URL is not set');
+/**
+ * The Neon client, created on first use rather than at import.
+ *
+ * DATABASE_URL is validated in lib/env.ts, which throws at start-up when it is
+ * missing; nothing here falls back to a default connection string. The reason the
+ * client is lazy is `next build`: it imports every route to collect page data on
+ * a machine that has no database, and `neon('')` would throw there. The first
+ * real query still fails loudly if the variable is absent at runtime.
+ */
+type Client = NeonQueryFunction<false, false>;
+
+let client: Client | null = null;
+
+function getClient(): Client {
+  if (!client) {
+    if (!env.DATABASE_URL) {
+      throw new Error(
+        'DATABASE_URL is not set. The database client cannot be created. See docs/environment.md.',
+      );
+    }
+    client = neon(env.DATABASE_URL, { fullResults: false });
+  }
+  return client;
 }
 
-// Initialize Neon client - uses tagged template literals
-const sql = neon(process.env.DATABASE_URL!, { fullResults: false });
+/** The Neon client, for callers that use `sql``...``` tagged templates. */
+export const sql: Client = new Proxy(function sqlTag() {} as unknown as Client, {
+  apply(_target, _thisArg, args: unknown[]) {
+    const fn = getClient() as unknown as (...callArgs: unknown[]) => unknown;
+    return fn(...args);
+  },
+  get(_target, property) {
+    const value = (getClient() as unknown as Record<PropertyKey, unknown>)[property];
+    return typeof value === 'function' ? value.bind(getClient()) : value;
+  },
+}) as Client;
 
-// Export the sql client directly
-export { sql };
 export const db = sql;
 
-export type Database = typeof sql;
+export type Database = Client;
 
 // Helper function to replace $1, $2 etc with proper placeholders
 function buildQuery(queryString: string, values: any[] = []): any {
@@ -58,6 +87,20 @@ export async function getOne(queryString: string, values: any[] = []) {
 // Get all rows
 export async function getAll(queryString: string, values: any[] = []) {
   return query(queryString, values);
+}
+
+/**
+ * Rows from a driver result of either shape.
+ *
+ * The Neon HTTP driver returns a plain array; some older call sites and a few
+ * code paths hand back `{ rows }`. This reads both without a cast at each site,
+ * so `Array.isArray(x) ? x : x?.rows` no longer needs to be repeated (and no
+ * longer narrows to `never`).
+ */
+export function rowsOf<T = Record<string, any>>(raw: unknown): T[] {
+  if (Array.isArray(raw)) return raw as T[];
+  const rows = (raw as { rows?: unknown } | null | undefined)?.rows;
+  return Array.isArray(rows) ? (rows as T[]) : [];
 }
 
 // Transaction wrapper

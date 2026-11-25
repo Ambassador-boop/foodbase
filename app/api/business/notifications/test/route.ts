@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getActiveBusiness } from '@/lib/active-business';
 import { describePushSoundConfig, pushSoundFields } from '@/lib/onesignal-sound';
+import { env } from '@/lib/env';
 
 /**
  * GET  /api/business/notifications/test   Is push configured, and with what sound?
@@ -16,8 +17,8 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const ONESIGNAL_API_URL = 'https://onesignal.com/api/v1/notifications';
-const ONESIGNAL_APP_ID = process.env.NEXT_PUBLIC_ONESIGNAL_APP_ID;
-const ONESIGNAL_API_KEY = process.env.ONESIGNAL_REST_API_KEY;
+const ONESIGNAL_APP_ID = env.NEXT_PUBLIC_ONESIGNAL_APP_ID;
+const ONESIGNAL_API_KEY = env.ONESIGNAL_REST_API_KEY;
 
 export async function GET() {
   const business = await getActiveBusiness();

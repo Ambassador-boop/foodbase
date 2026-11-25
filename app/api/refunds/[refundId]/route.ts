@@ -3,9 +3,18 @@ import { db } from '@/lib/db';
 import { verifyJWT } from '@/lib/auth';
 import { maskEmail } from '@/lib/mask';
 import { refundAmountNaira } from '@/lib/refund-amount';
+import { env } from '@/lib/env';
+import { z } from 'zod';
+import { parseParams, fail } from '@/lib/api';
+import { handleUnexpected } from '@/lib/api/handler';
 
-const PAYSTACK_API_KEY = process.env.PAYSTACK_SECRET_KEY;
+const PAYSTACK_API_KEY = env.PAYSTACK_SECRET_KEY;
 const PAYSTACK_BASE = 'https://api.paystack.co';
+
+/** A refund id from the URL. Checked before it reaches a query. */
+const RefundIdParam = z.object({
+  refundId: z.string().trim().min(1).max(100).regex(/^[A-Za-z0-9_-]+$/, 'That refund reference is not valid.'),
+});
 
 async function syncRefundFromPaystack(paystackRefundId: string, refundId: string) {
   if (!PAYSTACK_API_KEY || !paystackRefundId) return null;
@@ -101,14 +110,17 @@ export async function GET(
       request.headers.get('authorization')?.replace('Bearer ', '') ||
       request.cookies.get('auth_token')?.value;
     if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return fail('UNAUTHORIZED', 'Unauthorized', 401);
     }
     const payload = await verifyJWT(token);
     if (!payload) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+      return fail('UNAUTHORIZED', 'Invalid token', 401);
     }
     const userId = (payload as any).userId || (payload as any).id;
-    const { refundId } = await params;
+
+    const parsedParams = parseParams(await params, RefundIdParam);
+    if (!parsedParams.ok) return parsedParams.response;
+    const { refundId } = parsedParams.data;
 
     const result: any = await db.query(
       `SELECT
@@ -131,7 +143,7 @@ export async function GET(
     );
     const list = Array.isArray(result) ? result : result?.rows ?? [];
     if (list.length === 0) {
-      return NextResponse.json({ error: 'Refund not found' }, { status: 404 });
+      return fail('REFUND_NOT_FOUND', 'Refund not found', 404);
     }
     let row = list[0];
 
@@ -205,10 +217,6 @@ export async function GET(
       },
     });
   } catch (err) {
-    console.error('[v0] GET /refunds/[id] error:', err);
-    return NextResponse.json(
-      { error: 'Failed to fetch refund' },
-      { status: 500 },
-    );
+    return handleUnexpected(err, { where: 'GET /api/refunds/[refundId]', request });
   }
 }

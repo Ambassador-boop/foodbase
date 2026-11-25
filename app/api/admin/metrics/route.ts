@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getTokenFromRequest, verifyToken } from '@/lib/auth'
 import { queryRow } from '@/lib/admin-analytics'
+import { fail } from '@/lib/api';
 
 export const dynamic = 'force-dynamic'
 
@@ -11,10 +12,10 @@ export const dynamic = 'force-dynamic'
 export async function GET(request: NextRequest) {
   try {
     const token = await getTokenFromRequest(request)
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!token) return fail('UNAUTHORIZED', 'Unauthorized', 401)
 
     const verified = await verifyToken(token)
-    if (verified?.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (verified?.role !== 'admin') return fail('FORBIDDEN', 'Forbidden', 403)
 
     const summary = await queryRow<Record<string, unknown>>(
       `SELECT
@@ -32,6 +33,6 @@ export async function GET(request: NextRequest) {
     })
   } catch (error) {
     console.error('[admin] metrics failed', error)
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
+    return fail('INTERNAL_SERVER_ERROR', 'Internal Server Error', 500)
   }
 }

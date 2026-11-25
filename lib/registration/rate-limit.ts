@@ -1,6 +1,7 @@
 import crypto from 'node:crypto'
 import { query } from '@/lib/db'
 import { generateId } from '@/lib/utils-extended'
+import { env } from '@/lib/env';
 
 /**
  * Registration rate limiting.
@@ -37,7 +38,7 @@ export const SLUG_CHECK_RULES: Rule[] = [
 const memory = new Map<string, number[]>()
 
 function salt(): string {
-  return process.env.RATE_LIMIT_SALT || process.env.JWT_SECRET || 'foodbase-registration'
+  return env.RATE_LIMIT_SALT || env.JWT_SECRET || 'foodbase-registration'
 }
 
 /** Stable, non-reversible identifier for storage and in-memory keys. */

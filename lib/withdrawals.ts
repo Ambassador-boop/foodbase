@@ -1,7 +1,8 @@
 import { db } from './db';
 import { resolveTransferFee } from './paystack-fees';
+import { env } from './env';
 
-const PAYSTACK_API_KEY = process.env.PAYSTACK_SECRET_KEY;
+const PAYSTACK_API_KEY = env.PAYSTACK_SECRET_KEY;
 const PAYSTACK_BASE = 'https://api.paystack.co';
 
 export const TERMINAL_FAILED_STATUSES = new Set(['failed', 'reversed', 'abandoned', 'blocked', 'rejected']);

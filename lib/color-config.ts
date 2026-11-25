@@ -8,7 +8,7 @@ export interface ColorConfig {
   accentColor?: string;
 }
 
-export const DEFAULT_COLORS: ColorConfig = {
+export const DEFAULT_COLORS: Required<ColorConfig> = {
   backgroundColor: '#f8f6f2',
   textColor: '#1a1a1a',
   buttonColor: '#8E3800',

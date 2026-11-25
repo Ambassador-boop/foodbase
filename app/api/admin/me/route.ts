@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getTokenFromRequest, verifyToken } from '@/lib/auth'
 import { getOne } from '@/lib/db'
+import { fail } from '@/lib/api';
 
 export const dynamic = 'force-dynamic'
 
@@ -10,7 +11,7 @@ export async function GET(request: NextRequest) {
     const token = await getTokenFromRequest(request)
     const payload = token ? await verifyToken(token) : null
     if (!payload || payload.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      return fail('FORBIDDEN', 'Forbidden', 403)
     }
 
     const user = await getOne(
@@ -28,6 +29,6 @@ export async function GET(request: NextRequest) {
     })
   } catch (error) {
     console.error('[admin] me failed', error)
-    return NextResponse.json({ error: 'Failed to load admin profile' }, { status: 500 })
+    return fail('FAILED_LOAD_ADMIN', 'Failed to load admin profile', 500)
   }
 }

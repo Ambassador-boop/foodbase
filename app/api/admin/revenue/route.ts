@@ -3,6 +3,20 @@ import { getTokenFromRequest, verifyToken } from '@/lib/auth'
 import { getOne, query } from '@/lib/db'
 import { AdminPeriod, periodSqlParams, resolveAdminPeriod, serialisePeriod } from '@/lib/admin-period'
 import { getPaidSummary, getRevenueReconciliation, getSmsSummary, getWithdrawalSummary, num, round2 } from '@/lib/admin-analytics'
+import { z } from 'zod'
+import { fail, parseQuery } from '@/lib/api'
+import { handleUnexpected } from '@/lib/api/handler'
+
+/**
+ * The reporting window. `range` is a named preset; `from` and `to` are ISO
+ * dates used only when `range` is custom. resolveAdminPeriod below is unchanged
+ * and still does the real interpretation.
+ */
+const RevenueQuery = z.object({
+  range: z.string().max(40).optional(),
+  from: z.string().max(40).optional(),
+  to: z.string().max(40).optional(),
+})
 
 export const dynamic = 'force-dynamic'
 
@@ -17,10 +31,16 @@ export async function GET(request: NextRequest) {
   try {
     const token = await getTokenFromRequest(request)
     const user = token ? await verifyToken(token) : null
-    if (!user || user.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (!user || user.role !== 'admin') return fail('FORBIDDEN', 'Forbidden', 403)
 
-    const params = request.nextUrl.searchParams
-    const period = resolveAdminPeriod({ range: params.get('range'), from: params.get('from'), to: params.get('to') })
+    const parsedQuery = parseQuery(request, RevenueQuery, 'Choose a valid reporting period.')
+    if (!parsedQuery.ok) return parsedQuery.response
+
+    const period = resolveAdminPeriod({
+      range: parsedQuery.data.range ?? null,
+      from: parsedQuery.data.from ?? null,
+      to: parsedQuery.data.to ?? null,
+    })
     const previous = previousWindow(period)
     const [start, end] = periodSqlParams(period)
 
@@ -147,7 +167,6 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('[admin] revenue summary failed', error)
-    return NextResponse.json({ error: 'Failed to load revenue' }, { status: 500 })
+    return handleUnexpected(error, { where: 'GET /api/admin/revenue', request })
   }
 }
