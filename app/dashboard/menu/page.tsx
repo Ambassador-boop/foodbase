@@ -19,6 +19,7 @@ import {
   ImageIcon,
 } from 'lucide-react';
 import Image from 'next/image';
+import { apiErrorMessage } from '@/lib/api/errors';
 
 interface MenuItem {
   id: string;
@@ -87,7 +88,7 @@ export default function MenuPage() {
       });
       if (!response.ok) {
         const data = await response.json();
-        setError(data.error || 'Failed to delete menu item');
+        setError(apiErrorMessage(data, 'Failed to delete menu item'));
         return;
       }
       setMenuItems(menuItems.filter((item) => item.id !== menuId));

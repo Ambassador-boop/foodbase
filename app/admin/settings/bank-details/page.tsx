@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ArrowLeft, AlertCircle, ChevronDown, Loader } from 'lucide-react';
 import Link from 'next/link';
+import { apiErrorMessage } from '@/lib/api/errors';
 
 interface Bank {
   id: number;
@@ -100,7 +101,7 @@ method: 'POST',
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.error || 'Account validation failed');
+        setError(apiErrorMessage(data, 'Account validation failed'));
         return;
       }
 
@@ -144,7 +145,7 @@ method: 'POST',
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.error || 'Failed to save bank details');
+        setError(apiErrorMessage(data, 'Failed to save bank details'));
         return;
       }
 

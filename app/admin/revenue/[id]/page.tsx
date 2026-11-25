@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, AlertCircle, Loader } from 'lucide-react';
+import { apiErrorMessage } from '@/lib/api/errors';
 
 interface TransactionDetails {
   transaction: {
@@ -53,7 +54,7 @@ export default function TransactionDetailsPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.error || 'Failed to fetch transaction details');
+        setError(apiErrorMessage(data, 'Failed to fetch transaction details'));
         return;
       }
 

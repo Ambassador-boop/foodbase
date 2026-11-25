@@ -7,6 +7,7 @@ import { Edit2, Eye, Plus, Store, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { EmptyState, ErrorState, PageHeader, Panel, SearchField, StatusPill, TableSkeleton } from '@/components/admin/ui'
 import { count, dateWat } from '@/components/admin/format'
+import { apiErrorMessage } from '@/lib/api/errors';
 
 interface Business {
   id: string
@@ -35,7 +36,7 @@ export default function BusinessesPage() {
     try {
       const response = await fetch('/api/admin/businesses', { credentials: 'include' })
       const data = await response.json()
-      if (!response.ok) throw new Error(typeof data?.error === 'string' ? data.error : 'Failed to load businesses')
+      if (!response.ok) throw new Error(apiErrorMessage(data, 'Failed to load businesses'))
       setBusinesses(data.businesses || [])
     } catch (fetchError) {
       setError(fetchError instanceof Error ? fetchError.message : 'Failed to load businesses')
@@ -52,7 +53,7 @@ export default function BusinessesPage() {
       const response = await fetch(`/api/admin/businesses/${businessId}`, { method: 'DELETE', credentials: 'include' })
       if (!response.ok) {
         const data = await response.json().catch(() => ({}))
-        throw new Error(typeof data?.error === 'string' ? data.error : 'Failed to delete business')
+        throw new Error(apiErrorMessage(data, 'Failed to delete business'))
       }
       setBusinesses((current) => current.filter((business) => business.id !== businessId))
     } catch (deleteError) {

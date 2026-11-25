@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import AddonForm from '@/components/addon-form';
 import { AlertCircle } from 'lucide-react';
+import { apiErrorMessage } from '@/lib/api/errors';
 
 interface Addon {
   id: string;
@@ -34,7 +35,7 @@ export default function EditAddonPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to fetch add-on');
+        throw new Error(apiErrorMessage(data, 'Failed to fetch add-on'));
       }
 
       setAddon(data.addon);

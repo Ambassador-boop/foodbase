@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { apiErrorMessage } from '@/lib/api/errors';
 
 /**
  * qrcode.react ships without type declarations (see types/qrcode-react.d.ts),
@@ -72,7 +73,7 @@ export default function ShareBusinessPage() {
       try {
         const res = await fetch('/api/business', { credentials: 'include' });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed to load business');
+        if (!res.ok) throw new Error(apiErrorMessage(data, 'Failed to load business'));
         if (active) setBusiness(data.business);
       } catch (err: any) {
         if (active) setError(err.message || 'Failed to load business details');

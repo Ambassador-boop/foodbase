@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { AlertCircle, ChevronLeft } from 'lucide-react';
 import Link from 'next/link';
+import { apiErrorMessage } from '@/lib/api/errors';
 
 export default function NewUserPage() {
   const router = useRouter();
@@ -42,7 +43,7 @@ export default function NewUserPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to create user');
+        throw new Error(apiErrorMessage(data, 'Failed to create user'));
       }
 
       router.push('/admin/users');

@@ -8,6 +8,7 @@ import { EmptyState, ErrorState, PageHeader, Panel, StatusPill, TableSkeleton } 
 import { useAdminData } from '@/components/admin/use-admin-data'
 import { count, dateTimeWat } from '@/components/admin/format'
 import type { AttentionItem, AttentionResponse } from '@/components/admin/types'
+import { apiErrorMessage } from '@/lib/api/errors';
 
 type Category = 'all' | 'anomalies' | 'stuckWithdrawals' | 'stuckRefunds' | 'pendingTransfers' | 'paidWithoutTransaction'
 
@@ -114,7 +115,7 @@ export default function AlertsPage() {
         body: JSON.stringify({ kind: item.kind, id: item.id }),
       })
       const body = await response.json().catch(() => ({}))
-      if (!response.ok) throw new Error(typeof body?.error === 'string' ? body.error : 'Could not resolve this alert')
+      if (!response.ok) throw new Error(apiErrorMessage(body, 'Could not resolve this alert'))
       setMessage({ tone: 'success', text: 'Alert resolved.' })
       reload()
     } catch (requestError) {

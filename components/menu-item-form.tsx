@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { AlertCircle, Upload, X } from 'lucide-react';
 import Image from 'next/image';
 import { publicEnv } from '@/lib/env-public';
+import { apiErrorMessage } from '@/lib/api/errors';
 
 interface Category {
   id: string;
@@ -216,7 +217,7 @@ export default function MenuItemForm({ menuItem, isEditing = false }: MenuItemFo
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.error || 'Failed to save menu item');
+        setError(apiErrorMessage(data, 'Failed to save menu item'));
         return;
       }
 

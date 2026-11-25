@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { AlertCircle, ChevronLeft } from 'lucide-react';
 import Link from 'next/link';
+import { apiErrorMessage } from '@/lib/api/errors';
 
 interface User {
   id: string;
@@ -34,7 +35,7 @@ export default function EditUserPage() {
         const response = await fetch(`/api/admin/users/${userId}`);
         const data = await response.json();
 
-        if (!response.ok) throw new Error(data.error);
+        if (!response.ok) throw new Error(apiErrorMessage(data, 'Request failed'));
 
         setFormData(data.user);
       } catch (err) {
@@ -65,7 +66,7 @@ export default function EditUserPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to update user');
+        throw new Error(apiErrorMessage(data, 'Failed to update user'));
       }
 
       router.push('/admin/users');

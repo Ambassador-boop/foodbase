@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { AlertCircle, Upload, X } from 'lucide-react';
 import Image from 'next/image';
 import { publicEnv } from '@/lib/env-public';
+import { apiErrorMessage } from '@/lib/api/errors';
 
 interface Drink {
   id?: string;
@@ -160,7 +161,7 @@ export default function DrinkForm({ drink, isEditing = false }: DrinkFormProps) 
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.error || 'Failed to save drink');
+        setError(apiErrorMessage(data, 'Failed to save drink'));
         return;
       }
 

@@ -27,6 +27,7 @@ import { useToast } from '@/hooks/use-toast';
 import { fetchColorConfig, type ColorConfig, DEFAULT_COLORS } from '@/lib/color-config';
 import { StorefrontFooter } from '@/components/storefront/storefront-footer';
 import { CookingLoader } from '@/components/storefront/cooking-loader';
+import { apiErrorMessage } from '@/lib/api/errors';
 
 /* ------------------------------- Types ------------------------------- */
 
@@ -149,7 +150,7 @@ export default function RestaurantPage() {
     try {
       const response = await fetch(`/api/restaurants/${slug}/menu`);
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Failed to fetch menu');
+      if (!response.ok) throw new Error(apiErrorMessage(data, 'Failed to fetch menu'));
 
       setRestaurant(data.business);
       setMenuItems(data.menuItems || []);

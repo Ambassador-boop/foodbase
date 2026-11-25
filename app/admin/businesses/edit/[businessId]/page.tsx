@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { AlertCircle, ChevronLeft, Upload, X } from 'lucide-react';
 import Link from 'next/link';
 import { uploadImage } from '@/lib/cloudinary';
+import { apiErrorMessage } from '@/lib/api/errors';
 
 interface Business {
   id: string;
@@ -43,7 +44,7 @@ export default function EditBusinessPage() {
         const response = await fetch(`/api/admin/businesses/${businessId}`);
         const data = await response.json();
 
-        if (!response.ok) throw new Error(data.error);
+        if (!response.ok) throw new Error(apiErrorMessage(data, 'Request failed'));
 
         setFormData(data.business);
         if (data.business.logo_url) {
@@ -99,7 +100,7 @@ export default function EditBusinessPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to update business');
+        throw new Error(apiErrorMessage(data, 'Failed to update business'));
       }
 
       router.push(`/admin/businesses/${businessId}`);

@@ -23,6 +23,7 @@ import {
   DEFAULT_COLORS,
 } from '@/lib/color-config';
 import { StorefrontFooter } from '@/components/storefront/storefront-footer';
+import { apiErrorMessage } from '@/lib/api/errors';
 
 /* ----------------------------- Types ----------------------------- */
 
@@ -121,7 +122,7 @@ export default function ItemDetailPage() {
     try {
       const res = await fetch(`/api/restaurants/${slug}/items/${itemId}`);
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Failed to load');
+      if (!res.ok) throw new Error(apiErrorMessage(json, 'Failed to load'));
       setData(json);
       if (json.business?.id) {
         const c = await fetchColorConfig(json.business.id, 'menu');

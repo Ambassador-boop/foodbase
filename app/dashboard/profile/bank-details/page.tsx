@@ -18,6 +18,7 @@ import {
   ShieldCheck,
   User,
 } from 'lucide-react';
+import { apiErrorMessage } from '@/lib/api/errors';
 
 interface Bank {
   id: number;
@@ -114,7 +115,7 @@ const response = await fetch('/api/paystack/validate-account', {
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.error || 'Account validation failed');
+        setError(apiErrorMessage(data, 'Account validation failed'));
         return;
       }
 
@@ -179,7 +180,7 @@ const response = await fetch('/api/paystack/validate-account', {
 
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.error || 'Failed to save bank details');
+        throw new Error(apiErrorMessage(data, 'Failed to save bank details'));
       }
 
       const refreshed = await fetch('/api/business/bank-details', { credentials: 'include' });

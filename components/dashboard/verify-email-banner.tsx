@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import { MailCheck, X } from 'lucide-react'
+import { apiErrorMessage } from '@/lib/api/errors';
 
 /**
  * Non-blocking email verification banner.
@@ -64,7 +65,7 @@ export function VerifyEmailBanner() {
         setSent(true)
         setMessage('Sent. The link expires in 72 hours.')
       } else {
-        setMessage(typeof data?.error === 'string' ? data.error : 'Could not send the link right now.')
+        setMessage(apiErrorMessage(data, 'Could not send the link right now.'))
       }
     } catch {
       setMessage('Could not send the link right now.')

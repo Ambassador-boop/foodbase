@@ -16,6 +16,7 @@ import {
   User,
   Wallet,
 } from 'lucide-react';
+import { apiErrorMessage } from '@/lib/api/errors';
 
 interface OrderResp {
   order: { id: string; customer_name: string; customer_email: string; payment_status: string; payment_reference: string | null; total_amount: number };
@@ -64,7 +65,7 @@ export default function RefundRequestPage() {
         });
         if (!res.ok) {
           const j = await res.json().catch(() => ({}));
-          throw new Error(j.error || 'Failed to load order');
+          throw new Error(apiErrorMessage(j, 'Failed to load order'));
         }
         const j: OrderResp = await res.json();
         setData(j);
@@ -136,7 +137,7 @@ export default function RefundRequestPage() {
       });
       const j = await res.json();
       if (!res.ok && !j.refundId) {
-        throw new Error(j.error || 'Refund failed');
+        throw new Error(apiErrorMessage(j, 'Refund failed'));
       }
       router.push(`/dashboard/finance/refunds/${j.refundId}`);
     } catch (err: any) {

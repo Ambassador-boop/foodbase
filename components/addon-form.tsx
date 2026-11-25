@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { AlertCircle, Upload, X, Trash2 } from 'lucide-react';
 import Image from 'next/image';
 import { publicEnv } from '@/lib/env-public';
+import { apiErrorMessage } from '@/lib/api/errors';
 
 interface MenuItem {
   id: string;
@@ -205,7 +206,7 @@ export default function AddonForm({ addon, isEditing = false }: AddonFormProps) 
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.error || 'Failed to save addon');
+        setError(apiErrorMessage(data, 'Failed to save addon'));
         return;
       }
 

@@ -18,6 +18,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import Image from 'next/image';
+import { apiErrorMessage } from '@/lib/api/errors';
 
 interface AddonOption {
   id: string;
@@ -74,7 +75,7 @@ export default function AddonsPage() {
         credentials: 'include',
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error);
+      if (!response.ok) throw new Error(apiErrorMessage(data, 'Request failed'));
       setAddons(data.addons || []);
     } catch (err) {
       setError('Failed to load add-ons');
@@ -122,7 +123,7 @@ export default function AddonsPage() {
       });
       if (!response.ok) {
         const data = await response.json();
-        setError(data.error || 'Failed to delete add-on');
+        setError(apiErrorMessage(data, 'Failed to delete add-on'));
         return;
       }
       setAddons((prev) => prev.filter((a) => a.id !== addonId));

@@ -26,6 +26,7 @@ import { Badge } from '@/components/ui/badge';
 import { isRefundInProgress, refundStateOf } from '@/components/finance/settlement-status';
 import { formatNaira } from '@/lib/finance';
 import { formatWat } from '@/lib/wat';
+import { apiErrorMessage } from '@/lib/api/errors';
 
 interface OrderItem {
   id: string;
@@ -107,7 +108,7 @@ export default function TransactionDetailPage() {
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
-        throw new Error(j.error || 'Failed to load transaction');
+        throw new Error(apiErrorMessage(j, 'Failed to load transaction'));
       }
       const j: Resp = await res.json();
       setData(j);
@@ -141,7 +142,7 @@ export default function TransactionDetailPage() {
       } else {
         setRecheckMessage({
           tone: j.paystackStatus === 'success' ? 'ok' : 'warn',
-          text: j.message || j.error || 'Online payment has not confirmed this yet.',
+          text: j.message || apiErrorMessage(j, 'Online payment has not confirmed this yet.'),
         });
       }
     } catch (err: any) {

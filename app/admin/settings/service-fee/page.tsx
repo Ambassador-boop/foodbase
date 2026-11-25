@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ArrowLeft, Plus, Trash2, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
+import { apiErrorMessage } from '@/lib/api/errors';
 
 interface ServiceFeeConfig {
   id: string;
@@ -99,7 +100,7 @@ export default function ServiceFeeConfigPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.error || 'Failed to save configuration');
+        setError(apiErrorMessage(data, 'Failed to save configuration'));
         return;
       }
 

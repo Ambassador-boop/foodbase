@@ -13,6 +13,7 @@ import { useAdminData } from '@/components/admin/use-admin-data'
 import { usePinAuthorization } from '@/hooks/use-pin-authorization'
 import { cn } from '@/lib/utils'
 import type { SmsFundingRecord, SmsWalletResponse } from '@/components/admin/types'
+import { apiErrorMessage } from '@/lib/api/errors';
 
 /** Mirrors KUDISMS_VAT_RATE on the server for the pre-submit estimate only. */
 export const SMS_VAT_RATE = 0.075
@@ -156,12 +157,12 @@ export function SmsFundingDialog({
           createdAt: body.inFlight.createdAt,
           failureReason: null,
         })
-        setError(body.error || 'A funding transfer is already being processed')
+        setError(apiErrorMessage(body, 'A funding transfer is already being processed'))
         return
       }
       if (!response.ok) {
         setProblem({
-          message: body?.error || 'Funding could not be started',
+          message: apiErrorMessage(body, 'Funding could not be started'),
           reason: body?.code === 'FUNDING_PENDING' ? 'Wait for the transfer in progress to settle before starting another.' : undefined,
         })
         return

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import PopularDishForm from '@/components/popular-dish-form';
 import { AlertCircle } from 'lucide-react';
+import { apiErrorMessage } from '@/lib/api/errors';
 
 interface PopularDish {
   id: string;
@@ -30,7 +31,7 @@ export default function EditPopularDishPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to fetch dish');
+        throw new Error(apiErrorMessage(data, 'Failed to fetch dish'));
       }
 
       setDish(data.popularDish);

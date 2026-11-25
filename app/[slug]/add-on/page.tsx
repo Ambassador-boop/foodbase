@@ -17,6 +17,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { fetchColorConfig, DEFAULT_COLORS, type ColorConfig } from '@/lib/color-config';
 import { StorefrontFooter } from '@/components/storefront/storefront-footer';
+import { apiErrorMessage } from '@/lib/api/errors';
 
 interface AddonOption {
   id: string;
@@ -86,7 +87,7 @@ export default function AddonPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to fetch menu');
+        throw new Error(apiErrorMessage(data, 'Failed to fetch menu'));
       }
 
       setRestaurant(data.business);

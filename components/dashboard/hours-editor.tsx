@@ -18,6 +18,7 @@ import {
   nextOpeningAt,
   type DayHours,
 } from '@/lib/hours-shared'
+import { apiErrorMessage } from '@/lib/api/errors';
 
 /**
  * Opening hours editor.
@@ -49,7 +50,7 @@ export function HoursEditor() {
     try {
       const response = await fetch('/api/business/hours', { credentials: 'include' })
       const data = await response.json().catch(() => ({}))
-      if (!response.ok) throw new Error(typeof data?.error === 'string' ? data.error : 'Failed')
+      if (!response.ok) throw new Error(apiErrorMessage(data, 'Failed'))
       setState({
         days: Array.isArray(data.days) ? data.days : [],
         acceptOrdersOutsideHours: data.acceptOrdersOutsideHours !== false,
@@ -178,7 +179,7 @@ export function HoursEditor() {
       const data = await response.json().catch(() => ({}))
       if (!response.ok) {
         toast.error('Could not save', {
-          description: typeof data?.error === 'string' ? data.error : 'Try again in a moment.',
+          description: apiErrorMessage(data, 'Try again in a moment.'),
         })
         return
       }
