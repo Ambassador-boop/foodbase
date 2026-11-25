@@ -1,193 +1,44 @@
-@import 'tailwindcss';
-@import 'tw-animate-css';
+/* --------------------------------------------------------------------------
+   app/globals.css
+   --------------------------------------------------------------------------
+   The design system lives in styles/globals.css: palette, semantic roles, the
+   shadcn mapping, type scale, radii, elevation and motion. This file imports
+   it and keeps only the scoped blocks that the older screens rely on.
 
-@custom-variant dark (&:is(.dark *));
+   The old :root / .dark / @theme blocks that used to sit here are gone: they
+   were the stock grayscale shadcn theme plus a second, competing warm palette.
+   Everything they declared is now derived from the brand tokens, under the
+   same variable names, so no page needs editing to pick up the brand.
+   -------------------------------------------------------------------------- */
 
-:root {
-  --background: #FBF4EE;
-  --foreground: #1D1A17;
-  --card: #FFFFFF;
-  --card-foreground: #1D1A17;
-  --popover: #FFFFFF;
-  --popover-foreground: #1D1A17;
-  --primary: #8E3800;
-  --primary-foreground: #FFFFFF;
-  --secondary: #FFFFFF;
-  --secondary-foreground: #1D1A17;
-  --muted: #F6EBE1;
-  --muted-foreground: #7A6F66;
-  --accent: #FFEDE0;
-  --accent-foreground: #8E3800;
-  --destructive: #D64545;
-  --destructive-foreground: #FFFFFF;
-  --border: #EFE3D8;
-  --input: #FFFFFF;
-  --ring: rgba(242,106,33,0.35);
-  --success: #1F9D55;
-  --success-bg: #E6F6EC;
-  --warning: #B7791F;
-  --warning-bg: #FFF4D6;
-  --danger: #D64545;
-  --danger-bg: #FDE9E7;
-  --neutral: #475569;
-  --neutral-bg: #EEF2F7;
-  --brand-deep: #8E3800;
-  --radius: 14px;
-  --chart-1: #F26A21;
-  --chart-2: #1F9D55;
-  --chart-3: #B7791F;
-  --chart-4: #475569;
-  --chart-5: #8E3800;
-  --radius: 14px;
-  --sidebar: oklch(0.96 0.01 60);
-  --sidebar-foreground: oklch(0.15 0 0);
-  --sidebar-primary: oklch(0.45 0.15 60);
-  --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.5 0.12 140);
-  --sidebar-accent-foreground: oklch(0.15 0 0);
-  --sidebar-border: oklch(0.9 0.01 60);
-  --sidebar-ring: oklch(0.45 0.15 60);
-}
-
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.145 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.145 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.985 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.396 0.141 25.723);
-  --destructive-foreground: oklch(0.637 0.237 25.331);
-  --border: oklch(0.269 0 0);
-  --input: oklch(0.269 0 0);
-  --ring: oklch(0.439 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(0.269 0 0);
-  --sidebar-ring: oklch(0.439 0 0);
-}
-
-@theme inline {
-  --font-sans: 'Plus Jakarta Sans', Arial, sans-serif;
-  --font-mono: 'Geist Mono', 'Geist Mono Fallback';
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
-}
-
-.num { font-variant-numeric: tabular-nums; }
+@import '../styles/globals.css';
 
 @layer base {
-  * {
-    @apply border-border;
-    -webkit-tap-highlight-color: transparent;
-  }
-
-  html {
-    font-size: 16px;
-  }
-
-  *:focus-visible {
-    outline: 2px solid transparent;
-    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.05);
-  }
-
-  body {
-    @apply bg-background text-foreground;
-  }
-
-  /* Hide v0 badge and related elements */
-  [class*="v0"],
-  [id*="v0"],
-  a[href*="v0.app"] {
+  /* Hide the v0 badge and related elements. */
+  [class*='v0'],
+  [id*='v0'],
+  a[href*='v0.app'] {
     display: none !important;
     visibility: hidden !important;
     opacity: 0 !important;
   }
 }
 
-/* Admin console additions (scoped, additive) */
-:root {
-  --info: #1F6FB2;
-  --info-bg: #E8F1F9;
-  --surface-raised: #FFFFFF;
-  --shadow-card: 0 1px 2px rgba(29, 26, 23, 0.04);
-  --shadow-popover: 0 10px 30px rgba(29, 26, 23, 0.12);
-}
-
+/* Admin console additions (scoped, additive). */
 .admin-surface {
   font-feature-settings: 'cv11', 'ss01';
-  /* Slightly darker secondary text so 11-12px labels clear AA contrast on the cream background. */
-  --muted-foreground: #6B5F55;
+  /* Slightly darker secondary text so 11-12px labels clear AA contrast on the
+     cream background. */
+  --muted-foreground: #6b5f55;
 }
 
 .admin-surface :focus-visible {
-  outline: 2px solid var(--primary);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
-  box-shadow: none;
 }
 
 .admin-surface .num {
   font-variant-numeric: tabular-nums;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .admin-surface *,
-  .admin-surface *::before,
-  .admin-surface *::after {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
-  }
 }
 
 /*
@@ -196,91 +47,78 @@
  * Settlement is neither a credit nor a debit: money the business already
  * earned is simply moved from "pending" to "available". Green (credit) and
  * red (debit) are reserved for money actually entering or leaving the
- * business, so settlements get their own calm, warm slate tone and refunds
+ * business, so settlements get their own calm, warm neutral tone and refunds
  * get a neutral one with an explicit minus sign.
  */
-:root {
-  --settle: #5A4636;
-  --settle-bg: #F3EBE3;
-  --settle-border: #E5D6C7;
-  --settle-muted: #7A6F66;
-}
-
-.dark {
-  --settle: #E4D3C4;
-  --settle-bg: #2A2420;
-  --settle-border: #3B322B;
-  --settle-muted: #A79A8E;
-}
 
 /* ==========================================================================
    Dashboard design system tokens (Batch 3A, additive)
    --------------------------------------------------------------------------
-   Nothing above this block is changed. These are new, namespaced tokens used
-   by every component in components/dashboard/. They exist so the dashboard
-   screens share one palette, one spacing rhythm and one motion language
-   instead of re-deriving colours per page.
+   Namespaced tokens used by every component in components/dashboard/. They now
+   point at the brand tokens rather than carrying a second palette of their
+   own; the names are unchanged so no dashboard component has to be touched.
    ========================================================================== */
 
 :root {
-  /* Brand, unchanged values, exposed under dashboard names */
-  --dash-brown: #8E3800;
-  --dash-brown-deep: #6F2C00;
-  --dash-brown-soft: #A85C2B;
-  --dash-cream: #FBF4EE;
-  --dash-sand: #F4E9DE;
-  --dash-sand-deep: #EBDCCD;
+  --dash-brown: var(--color-brand-600);
+  --dash-brown-deep: var(--color-brand-700);
+  --dash-brown-soft: var(--color-brand-500);
+  --dash-cream: var(--paper);
+  --dash-sand: var(--color-brand-50);
+  --dash-sand-deep: var(--color-brand-100);
 
-  /* Structure */
-  --dash-line: #E9DCD0;
-  --dash-line-strong: #D9C7B7;
-  --dash-surface: #FFFFFF;
-  --dash-surface-sunken: #FBF8F4;
-  --dash-surface-inset: #F7F0E8;
+  --dash-line: var(--line);
+  --dash-line-strong: var(--line-strong);
+  --dash-surface: var(--surface);
+  --dash-surface-sunken: var(--paper);
+  --dash-surface-inset: var(--color-brand-50);
 
-  /* Text. ink-3 clears AA (4.5:1) on --dash-cream for 13px and up. */
-  --dash-ink-1: #1D1A17;
-  --dash-ink-2: #453D36;
-  --dash-ink-3: #6B5D52;
-  --dash-ink-4: #8B7D71;
+  --dash-ink-1: var(--ink);
+  --dash-ink-2: #453d36;
+  --dash-ink-3: var(--ink-muted);
+  --dash-ink-4: #8b7d71;
 
-  /* State */
-  --dash-focus: #8E3800;
-  --dash-success: #1F7A47;
-  --dash-success-bg: #E8F4EC;
-  --dash-warning: #8A5A12;
-  --dash-warning-bg: #FBF1DC;
-  --dash-danger: #B23A3A;
-  --dash-danger-bg: #FBEBE9;
-  --dash-info: #1F5F8B;
-  --dash-info-bg: #E9F1F7;
+  --dash-focus: var(--focus-ring);
+  --dash-success: var(--success);
+  --dash-success-bg: var(--success-soft);
+  --dash-warning: var(--warning);
+  --dash-warning-bg: var(--warning-soft);
+  --dash-danger: var(--danger);
+  --dash-danger-bg: var(--danger-soft);
+  --dash-info: var(--info);
+  --dash-info-bg: var(--info-soft);
 
-  /* Elevation: flat by default. Cards are separated by a hairline, not a shadow. */
-  --dash-shadow-1: 0 1px 1px rgba(29, 26, 23, 0.03);
-  --dash-shadow-2: 0 2px 6px rgba(29, 26, 23, 0.06), 0 1px 2px rgba(29, 26, 23, 0.04);
-  --dash-shadow-pop: 0 18px 40px -12px rgba(29, 26, 23, 0.22), 0 2px 6px rgba(29, 26, 23, 0.06);
+  --dash-shadow-1: 0 1px 2px rgba(31, 22, 17, 0.06);
+  --dash-shadow-2: 0 1px 2px rgba(31, 22, 17, 0.06), 0 4px 12px rgba(31, 22, 17, 0.06);
+  --dash-shadow-pop: 0 1px 2px rgba(31, 22, 17, 0.06), 0 4px 12px rgba(31, 22, 17, 0.06);
 
-  /* Motion. Fast for state, base for layout. Never longer than 200ms. */
-  --dash-motion-fast: 150ms;
-  --dash-motion-base: 180ms;
-  --dash-ease: cubic-bezier(0.2, 0.7, 0.3, 1);
+  --dash-motion-fast: 120ms;
+  --dash-motion-base: 200ms;
+  --dash-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
 
-  /* Layout rhythm (4/8 scale) */
   --dash-gutter: 16px;
   --dash-page-max: 1320px;
 }
 
-/* Type stacks for the new screens. `--font-editorial` and `--font-dashboard-ui`
-   are injected by next/font on <html>, so these reference them without naming
-   themselves (a self-referential custom property is a cycle and silently drops
-   the font). Existing pages keep their own font-family untouched. */
-:root {
-  --dash-font-display: var(--font-editorial), 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
-  --dash-font-ui: var(--font-dashboard-ui), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+[data-theme='dark'],
+.dark {
+  --dash-ink-2: #ded2c6;
+  --dash-ink-4: #7d6f63;
+  --dash-surface-sunken: #14100d;
+  --dash-surface-inset: #241d18;
+  --dash-sand: #241d18;
+  --dash-sand-deep: #2a221b;
 }
 
-/* Scopes the dashboard type pairing and focus treatment to new screens only.
-   Existing dashboard pages keep their current look until they are migrated. */
+/* Type stacks for the new screens. `--font-editorial` is injected by
+   next/font on the layout that needs it; `--font-dashboard-ui` now resolves to
+   the one interface face the whole product shares. */
+:root {
+  --dash-font-display: var(--font-editorial), var(--font-display);
+  --dash-font-ui: var(--font-dashboard-ui), var(--font-sans);
+}
+
+/* Scopes the dashboard type pairing and focus treatment to new screens only. */
 .dash-surface {
   font-family: var(--dash-font-ui);
   font-feature-settings: 'ss01', 'cv05';
@@ -291,7 +129,6 @@
 .dash-surface :focus-visible {
   outline: 2px solid var(--dash-focus);
   outline-offset: 2px;
-  box-shadow: none;
 }
 
 .dash-display {
@@ -322,14 +159,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .dash-surface *,
-  .dash-surface *::before,
-  .dash-surface *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
   .dash-rise:hover {
     transform: none;
   }

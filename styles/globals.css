@@ -1,82 +1,300 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
-@custom-variant dark (&:is(.dark *));
+/* --------------------------------------------------------------------------
+   FoodBase design system
+   --------------------------------------------------------------------------
+   This file is the single source of truth for colour, type, spacing, radii,
+   elevation and motion. It is imported by app/globals.css, which keeps only the
+   older scoped blocks (admin surface, dashboard tokens, settlement semantics).
 
-:root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+   Two layers of colour:
+     1. the raw palette, declared in `@theme` (brand-50..900, the four status
+        pairs). These never change between themes;
+     2. the semantic roles (paper, surface, line, ink, muted), declared in
+        `@theme inline` and pointing at plain custom properties that are
+        redefined under [data-theme="dark"]. `@theme inline` is what makes a
+        utility like `bg-paper` compile to `background-color: var(--paper)`
+        instead of a frozen hex, so one override flips the whole product.
+
+   Nothing here is a gradient, a glow, a blur or a decorative shape.
+   -------------------------------------------------------------------------- */
+
+/* Dark is opt-in and explicit: the kitchen display and the finance dashboards
+   set data-theme="dark". `.dark` is kept because next-themes and a few older
+   screens still toggle that class. */
+@custom-variant dark (&:where(.dark, .dark *, [data-theme='dark'], [data-theme='dark'] *));
+
+@theme {
+  /* ---- Brand ramp, taken from the logo -------------------------------- */
+  --color-brand-50: #fdf5ea;
+  --color-brand-100: #fcecd4;
+  --color-brand-200: #f4d2a8;
+  --color-brand-300: #e7ad70;
+  --color-brand-400: #cf7f3d;
+  --color-brand-500: #b35a17;
+  --color-brand-600: #8c3800;
+  --color-brand-700: #6e2c00;
+  --color-brand-800: #4f2000;
+  --color-brand-900: #331500;
+
+  /* ---- Type ----------------------------------------------------------- */
+  /* next/font injects --font-instrument-sans, --font-fraunces and
+     --font-geist-mono on <html>. The names below are the ones the product
+     uses, so no component ever has to know which loader supplied the face. */
+  --font-sans: var(--font-instrument-sans), ui-sans-serif, system-ui, -apple-system,
+    'Segoe UI', Arial, sans-serif;
+  --font-display: var(--font-fraunces), 'Iowan Old Style', Georgia, 'Times New Roman', serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* The type scale is not a set of `text-*` theme entries on purpose: a
+     `text-<name>` utility is ambiguous with the colour namespace, and
+     tailwind-merge resolved that ambiguity by dropping one of the two classes.
+     The scale lives in the .type-* classes below instead, where it cannot
+     collide with a colour. */
+
+  /* ---- Spacing: one scale, 4 px base --------------------------------- */
+  --spacing: 0.25rem;
+
+  /* ---- Radii: two values, nothing else ------------------------------- */
+  /* The shadcn names are remapped onto the same two values so existing
+     `rounded-lg` / `rounded-xl` call sites land on 14 px and `rounded-md` on
+     8 px instead of five different corner sizes. */
+  --radius-xs: 8px;
+  --radius-sm: 8px;
+  --radius-md: 8px;
+  --radius-lg: 14px;
+  --radius-xl: 14px;
+  --radius-2xl: 14px;
+  --radius-3xl: 14px;
+  --radius-4xl: 14px;
+  --radius-control: 8px;
+  --radius-card: 14px;
+
+  /* ---- Elevation: exactly one raised shadow -------------------------- */
+  /* Every elevation step resolves to it, so nothing in the product can drift
+     into a second, heavier shadow. */
+  --shadow-2xs: 0 1px 2px rgba(31, 22, 17, 0.06), 0 4px 12px rgba(31, 22, 17, 0.06);
+  --shadow-xs: 0 1px 2px rgba(31, 22, 17, 0.06), 0 4px 12px rgba(31, 22, 17, 0.06);
+  --shadow-sm: 0 1px 2px rgba(31, 22, 17, 0.06), 0 4px 12px rgba(31, 22, 17, 0.06);
+  --shadow-md: 0 1px 2px rgba(31, 22, 17, 0.06), 0 4px 12px rgba(31, 22, 17, 0.06);
+  --shadow-lg: 0 1px 2px rgba(31, 22, 17, 0.06), 0 4px 12px rgba(31, 22, 17, 0.06);
+  --shadow-xl: 0 1px 2px rgba(31, 22, 17, 0.06), 0 4px 12px rgba(31, 22, 17, 0.06);
+  --shadow-2xl: 0 1px 2px rgba(31, 22, 17, 0.06), 0 4px 12px rgba(31, 22, 17, 0.06);
+
+  /* ---- Motion: three durations, one curve, no bounce ----------------- */
+  --ease-brand: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
+/* --------------------------------------------------------------------------
+   Semantic roles
+   -------------------------------------------------------------------------- */
+
+:root {
+  /* Light theme */
+  --paper: #fbf7f1;
+  --surface: #ffffff;
+  --line: #e7dfd4;
+  --ink: #1f1611;
+  --ink-muted: #6b5e55;
+
+  /* Control borders are a separate role from dividers. A hairline at
+     #E7DFD4 is 1.2:1 on paper, which is fine for a decorative rule and far
+     below the 3:1 that WCAG 1.4.11 asks of the boundary that identifies a
+     control. --line-strong is the smallest darkening of the same hue that
+     clears 3:1 on all three light surfaces (3.06:1 on the muted fill, 3.35:1
+     on paper, 3.58:1 on a card). See scripts/check-contrast.ts. */
+  --line-strong: #948573;
+
+  --success: #1f7a4d;
+  --success-soft: #e6f3ec;
+  --warning: #9c5c00;
+  --warning-soft: #fbf0dd;
+  --danger: #b3261e;
+  --danger-soft: #fbe9e7;
+  --info: #2f5d7c;
+  --info-soft: #e6eef4;
+
+  /* Neutral state: "no colour of its own", used by settled and rejected. */
+  --neutral: #6b5e55;
+  --neutral-soft: #f1eae0;
+
+  --focus-ring: #8c3800;
+  --link: #8c3800;
+
+  /* ---- shadcn mapping -------------------------------------------------
+     Every existing screen reads these names. They now resolve to brand
+     tokens, so pages pick up the palette without being edited. No existing
+     variable name is removed. */
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --card: var(--surface);
+  --card-foreground: var(--ink);
+  --popover: var(--surface);
+  --popover-foreground: var(--ink);
+
+  --primary: var(--color-brand-600);
+  --primary-foreground: #ffffff;
+
+  --secondary: var(--color-brand-100);
+  --secondary-foreground: var(--color-brand-800);
+
+  /* `muted` stays a background in shadcn's sense; the design system's muted
+     TEXT role is --ink-muted, exposed as --muted-foreground. */
+  --muted: #f4ece2;
+  --muted-foreground: var(--ink-muted);
+
+  --accent: var(--color-brand-100);
+  --accent-foreground: var(--color-brand-700);
+
+  --destructive: var(--danger);
+  --destructive-foreground: #ffffff;
+
+  --border: var(--line);
+  --input: var(--line-strong);
+  --ring: var(--focus-ring);
+
+  --chart-1: var(--color-brand-600);
+  --chart-2: var(--color-brand-300);
+  --chart-3: var(--info);
+  --chart-4: var(--success);
+  --chart-5: var(--warning);
+
+  --sidebar: var(--surface);
+  --sidebar-foreground: var(--ink);
+  --sidebar-primary: var(--color-brand-600);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: var(--color-brand-50);
+  --sidebar-accent-foreground: var(--color-brand-700);
+  --sidebar-border: var(--line);
+  --sidebar-ring: var(--focus-ring);
+
+  --radius: 14px;
+
+  /* ---- legacy names, remapped so old call sites follow the brand ------ */
+  --success-bg: var(--success-soft);
+  --warning-bg: var(--warning-soft);
+  --danger-bg: var(--danger-soft);
+  --info-bg: var(--info-soft);
+  --neutral-bg: var(--neutral-soft);
+  --brand-deep: var(--color-brand-700);
+
+  --settle: var(--ink-muted);
+  --settle-bg: var(--color-brand-50);
+  --settle-border: var(--line);
+  --settle-muted: var(--ink-muted);
+
+  --surface-raised: var(--surface);
+  --shadow-card: 0 1px 2px rgba(31, 22, 17, 0.06), 0 4px 12px rgba(31, 22, 17, 0.06);
+  --shadow-popover: 0 1px 2px rgba(31, 22, 17, 0.06), 0 4px 12px rgba(31, 22, 17, 0.06);
+}
+
+/* Dark theme: the kitchen display and the finance dashboards. Cream becomes
+   the accent that carries action, so the primary button flips to a cream
+   surface with brand-800 text and links use brand-300. */
+[data-theme='dark'],
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.145 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.145 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.985 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.396 0.141 25.723);
-  --destructive-foreground: oklch(0.637 0.237 25.331);
-  --border: oklch(0.269 0 0);
-  --input: oklch(0.269 0 0);
-  --ring: oklch(0.439 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(0.269 0 0);
-  --sidebar-ring: oklch(0.439 0 0);
+  --paper: #14100d;
+  --surface: #1c1612;
+  --line: #342b24;
+  --ink: #f3eae0;
+  --ink-muted: #a89a8e;
+
+  /* 3.70:1 on the dark paper. */
+  --line-strong: #7a6a5c;
+
+  --success: #5fbf8c;
+  --success-soft: #172a20;
+  --warning: #e0a94e;
+  --warning-soft: #2a2114;
+  --danger: #ef8078;
+  --danger-soft: #2c1815;
+  --info: #7fb0cf;
+  --info-soft: #16222a;
+
+  --neutral: #a89a8e;
+  --neutral-soft: #241d18;
+
+  --focus-ring: #e7ad70;
+  --link: #e7ad70;
+
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --card: var(--surface);
+  --card-foreground: var(--ink);
+  --popover: var(--surface);
+  --popover-foreground: var(--ink);
+
+  --primary: var(--color-brand-100);
+  --primary-foreground: var(--color-brand-800);
+
+  --secondary: #2a221b;
+  --secondary-foreground: var(--ink);
+
+  --muted: #241d18;
+  --muted-foreground: var(--ink-muted);
+
+  --accent: #2a221b;
+  --accent-foreground: var(--color-brand-300);
+
+  --destructive: var(--danger);
+  --destructive-foreground: #1c1612;
+
+  --border: var(--line);
+  --input: var(--line-strong);
+  --ring: var(--focus-ring);
+
+  --chart-1: var(--color-brand-300);
+  --chart-2: var(--color-brand-500);
+  --chart-3: var(--info);
+  --chart-4: var(--success);
+  --chart-5: var(--warning);
+
+  --sidebar: var(--surface);
+  --sidebar-foreground: var(--ink);
+  --sidebar-primary: var(--color-brand-300);
+  --sidebar-primary-foreground: var(--color-brand-900);
+  --sidebar-accent: #241d18;
+  --sidebar-accent-foreground: var(--ink);
+  --sidebar-border: var(--line);
+  --sidebar-ring: var(--focus-ring);
+
+  --success-bg: var(--success-soft);
+  --warning-bg: var(--warning-soft);
+  --danger-bg: var(--danger-soft);
+  --info-bg: var(--info-soft);
+  --neutral-bg: var(--neutral-soft);
+  --brand-deep: var(--color-brand-300);
+
+  --settle: var(--ink-muted);
+  --settle-bg: #241d18;
+  --settle-border: var(--line);
+  --settle-muted: var(--ink-muted);
+
+  --surface-raised: var(--surface);
 }
 
 @theme inline {
-  --font-sans: 'Geist', 'Geist Fallback';
-  --font-mono: 'Geist Mono', 'Geist Mono Fallback';
+  /* Roles that change with the theme. */
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-neutral: var(--neutral);
+  --color-neutral-soft: var(--neutral-soft);
+
+  /* shadcn names, now brand-backed. */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -101,10 +319,6 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -115,11 +329,188 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
+/* --------------------------------------------------------------------------
+   Base
+   -------------------------------------------------------------------------- */
+
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border;
+    -webkit-tap-highlight-color: transparent;
   }
+
+  html {
+    font-size: 16px;
+    -webkit-text-size-adjust: 100%;
+  }
+
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+    font-feature-settings: 'ss01' 1;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Headings take the display face. Sizes are deliberately not set here: the
+     type scale is opt-in through .type-* so no existing page is re-laid-out. */
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+
+  /* Inputs never fall below 16 px on mobile: smaller text makes iOS zoom the
+     page on focus. */
+  @media (max-width: 767px) {
+    input,
+    select,
+    textarea {
+      font-size: 1rem;
+    }
+  }
+
+  /* One focus treatment, always visible, never removed. */
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  summary:focus-visible,
+  [tabindex]:focus-visible,
+  [role='button']:focus-visible,
+  [role='tab']:focus-visible,
+  [role='checkbox']:focus-visible,
+  [role='radio']:focus-visible,
+  [role='switch']:focus-visible,
+  [role='menuitem']:focus-visible,
+  [role='option']:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: var(--color-brand-200);
+    color: var(--color-brand-900);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Type utilities
+   -------------------------------------------------------------------------- */
+
+@layer components {
+  .type-display {
+    font-family: var(--font-display);
+    font-size: 2.5rem; /* 40 */
+    line-height: 3rem; /* 48 */
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+
+  .type-h1 {
+    font-family: var(--font-display);
+    font-size: 2rem; /* 32 */
+    line-height: 2.375rem; /* 38 */
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+
+  .type-h2 {
+    font-family: var(--font-display);
+    font-size: 1.5rem; /* 24 */
+    line-height: 1.875rem; /* 30 */
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+  }
+
+  .type-h3 {
+    font-family: var(--font-display);
+    font-size: 1.25rem; /* 20 */
+    line-height: 1.625rem; /* 26 */
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  .type-body {
+    font-family: var(--font-sans);
+    font-size: 1rem; /* 16 */
+    line-height: 1.5rem; /* 24 */
+  }
+
+  .type-small {
+    font-family: var(--font-sans);
+    font-size: 0.875rem; /* 14 */
+    line-height: 1.25rem; /* 20 */
+  }
+
+  .type-caption {
+    font-family: var(--font-sans);
+    font-size: 0.75rem; /* 12 */
+    line-height: 1rem; /* 16 */
+    letter-spacing: 0.01em;
+  }
+
+  /* Desktop steps: display 56/60, h1 40/46, h2 28/34. h3 and below are the
+     same at every width, because they are already small enough to read. */
+  @media (min-width: 768px) {
+    .type-display {
+      font-size: 3.5rem; /* 56 */
+      line-height: 3.75rem; /* 60 */
+    }
+
+    .type-h1 {
+      font-size: 2.5rem; /* 40 */
+      line-height: 2.875rem; /* 46 */
+    }
+
+    .type-h2 {
+      font-size: 1.75rem; /* 28 */
+      line-height: 2.125rem; /* 34 */
+    }
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Utilities
+   -------------------------------------------------------------------------- */
+
+/* Tabular figures. Applied to every amount, every numeric table column and
+   every timer, so a column of naira values lines up on the decimal point. */
+@utility tnum {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: 'tnum' 1, 'lnum' 1;
+}
+
+/* Kept for the older screens that already use it. */
+@utility num {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: 'tnum' 1, 'lnum' 1;
+}
+
+/* The single raised surface. */
+@utility raised {
+  box-shadow: 0 1px 2px rgba(31, 22, 17, 0.06), 0 4px 12px rgba(31, 22, 17, 0.06);
+}
+
+/* --------------------------------------------------------------------------
+   Motion
+   --------------------------------------------------------------------------
+   120 ms for state, 200 ms for surfaces appearing, 300 ms for a panel moving.
+   Nothing bounces. Everything stops under prefers-reduced-motion.
+   -------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
