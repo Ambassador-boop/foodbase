@@ -5,6 +5,8 @@ import * as AvatarPrimitive from '@radix-ui/react-avatar'
 
 import { cn } from '@/lib/utils'
 
+/** Avatar. A circle (the one shape that is not a radius token) with a cream
+ * fallback carrying the initials in brand ink. */
 function Avatar({
   className,
   ...props
@@ -28,7 +30,7 @@ function AvatarImage({
   return (
     <AvatarPrimitive.Image
       data-slot="avatar-image"
-      className={cn('aspect-square size-full', className)}
+      className={cn('aspect-square size-full object-cover', className)}
       {...props}
     />
   )
@@ -42,7 +44,7 @@ function AvatarFallback({
     <AvatarPrimitive.Fallback
       data-slot="avatar-fallback"
       className={cn(
-        'bg-muted flex size-full items-center justify-center rounded-full',
+        'flex size-full items-center justify-center rounded-full bg-brand-100 type-caption font-medium text-brand-800',
         className,
       )}
       {...props}
