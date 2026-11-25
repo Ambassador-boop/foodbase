@@ -1,56 +1,94 @@
 import type { Metadata, Viewport } from 'next'
-import { Geist_Mono, Plus_Jakarta_Sans } from 'next/font/google'
+import { Fraunces, Geist_Mono, Instrument_Sans } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
-import { Toaster } from 'sonner'
+import { Toaster } from '@/components/ui/sonner'
 import { HideV0Badge } from '@/components/HideV0Badge'
 import './globals.css'
 
-const jakarta = Plus_Jakarta_Sans({ subsets: ['latin'], weight: ['400', '500', '600', '700'], variable: '--font-jakarta' });
-const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-geist-mono' });
+/**
+ * Two faces, one monospace.
+ *
+ * Fraunces (display) and Instrument Sans (interface) are loaded for the whole
+ * product. Both ask for latin AND latin-ext on purpose: the Naira sign U+20A6
+ * lives in latin-ext, and a price that renders a missing-glyph box is a bug
+ * customers see on every screen. `display: 'swap'` keeps text visible while
+ * the faces load.
+ *
+ * Geist Mono is kept because references, order IDs and bank account numbers are
+ * set in a monospace across the admin and finance screens. It is the one
+ * monospace the product uses; it also needs latin-ext for the Naira sign.
+ *
+ * The Batch 3A editorial serif (Instrument Serif) is still NOT loaded here: it
+ * is only used by the dashboard, the admin console and the registration page,
+ * each of which pulls it in through lib/editorial-fonts.tsx.
+ */
+const instrumentSans = Instrument_Sans({
+  subsets: ['latin', 'latin-ext'],
+  weight: ['400', '500', '600', '700'],
+  display: 'swap',
+  variable: '--font-instrument-sans',
+})
 
-// The Batch 3A editorial pairing is NOT loaded here on purpose: only the
-// dashboard, the admin console and the registration page use it, and each of
-// those loads it in its own layout (lib/editorial-fonts.tsx). The storefront and
-// the rest of the product keep Plus Jakarta Sans above and never download it.
+const fraunces = Fraunces({
+  subsets: ['latin', 'latin-ext'],
+  weight: ['500', '600', '700'],
+  display: 'swap',
+  variable: '--font-fraunces',
+})
+
+const geistMono = Geist_Mono({
+  subsets: ['latin', 'latin-ext'],
+  display: 'swap',
+  variable: '--font-geist-mono',
+})
 
 export const metadata: Metadata = {
-  title: 'FoodBase',
-  description: 'FoodBase helps restaurants and food lovers connect — order food, manage menus, track orders, and process payments all in one place.',
-  generator: 'v0.app',
+  metadataBase: new URL('https://foodbase.ng'),
+  title: {
+    default: 'FoodBase',
+    template: '%s | FoodBase',
+  },
+  description:
+    'FoodBase helps restaurants and food lovers connect — order food, manage menus, track orders, and process payments all in one place.',
   applicationName: 'FoodBase',
   authors: [{ name: 'Wisdom Technologies' }],
-  keywords: ['restaurant', 'food ordering', 'order food online', 'food delivery Nigeria', 'restaurant management', 'menu management', 'payments', 'Abuja food', 'Lagos food', 'Nigeria food'],
+  keywords: [
+    'restaurant',
+    'food ordering',
+    'order food online',
+    'food delivery Nigeria',
+    'restaurant management',
+    'menu management',
+    'payments',
+    'Abuja food',
+    'Lagos food',
+    'Nigeria food',
+  ],
   alternates: {
     canonical: 'https://foodbase.ng',
   },
-  icons: {
-    icon: [
-      {
-        url: '/foodbase-logo.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/foodbase-logo.png',
-        media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
-      },
-    ],
-    apple: '/foodbase-logo.png',
-  },
+  // The icon files below are Next.js file conventions (app/icon.svg,
+  // app/apple-icon.png, app/favicon.ico) from the logo kit, so they are
+  // resolved automatically and are deliberately not listed here.
   openGraph: {
     type: 'website',
     locale: 'en_NG',
     url: 'https://foodbase.ng',
     siteName: 'FoodBase',
-    description: 'FoodBase connects restaurants and food lovers — order food, manage menus, and process payments seamlessly.',
+    title: 'FoodBase',
+    description:
+      'FoodBase connects restaurants and food lovers — order food, manage menus, and process payments seamlessly.',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'FoodBase',
+    description:
+      'FoodBase connects restaurants and food lovers — order food, manage menus, and process payments seamlessly.',
   },
 }
 
 export const viewport: Viewport = {
-  themeColor: '#8E3800',
+  themeColor: '#8C3800',
   width: 'device-width',
   initialScale: 1,
   maximumScale: 5,
@@ -65,7 +103,10 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className={`${jakarta.variable} ${geistMono.variable}`}>
+    <html
+      lang="en"
+      className={`${instrumentSans.variable} ${fraunces.variable} ${geistMono.variable}`}
+    >
       <head>
         <script dangerouslySetInnerHTML={{
           __html: `
@@ -99,7 +140,7 @@ export default function RootLayout({
       <body className="font-sans antialiased bg-background text-foreground">
         <HideV0Badge />
         {children}
-        <Toaster position="top-center" richColors closeButton />
+        <Toaster position="top-center" closeButton />
         <Analytics />
       </body>
     </html>

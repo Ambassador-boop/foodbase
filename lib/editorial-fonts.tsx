@@ -1,61 +1,51 @@
 'use client'
 
 import * as React from 'react'
-import { Instrument_Sans, Instrument_Serif } from 'next/font/google'
+import { Instrument_Serif } from 'next/font/google'
 
 /**
- * The Batch 3A editorial type pairing.
+ * The Batch 3A editorial serif.
  *
- * These two families are only used by the screens that opt into the dashboard
- * design system (`.dash-surface` / `.dash-display`): the dashboard, the admin
- * console and the restaurant registration page. They used to be loaded in
- * `app/layout.tsx`, which meant every visitor - including every storefront
- * customer - downloaded two font families they never saw.
+ * Only the screens that opt into the dashboard design system (`.dash-surface` /
+ * `.dash-display`) use it: the dashboard, the admin console and the restaurant
+ * registration page. It used to be loaded in `app/layout.tsx`, which meant every
+ * visitor, including every storefront customer, downloaded a font they never saw.
  *
- * They now live here and are pulled in by the three layouts that need them.
- * The CSS variable names are unchanged (`--font-editorial`,
- * `--font-dashboard-ui`), so every token in `app/globals.css` and every
- * component that reads them keeps working untouched.
+ * The interface face is no longer loaded here. Instrument Sans is now the
+ * product's one interface face and is loaded once in `app/layout.tsx` as
+ * `--font-sans`, so `--font-dashboard-ui` resolves to it through CSS
+ * (`var(--font-dashboard-ui), var(--font-sans)`) instead of being downloaded a
+ * second time for three screens.
  */
 const instrumentSerif = Instrument_Serif({
-  subsets: ['latin'],
+  subsets: ['latin', 'latin-ext'],
   weight: '400',
   style: ['normal', 'italic'],
   display: 'swap',
   variable: '--font-editorial',
 })
 
-const instrumentSans = Instrument_Sans({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
-  display: 'swap',
-  variable: '--font-dashboard-ui',
-})
-
-/** The two `__variable` classes injected by next/font. */
-export const editorialFontClassName = `${instrumentSerif.variable} ${instrumentSans.variable}`
+/** The `__variable` class injected by next/font. */
+export const editorialFontClassName = instrumentSerif.variable
 
 /**
- * Puts the pairing on the screen, and nowhere else.
+ * Puts the serif on the screen, and nowhere else.
  *
  * Two layers, because the design system is used in two places:
  *  - the class on the wrapper covers everything inside this subtree, including
  *    the first paint (no flash of a fallback face);
- *  - the root variables cover dialogs, dropdowns and toasts, which Radix and
+ *  - the root variable covers dialogs, dropdowns and toasts, which Radix and
  *    sonner render into `document.body`, outside the wrapper. Those only ever
- *    appear after a click, so doing it on mount is enough - and they are removed
- *    again on the way out so a following storefront page never carries them.
+ *    appear after a click, so doing it on mount is enough - and it is removed
+ *    again on the way out so a following storefront page never carries it.
  */
 export function useEditorialFontRoot() {
   React.useEffect(() => {
     const root = document.documentElement
     const serif = instrumentSerif.style.fontFamily
-    const sans = instrumentSans.style.fontFamily
     root.style.setProperty('--font-editorial', serif)
-    root.style.setProperty('--font-dashboard-ui', sans)
     return () => {
       root.style.removeProperty('--font-editorial')
-      root.style.removeProperty('--font-dashboard-ui')
     }
   }, [])
 }
