@@ -1,3 +1,4 @@
+import { env } from './env';
 import { getKudiBalance, updateKudiBalance } from '@/lib/pin-utils';
 
 /**
@@ -22,7 +23,7 @@ export async function getLiveBalance(): Promise<LiveBalance> {
   const lastKnownBalance =
     stored && Number.isFinite(Number(stored.balance)) ? Number(stored.balance) : null;
   try {
-    const token = process.env.KUDISMS_TOKEN;
+    const token = env.KUDISMS_TOKEN;
     if (!token) throw new Error('KUDISMS_TOKEN is not configured');
     const response = await fetch(`https://my.kudisms.net/api/balance?token=${encodeURIComponent(token)}`, { cache: 'no-store', signal: AbortSignal.timeout(10000) });
     if (!response.ok) throw new Error('KudiSMS balance request failed');

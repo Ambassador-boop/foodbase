@@ -25,8 +25,24 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { apiErrorMessage } from '@/lib/api/errors';
 
-const QRCode = dynamic(() => import('qrcode.react'), { ssr: false });
+/**
+ * qrcode.react ships without type declarations (see types/qrcode-react.d.ts),
+ * so `dynamic()` would infer props as `{}`. The props actually passed are
+ * declared here so the component is checked rather than silently `any`.
+ */
+type QRCodeProps = {
+  value: string;
+  size?: number;
+  renderAs?: 'canvas' | 'svg';
+  level?: 'L' | 'M' | 'Q' | 'H';
+  includeMargin?: boolean;
+  fgColor?: string;
+  bgColor?: string;
+  className?: string;
+};
+const QRCode = dynamic<QRCodeProps>(() => import('qrcode.react'), { ssr: false });
 
 interface Business {
   slug: string;
@@ -57,7 +73,7 @@ export default function ShareBusinessPage() {
       try {
         const res = await fetch('/api/business', { credentials: 'include' });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed to load business');
+        if (!res.ok) throw new Error(apiErrorMessage(data, 'Failed to load business'));
         if (active) setBusiness(data.business);
       } catch (err: any) {
         if (active) setError(err.message || 'Failed to load business details');

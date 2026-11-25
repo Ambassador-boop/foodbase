@@ -18,6 +18,7 @@ import {
   ImagePlus,
   Camera,
 } from 'lucide-react'
+import { apiErrorMessage } from '@/lib/api/errors';
 
 interface Business {
   id: string
@@ -106,7 +107,7 @@ export default function EditBusinessPage() {
 
       if (!response.ok) {
         const errBody = await response.json().catch(() => null)
-        throw new Error(errBody?.error || 'Upload failed')
+        throw new Error(apiErrorMessage(errBody, 'Upload failed'))
       }
 
       const result = await response.json()
@@ -159,7 +160,7 @@ export default function EditBusinessPage() {
       })
       if (!response.ok) {
         const errBody = await response.json().catch(() => null)
-        throw new Error(errBody?.error || 'Failed to update business')
+        throw new Error(apiErrorMessage(errBody, 'Failed to update business'))
       }
       setSuccess(true)
       setTimeout(() => {

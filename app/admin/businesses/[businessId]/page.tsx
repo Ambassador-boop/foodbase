@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { AlertCircle, ChevronLeft, Edit2, MapPin, Table2, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { apiErrorMessage } from '@/lib/api/errors';
 
 interface Business {
   id: string;
@@ -50,7 +51,7 @@ export default function BusinessDetailPage() {
         const response = await fetch(`/api/admin/businesses/${businessId}`);
         const data = await response.json();
 
-        if (!response.ok) throw new Error(data.error);
+        if (!response.ok) throw new Error(apiErrorMessage(data, 'Request failed'));
 
         setBusiness(data.business);
       } catch (err) {
@@ -101,7 +102,7 @@ export default function BusinessDetailPage() {
 
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.error);
+        throw new Error(apiErrorMessage(data, 'Request failed'));
       }
 
       router.push('/admin/businesses');

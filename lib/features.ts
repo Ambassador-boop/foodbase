@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { env } from './env'
 
 /**
  * Feature checks.
@@ -22,16 +23,16 @@ const ROUTES: Record<FeatureKey, string[]> = {
   soundTest: ['dashboard', 'notifications', 'sound'],
 }
 
-const ENV: Record<FeatureKey, string> = {
-  deliveryAreas: 'FEATURE_DELIVERY_AREAS',
-  tableLabels: 'FEATURE_TABLE_LABELS',
-  soundTest: 'FEATURE_SOUND_TEST',
+const ENV: Record<FeatureKey, string | undefined> = {
+  deliveryAreas: env.FEATURE_DELIVERY_AREAS,
+  tableLabels: env.FEATURE_TABLE_LABELS,
+  soundTest: env.FEATURE_SOUND_TEST,
 }
 
 const cache = new Map<FeatureKey, boolean>()
 
 export function featureAvailable(key: FeatureKey): boolean {
-  const override = process.env[ENV[key]]
+  const override = ENV[key]
   if (override === 'on' || override === '1' || override === 'true') return true
   if (override === 'off' || override === '0' || override === 'false') return false
 

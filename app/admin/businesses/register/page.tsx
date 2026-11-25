@@ -8,6 +8,8 @@ import { Label } from '@/components/ui/label';
 import { AlertCircle, ChevronLeft, Upload, X } from 'lucide-react';
 import Link from 'next/link';
 import { uploadImage } from '@/lib/cloudinary';
+import { publicEnv } from '@/lib/env-public';
+import { apiErrorMessage } from '@/lib/api/errors';
 
 interface User {
   id: string;
@@ -41,7 +43,7 @@ export default function RegisterBusinessPage() {
 
   useEffect(() => {
     // Check if Cloudinary is configured
-    if (!process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME) {
+    if (!publicEnv.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME) {
       setCloudinaryError('Cloudinary is not properly configured. Please ensure NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME is set in environment variables.');
     }
 
@@ -112,7 +114,7 @@ export default function RegisterBusinessPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to register business');
+        throw new Error(apiErrorMessage(data, 'Failed to register business'));
       }
 
       router.push('/admin/businesses');

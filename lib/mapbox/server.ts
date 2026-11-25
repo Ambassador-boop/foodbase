@@ -1,3 +1,4 @@
+import { env } from '../env';
 /**
  * Server-side Mapbox helpers (Batch 3B).
  *
@@ -18,8 +19,8 @@ const MAPBOX_TIMEOUT_MS = 6000;
 
 export function mapboxToken(): string | null {
   const token =
-    process.env.NEXT_PUBLIC_MAPBOX_TOKEN ||
-    process.env.MAPBOX_TOKEN ||
+    env.NEXT_PUBLIC_MAPBOX_TOKEN ||
+    env.MAPBOX_TOKEN ||
     '';
   const trimmed = token.trim();
   return trimmed.length > 0 ? trimmed : null;

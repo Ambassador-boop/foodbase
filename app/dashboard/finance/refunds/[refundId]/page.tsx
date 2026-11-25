@@ -8,10 +8,11 @@ import { StatusBadge } from '@/components/finance'
 import { formatNaira } from '@/lib/finance'
 import { formatWat } from '@/lib/wat'
 import { usePinAuthorization } from '@/hooks/use-pin-authorization'
+import { apiErrorMessage } from '@/lib/api/errors';
 
 export default function RefundDetailsPage(){
  const {refundId}=useParams<{refundId:string}>(); const router=useRouter(); const [refund,setRefund]=useState<any>(null); const [error,setError]=useState(''); const {authorize}=usePinAuthorization()
- useEffect(()=>{fetch(`/api/refunds/${refundId}`,{credentials:'include'}).then(async r=>{const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not load refund');setRefund(d)}).catch(e=>setError(e.message))},[refundId])
+ useEffect(()=>{fetch(`/api/refunds/${refundId}`,{credentials:'include'}).then(async r=>{const d=await r.json();if(!r.ok)throw new Error(apiErrorMessage(d, 'Could not load refund'));setRefund(d)}).catch(e=>setError(e.message))},[refundId])
  if(error)return <main className="mx-auto max-w-[960px] px-4 py-6"><Card className="p-5 text-sm text-danger">{error}</Card></main>
  if(!refund)return <main className="mx-auto max-w-[960px] px-4 py-6"><p className="text-sm text-muted-foreground">Loading refund…</p></main>
  const status=String(refund.status||'pending'); const completed=['processed','completed','refunded','success'].includes(status.toLowerCase()); const failed=['failed','rejected'].includes(status.toLowerCase()); const humanReason=String(refund.reason||'').replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase()); const retry=async()=>{const ticket=await authorize('refund',{orderId:refund.order.id,amount:refund.amount},`Refund ${formatNaira(refund.amount)}`);const r=await fetch(`/api/refunds/${refundId}/retry`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({authorizationTicket:ticket})});const d=await r.json();if(r.ok&&d.refundId)router.push(`/dashboard/finance/refunds/${d.refundId}`)}

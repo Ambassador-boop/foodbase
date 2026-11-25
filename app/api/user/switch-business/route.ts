@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { getOne } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
 import { ACTIVE_BUSINESS_COOKIE } from '@/lib/active-business';
+import { env } from '@/lib/env';
 
 /**
  * Switches the active business for the current user. The active business is
@@ -47,7 +48,7 @@ export async function POST(request: NextRequest) {
     const cookieStore = await cookies();
     cookieStore.set(ACTIVE_BUSINESS_COOKIE, business.id, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: env.isProduction,
       sameSite: 'lax',
       path: '/',
       maxAge: 60 * 60 * 24 * 365, // 1 year

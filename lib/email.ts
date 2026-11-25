@@ -1,3 +1,4 @@
+import { env } from './env';
 // Brevo API-based email service (replaces SMTP for better reliability)
 // API Reference: https://developers.brevo.com/reference/sendtransacemail
 
@@ -11,8 +12,8 @@ async function sendBrevoEmail(
   htmlContent: string
 ): Promise<boolean> {
   try {
-    const apiKey = process.env.BREVO_API_KEY;
-    const senderEmail = process.env.BREVO_EMAIL || 'auth@foodbase.ng';
+    const apiKey = env.BREVO_API_KEY;
+    const senderEmail = env.BREVO_EMAIL || 'auth@foodbase.ng';
 
     if (!apiKey) {
       console.error('[v0] BREVO_API_KEY not configured');

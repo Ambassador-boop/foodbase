@@ -1,3 +1,4 @@
+import { env } from './env';
 type PaystackBank = { code: string; name: string }
 
 let cachedBanks: Map<string, string> | null = null
@@ -17,7 +18,7 @@ export async function getBankName(code: string | null | undefined): Promise<stri
 
 export async function getBanks(): Promise<Map<string, string>> {
   if (cachedBanks && Date.now() - cachedAt < CACHE_TTL) return cachedBanks
-  const key = process.env.PAYSTACK_SECRET_KEY
+  const key = env.PAYSTACK_SECRET_KEY
   if (!key) return cachedBanks || new Map()
   const response = await fetch('https://api.paystack.co/bank?currency=NGN', {
     headers: { Authorization: `Bearer ${key}` },

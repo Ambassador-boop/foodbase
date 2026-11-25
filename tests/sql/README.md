@@ -1,0 +1,32 @@
+-- Rollback-only assertions for the money functions.
+--
+-- Every script in this folder runs inside BEGIN … ROLLBACK and raises an
+-- exception the moment an assertion fails. Nothing here is ever committed, and
+-- nothing here is run by CI.
+--
+-- Rules
+-- -----
+--  1. Run them on a Neon branch, never on production. A branch is a copy-on-write
+--     clone, so a mistake costs nothing.
+--  2. Use a branch that has the current schema. The scripts insert into users,
+--     businesses, orders, transactions and business_balances.
+--  3. Read the NOTICE output. A script that raises an exception prints the
+--     assertion that failed, with the value it actually got.
+--
+-- Running one
+-- -----------
+--     psql "$BRANCH_DATABASE_URL" -v ON_ERROR_STOP=1 -f tests/sql/fb_settle_payment.sql
+--
+-- Files
+-- -----
+--  fb_settle_payment.sql     duplicate payment, wrong amount, missing provider fee
+--  fb_request_refund.sql     unpaid order, over-refund, underfunded business
+--  fb_reserve_withdrawal.sql the free allowance, the ₦500 fee, the minimum
+--
+-- What these scripts are for
+-- --------------------------
+-- The application tests in tests/unit prove the TypeScript around the money.
+-- These prove the SQL underneath it, which the application must never
+-- reimplement. They are deliberately not part of the CI workflow: CI has no
+-- database, and a workflow that needs a live branch would either be skipped on
+-- most pull requests or, worse, point at something real.

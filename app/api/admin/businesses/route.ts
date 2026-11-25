@@ -1,20 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTokenFromRequest, verifyToken } from '@/lib/auth';
 import { sql } from '@/lib/db';
+import { fail } from '@/lib/api';
 
 export async function GET(request: NextRequest) {
   try {
     const token = await getTokenFromRequest(request);
 
     if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return fail('UNAUTHORIZED', 'Unauthorized', 401);
     }
 
     const verified = await verifyToken(token);
     const role = verified?.role as string;
 
     if (role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return fail('FORBIDDEN', 'Forbidden', 403);
     }
 
     const businesses = await sql.query(
@@ -24,9 +25,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ businesses: businesses || [] });
   } catch (error) {
     console.error('Error fetching businesses:', error);
-    return NextResponse.json(
-      { error: 'Internal Server Error' },
-      { status: 500 }
-    );
+    return fail('INTERNAL_SERVER_ERROR', 'Internal Server Error', 500);
   }
 }

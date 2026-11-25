@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { db } from '@/lib/db';
 import { reconcileBusinessWithdrawals } from '@/lib/withdrawals';
+import { env } from '@/lib/env';
 
 export const dynamic = 'force-dynamic';
 
 function authorized(req: NextRequest) {
-  const secret = process.env.CRON_SECRET;
+  const secret = env.CRON_SECRET;
   if (!secret) return 'missing';
   const actual = Buffer.from(req.headers.get('authorization') || '');
   const expected = Buffer.from(`Bearer ${secret}`);
@@ -17,7 +18,7 @@ async function run(req: NextRequest) {
   const auth = authorized(req);
   if (auth === 'missing') return NextResponse.json({ error: 'Cron is not configured' }, { status: 500 });
   if (auth !== 'ok') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const heartbeat = process.env.BETTERSTACK_HEARTBEAT_URL;
+  const heartbeat = env.BETTERSTACK_HEARTBEAT_URL;
   try {
     let settled = 0;
     let fullyRefundedCount = 0;

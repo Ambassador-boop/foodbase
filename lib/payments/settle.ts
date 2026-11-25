@@ -6,7 +6,7 @@ export type SettlementResult = {
   [key: string]: unknown;
 };
 
-type PaystackPaymentData = {
+export type PaystackPaymentData = {
   reference: string;
   amount: number;
   currency: string;

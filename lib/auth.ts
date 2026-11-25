@@ -3,11 +3,16 @@ import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { randomInt } from 'crypto';
 import { getOne } from './db';
+import { env } from './env';
 
+/**
+ * The signing key. There is no fallback: lib/env.ts refuses to start the app
+ * outside tests when JWT_SECRET is missing, so a token can never be signed with
+ * a well-known default.
+ */
 function getJwtSecret() {
-  const secret = process.env.JWT_SECRET;
-  if (!secret && process.env.NODE_ENV === 'production') throw new Error('JWT_SECRET is not configured');
-  return new TextEncoder().encode(secret || 'your-secret-key-change-in-production');
+  if (!env.JWT_SECRET) throw new Error('JWT_SECRET is not configured');
+  return new TextEncoder().encode(env.JWT_SECRET);
 }
 
 export async function hashPassword(password: string): Promise<string> {
@@ -49,7 +54,7 @@ export async function setAuthCookie(token: string) {
   const cookieStore = await cookies();
   cookieStore.set('auth_token', token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: env.isProduction,
     sameSite: 'lax',
     maxAge: 60 * 60 * 24 * 30, // 30 days
   });

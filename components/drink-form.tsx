@@ -8,6 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { AlertCircle, Upload, X } from 'lucide-react';
 import Image from 'next/image';
+import { publicEnv } from '@/lib/env-public';
+import { apiErrorMessage } from '@/lib/api/errors';
 
 interface Drink {
   id?: string;
@@ -41,7 +43,7 @@ export default function DrinkForm({ drink, isEditing = false }: DrinkFormProps) 
   const uploadImageToCloudinary = async (file: File): Promise<string | null> => {
     try {
       setUploadingImage(true);
-      const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+      const cloudName = publicEnv.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
       
       if (!cloudName) {
         throw new Error('Cloudinary configuration missing');
@@ -128,7 +130,7 @@ export default function DrinkForm({ drink, isEditing = false }: DrinkFormProps) 
     }
 
     setSubmitting(true);
-    let imageUrl = formData.imageUrl;
+    let imageUrl: string | null = formData.imageUrl;
 
     // Upload image if selected
     if (formData.imageFile) {
@@ -159,7 +161,7 @@ export default function DrinkForm({ drink, isEditing = false }: DrinkFormProps) 
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.error || 'Failed to save drink');
+        setError(apiErrorMessage(data, 'Failed to save drink'));
         return;
       }
 

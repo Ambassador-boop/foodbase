@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { env } from './env';
 
 const PAYSTACK_BASE_URL = 'https://api.paystack.co';
 
@@ -10,7 +11,7 @@ export async function paystackRefund(transactionRef: string, amountKobo: number,
   try {
     response = await fetch(`${PAYSTACK_BASE_URL}/refund`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY || ''}`, 'Content-Type': 'application/json' },
+      headers: { Authorization: `Bearer ${env.PAYSTACK_SECRET_KEY ?? ''}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ transaction: transactionRef, amount: amountKobo, currency: 'NGN', ...opts }),
     });
   } catch {
@@ -60,13 +61,13 @@ export async function initializePayment(
   metadata?: Record<string, any>
 ): Promise<PaystackInitializeResponse> {
   // Get the base URL for redirects - handle both development and production
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://foodbase.ng';
+  const baseUrl = env.NEXT_PUBLIC_BASE_URL || 'https://foodbase.ng';
 
   const response = await fetch(`${PAYSTACK_BASE_URL}/transaction/initialize`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY || ''}`,
+      Authorization: `Bearer ${env.PAYSTACK_SECRET_KEY ?? ''}`,
     },
     body: JSON.stringify({
       amount: Math.round(amount * 100),
@@ -90,7 +91,7 @@ export async function verifyPayment(reference: string): Promise<PaystackVerifyRe
     {
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY || ''}`,
+        Authorization: `Bearer ${env.PAYSTACK_SECRET_KEY ?? ''}`,
       },
     }
   );
@@ -150,7 +151,7 @@ export async function getPaystackBalance(now = Date.now()): Promise<PaystackBala
     return snapshot
   }
 
-  if (!process.env.PAYSTACK_SECRET_KEY) {
+  if (!env.PAYSTACK_SECRET_KEY) {
     return cache({ balance: null, asOf: new Date(now).toISOString(), stale: false, reason: 'not_configured', message: 'Paystack is not configured in this environment' })
   }
 
@@ -158,7 +159,7 @@ export async function getPaystackBalance(now = Date.now()): Promise<PaystackBala
   const timeout = setTimeout(() => controller.abort(), 6_000)
   try {
     const response = await fetch(`${PAYSTACK_BASE_URL}/balance`, {
-      headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`, 'Content-Type': 'application/json' },
+      headers: { Authorization: `Bearer ${env.PAYSTACK_SECRET_KEY}`, 'Content-Type': 'application/json' },
       cache: 'no-store',
       signal: controller.signal,
     })

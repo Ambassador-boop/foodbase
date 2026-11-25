@@ -21,6 +21,7 @@ import {
   OrderingPausedButtonNote,
   OrderingPausedNotice,
 } from '@/components/storefront/ordering-paused-notice';
+import { apiErrorMessage } from '@/lib/api/errors';
 
 interface CartItem {
   id: string;
@@ -82,7 +83,7 @@ export default function CartPage() {
     try {
       const response = await fetch(`/api/restaurants/${slug}/menu`);
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Failed to fetch menu');
+      if (!response.ok) throw new Error(apiErrorMessage(data, 'Failed to fetch menu'));
       setRestaurant(data.business);
       setHours(data.business?.hours ?? null);
 

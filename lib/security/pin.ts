@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { comparePin } from '@/lib/pin-utils';
 import { db } from '@/lib/db';
+import { env } from '@/lib/env';
 
 export const PIN_MAX_ATTEMPTS = 5;
 export const PIN_LOCK_MINUTES = 15;
@@ -10,7 +11,7 @@ type Row = Record<string, any>;
 function rowsOf(raw: any): Row[] { return Array.isArray(raw) ? raw : raw?.rows ?? []; }
 function jsonResult(value: any): any { return typeof value === 'string' ? JSON.parse(value) : value ?? {}; }
 
-export function pinEnforced(): boolean { return process.env.PIN_ENFORCEMENT === 'on'; }
+export function pinEnforced(): boolean { return env.PIN_ENFORCEMENT === 'on'; }
 export function normalizeAmount(n: unknown): string { return Number(n).toFixed(2); }
 
 export async function getPinStatus(userId: string) {

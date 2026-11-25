@@ -1,0 +1,51 @@
+name: CI
+
+# Type check, lint and test on every pull request, and on the default branch so
+# a merge that breaks main is caught immediately.
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+# A new push to the same pull request cancels the run it supersedes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Typecheck, lint and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # No environment values are provided on purpose. The unit tests are pure,
+      # and lib/env.ts treats NODE_ENV=test as "no server values required".
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Test
+        run: pnpm test
+        env:
+          NODE_ENV: test

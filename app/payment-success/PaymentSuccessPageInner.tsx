@@ -4,6 +4,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { CheckCircle, Loader, AlertCircle } from 'lucide-react';
+import { apiErrorMessage } from '@/lib/api/errors';
 
 export default function PaymentSuccessPageInner() {
   const searchParams = useSearchParams();
@@ -32,7 +33,7 @@ export default function PaymentSuccessPageInner() {
       const data = await response.json();
       if (!response.ok) {
         setStatus('error');
-        setError(data.error || 'Payment verification failed');
+        setError(apiErrorMessage(data, 'Payment verification failed'));
         return;
       }
       setOrderData(data);

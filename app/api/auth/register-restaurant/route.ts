@@ -25,6 +25,10 @@ import {
 } from '@/lib/registration/rate-limit'
 import { sendRestaurantWelcomeEmail, sendEmailVerificationEmail, sendNewRestaurantAdminEmail } from '@/lib/email'
 import { generateId } from '@/lib/utils-extended'
+import { env } from '@/lib/env';
+import { fail } from '@/lib/api'
+import { handleUnexpected } from '@/lib/api/handler'
+import { RATE_LIMITS, enforceRateLimit } from '@/lib/rate-limit'
 
 /**
  * POST /api/auth/register-restaurant
@@ -43,8 +47,19 @@ import { generateId } from '@/lib/utils-extended'
 
 const VERIFICATION_TTL_HOURS = 72
 
-function jsonError(status: number, error: string, extra?: Record<string, unknown>) {
-  return NextResponse.json({ error, ...extra }, { status })
+/**
+ * One field to one message, in the envelope lib/api uses.
+ *
+ * The registration schema reports a single message per field; the envelope
+ * carries a list, so the existing sentence is wrapped rather than reshaped.
+ */
+function fieldList(errors: Record<string, string>): Record<string, string[]> {
+  return Object.fromEntries(Object.entries(errors).map(([key, message]) => [key, [message]]))
+}
+
+/** A validation failure: 422, with the field messages the form renders inline. */
+function fieldError(fields: Record<string, string>) {
+  return fail('VALIDATION_ERROR', 'Check the highlighted fields.', 422, fieldList(fields))
 }
 
 /** Neon is HTTP-based, so a real transaction is not available. We compensate instead. */
@@ -104,23 +119,25 @@ async function recordConsent(input: {
   }
 }
 
-export async function POST(request: NextRequest) {
+async function registerRestaurant(request: NextRequest) {
   const ip = clientIpFrom(request.headers)
 
   // ---- Rate limit before parsing anything expensive -------------------------
   const ipLimit = await enforceLimit('ip', ip, REGISTRATION_IP_RULES)
   if (!ipLimit.allowed) {
-    return NextResponse.json(
-      { error: rateLimitMessage(ipLimit.retryAfterSeconds) },
-      { status: 429, headers: { 'Retry-After': String(ipLimit.retryAfterSeconds ?? 60) } },
-    )
+    const response = fail('RATE_LIMITED', rateLimitMessage(ipLimit.retryAfterSeconds), 429)
+    response.headers.set('Retry-After', String(ipLimit.retryAfterSeconds ?? 60))
+    return response
   }
+  // The platform-wide limiter (fb_rate_limit): 5 sign-ups per hour per IP.
+  const signUpLimited = await enforceRateLimit(request, RATE_LIMITS.signUpIp)
+  if (signUpLimited) return signUpLimited
 
   let body: unknown
   try {
     body = await request.json()
   } catch {
-    return jsonError(400, 'Send the form as JSON.')
+    return fail('INVALID_JSON', 'Send the form as JSON.', 400)
   }
 
   const parsed = registrationSchema.safeParse(body)
@@ -128,54 +145,47 @@ export async function POST(request: NextRequest) {
     const errors = fieldErrors(parsed.error)
     // The honeypot is a bot signal, not a user error. Answer generically.
     if (errors.company_website) {
-      return jsonError(400, 'We could not create this account. Check your details and try again.')
+      return fail('REGISTRATION_REFUSED', 'We could not create this account. Check your details and try again.', 400)
     }
-    return jsonError(422, 'Check the highlighted fields.', { fields: errors })
+    return fieldError(errors)
   }
 
   const data = parsed.data
 
   // ---- Honeypot: hidden field a human never sees ---------------------------
   if (data.company_website && data.company_website.length > 0) {
-    return jsonError(400, 'We could not create this account. Check your details and try again.')
+    return fail('REGISTRATION_REFUSED', 'We could not create this account. Check your details and try again.', 400)
   }
 
   // ---- Phone (canonical local form) ---------------------------------------
   const phone = normaliseNigerianPhone(data.phone)
   if (!phone) {
-    return jsonError(422, 'Check the highlighted fields.', {
-      fields: { phone: 'Enter a Nigerian mobile number, for example 0803 123 4567.' },
-    })
+    return fieldError({ phone: 'Enter a Nigerian mobile number, for example 0803 123 4567.' })
   }
 
   // ---- Password policy -----------------------------------------------------
   const strength = scorePassword(data.password)
   if (data.password.length < 8 || strength.score < 2) {
-    return jsonError(422, 'Check the highlighted fields.', {
-      fields: { password: 'Use at least 8 characters, with a mix of letters and numbers.' },
-    })
+    return fieldError({ password: 'Use at least 8 characters, with a mix of letters and numbers.' })
   }
 
   // ---- Email reputation ----------------------------------------------------
   if (isDisposableEmail(data.email)) {
-    return jsonError(422, 'Check the highlighted fields.', {
-      fields: { email: 'Use a permanent business email address.' },
-    })
+    return fieldError({ email: 'Use a permanent business email address.' })
   }
 
   // ---- Email rate limit (after validation so typos do not burn the budget) --
   const emailLimit = await enforceLimit('email', data.email, REGISTRATION_EMAIL_RULES)
   if (!emailLimit.allowed) {
-    return NextResponse.json(
-      { error: rateLimitMessage(emailLimit.retryAfterSeconds) },
-      { status: 429, headers: { 'Retry-After': String(emailLimit.retryAfterSeconds ?? 60) } },
-    )
+    const response = fail('RATE_LIMITED', rateLimitMessage(emailLimit.retryAfterSeconds), 429)
+    response.headers.set('Retry-After', String(emailLimit.retryAfterSeconds ?? 60))
+    return response
   }
 
   // ---- Slug ---------------------------------------------------------------
   const slugCheck = checkSlugShape(data.slug)
   if (!slugCheck.ok) {
-    return jsonError(422, 'Check the highlighted fields.', { fields: { slug: slugCheck.reason } })
+    return fieldError({ slug: slugCheck.reason })
   }
   const slug = slugCheck.slug
 
@@ -185,8 +195,8 @@ export async function POST(request: NextRequest) {
     if (existingEmail) {
       // Registration inherently reveals this; we keep the message short and give
       // the useful next step rather than confirming anything else about the account.
-      return jsonError(409, 'An account already uses this email.', {
-        fields: { email: 'Sign in instead, or register with a different address.' },
+      return fail('EMAIL_TAKEN', 'An account already uses this email.', 409, {
+        email: ['Sign in instead, or register with a different address.'],
       })
     }
 
@@ -195,20 +205,20 @@ export async function POST(request: NextRequest) {
       [phone],
     )
     if (existingPhone) {
-      return jsonError(409, 'That phone number is already in use.', {
-        fields: { phone: 'Use a different number, or sign in to the existing account.' },
+      return fail('PHONE_TAKEN', 'That phone number is already in use.', 409, {
+        phone: ['Use a different number, or sign in to the existing account.'],
       })
     }
 
     const existingSlug = await getOne('SELECT id FROM businesses WHERE LOWER(slug) = $1 LIMIT 1', [slug])
     if (existingSlug) {
-      return jsonError(409, 'That storefront address is taken.', {
-        fields: { slug: 'Try a different address, for example adding your city.' },
+      return fail('SLUG_TAKEN', 'That storefront address is taken.', 409, {
+        slug: ['Try a different address, for example adding your city.'],
       })
     }
   } catch (error) {
     console.error('[register-restaurant] uniqueness check failed', error)
-    return jsonError(500, 'We could not create the account right now. Try again in a moment.')
+    return fail('LOOKUP_FAILED', 'We could not create the account right now. Try again in a moment.', 500)
   }
 
   // ---- Create owner + business -------------------------------------------
@@ -227,11 +237,11 @@ export async function POST(request: NextRequest) {
     const code = (error as { code?: string })?.code
     console.error('[register-restaurant] user insert failed', error)
     if (code === '23505') {
-      return jsonError(409, 'An account already uses this email.', {
-        fields: { email: 'Sign in instead, or register with a different address.' },
+      return fail('EMAIL_TAKEN', 'An account already uses this email.', 409, {
+        email: ['Sign in instead, or register with a different address.'],
       })
     }
-    return jsonError(500, 'We could not create the account right now. Try again in a moment.')
+    return fail('USER_CREATE_FAILED', 'We could not create the account right now. Try again in a moment.', 500)
   }
 
   try {
@@ -246,11 +256,11 @@ export async function POST(request: NextRequest) {
     await safeDeleteUser(userId)
     const code = (error as { code?: string })?.code
     if (code === '23505') {
-      return jsonError(409, 'That storefront address is taken.', {
-        fields: { slug: 'Try a different address, for example adding your city.' },
+      return fail('SLUG_TAKEN', 'That storefront address is taken.', 409, {
+        slug: ['Try a different address, for example adding your city.'],
       })
     }
-    return jsonError(500, 'We could not finish creating your restaurant. Try again in a moment.')
+    return fail('BUSINESS_CREATE_FAILED', 'We could not finish creating your restaurant. Try again in a moment.', 500)
   }
 
   // ---- Consent audit (non-critical) --------------------------------------
@@ -269,7 +279,7 @@ export async function POST(request: NextRequest) {
     const cookieStore = await cookies()
     cookieStore.set(ACTIVE_BUSINESS_COOKIE, businessId, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: env.isProduction,
       sameSite: 'lax',
       path: '/',
       maxAge: 60 * 60 * 24 * 365,
@@ -288,8 +298,8 @@ export async function POST(request: NextRequest) {
   }
 
   // ---- Email. Never blocks the response. ---------------------------------
-  const origin = process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin
-  const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.BREVO_EMAIL || null
+  const origin = env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin
+  const adminEmail = env.ADMIN_NOTIFICATION_EMAIL || env.BREVO_EMAIL || null
 
   // Awaited rather than fired-and-forgotten: on a serverless runtime the process
   // can be frozen the moment the response is written, which would drop these
@@ -351,6 +361,19 @@ export async function POST(request: NextRequest) {
     },
     { status: 201 },
   )
+}
+
+/**
+ * The outer guard. Everything above returns its own envelope; anything that
+ * escapes (a driver failure, an unexpected throw) becomes one logged 500 with a
+ * request id instead of a stack trace.
+ */
+export async function POST(request: NextRequest) {
+  try {
+    return await registerRestaurant(request)
+  } catch (error) {
+    return handleUnexpected(error, { where: 'POST /api/auth/register-restaurant', request })
+  }
 }
 
 /** Never cache a registration response. */

@@ -17,6 +17,7 @@ import {
   round2,
 } from '@/lib/admin-analytics'
 import { getPaystackBalance } from '@/lib/paystack'
+import { fail } from '@/lib/api';
 
 export const dynamic = 'force-dynamic'
 
@@ -43,7 +44,7 @@ export async function GET(request: NextRequest) {
   try {
     const token = await getTokenFromRequest(request)
     const user = token ? await verifyToken(token) : null
-    if (!user || user.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (!user || user.role !== 'admin') return fail('FORBIDDEN', 'Forbidden', 403)
 
     const params = request.nextUrl.searchParams
     const period = resolveAdminPeriod({ range: params.get('range'), from: params.get('from'), to: params.get('to') })
@@ -210,6 +211,6 @@ export async function GET(request: NextRequest) {
     })
   } catch (error) {
     console.error('[admin] overview failed', error)
-    return NextResponse.json({ error: 'Failed to fetch overview' }, { status: 500 })
+    return fail('FAILED_FETCH_OVERVIEW', 'Failed to fetch overview', 500)
   }
 }

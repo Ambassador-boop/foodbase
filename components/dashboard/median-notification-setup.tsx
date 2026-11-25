@@ -31,7 +31,9 @@ interface NotificationSetupProps {
 export function MedianNotificationSetup({ userEmail }: NotificationSetupProps) {
   const router = useRouter();
   const [isInitialized, setIsInitialized] = useState(false);
-  const [isMedianEnvironment, setIsMedianEnvironment] = useState(false);
+  // Named apart from the imported helper on purpose: the state shadowed it,
+  // which made `isMedianEnvironment()` look like calling a boolean.
+  const [isMedianApp, setIsMedianApp] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
 
@@ -64,7 +66,7 @@ export function MedianNotificationSetup({ userEmail }: NotificationSetupProps) {
         });
 
         if (mounted) {
-          setIsMedianEnvironment(isMedian);
+          setIsMedianApp(isMedian);
         }
 
         // If in Median environment, initialize OneSignal
@@ -112,12 +114,12 @@ export function MedianNotificationSetup({ userEmail }: NotificationSetupProps) {
   useEffect(() => {
     if (isInitialized) {
       console.log('[v0] MedianNotificationSetup: Initialization complete', {
-        isMedianEnvironment,
+        isMedianEnvironment: isMedianApp,
         isInitialized,
         userEmail: userEmail ? userEmail.substring(0, 3) + '***' : 'unknown',
       });
     }
-  }, [isInitialized, isMedianEnvironment, userEmail]);
+  }, [isInitialized, isMedianApp, userEmail]);
 
   // This component doesn't render anything visible
   // It's purely for initialization purposes

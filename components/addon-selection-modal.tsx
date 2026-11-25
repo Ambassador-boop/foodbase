@@ -16,6 +16,8 @@ interface Addon {
   name: string;
   description?: string;
   is_required: boolean;
+  /** Whether more than one option of this add-on may be chosen. */
+  allow_multiple?: boolean;
   addon_type: string;
   options: AddonOption[];
 }
@@ -81,10 +83,17 @@ export function AddonSelectionModal({
           };
         }
       } else {
-        // Single selection
+        // Single selection. Tapping the chosen option again clears it; the key
+        // is removed rather than set to undefined so the state stays
+        // Record<string, string | string[]>.
+        if (current === optionId) {
+          const next = { ...prev };
+          delete next[addonId];
+          return next;
+        }
         return {
           ...prev,
-          [addonId]: current === optionId ? undefined : optionId,
+          [addonId]: optionId,
         };
       }
     });

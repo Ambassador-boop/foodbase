@@ -1,2 +1,3 @@
 import { NextResponse } from 'next/server';
-export async function POST(){return NextResponse.json({error:'This endpoint has been retired'},{status:410})}
+import { fail } from '@/lib/api';
+export async function POST(){return fail('THIS_ENDPOINT_BEEN', 'This endpoint has been retired', 410)}

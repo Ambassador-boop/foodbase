@@ -7,10 +7,11 @@ import { Button } from '@/components/ui/button'
 import { StatusBadge } from '@/components/finance'
 import { formatNaira } from '@/lib/finance'
 import { formatWat } from '@/lib/wat'
+import { apiErrorMessage } from '@/lib/api/errors';
 
 export default function WithdrawalDetailsPage(){
  const {withdrawalId}=useParams<{withdrawalId:string}>(); const router=useRouter(); const [data,setData]=useState<any>(null); const [error,setError]=useState('')
- useEffect(()=>{fetch(`/api/withdrawals/${withdrawalId}`,{credentials:'include'}).then(async r=>{const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not load withdrawal');setData(d)}).catch(e=>setError(e.message))},[withdrawalId])
+ useEffect(()=>{fetch(`/api/withdrawals/${withdrawalId}`,{credentials:'include'}).then(async r=>{const d=await r.json();if(!r.ok)throw new Error(apiErrorMessage(d, 'Could not load withdrawal'));setData(d)}).catch(e=>setError(e.message))},[withdrawalId])
  if(error)return <main className="mx-auto max-w-[960px] px-4 py-6"><Card className="p-5 text-sm text-danger">{error}</Card></main>
  if(!data)return <main className="mx-auto max-w-[960px] px-4 py-6"><p className="text-sm text-muted-foreground">Loading withdrawal…</p></main>
  const bank=data.bank_name||data.bank_code||'Bank'; const status=String(data.status||'pending')

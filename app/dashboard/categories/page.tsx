@@ -14,6 +14,7 @@ import {
   Trash2,
   Search,
 } from 'lucide-react';
+import { apiErrorMessage } from '@/lib/api/errors';
 
 interface Category {
   id: string;
@@ -52,7 +53,7 @@ export default function CategoriesPage() {
         credentials: 'include',
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error);
+      if (!response.ok) throw new Error(apiErrorMessage(data, 'Request failed'));
       setCategories(data.categories || []);
     } catch (err) {
       setError('Failed to load categories');
@@ -105,7 +106,7 @@ export default function CategoriesPage() {
       });
       const data = await response.json();
       if (!response.ok) {
-        setError(data.error || 'Failed to save category');
+        setError(apiErrorMessage(data, 'Failed to save category'));
         return;
       }
       if (editingId) {
@@ -138,7 +139,7 @@ export default function CategoriesPage() {
       );
       if (!response.ok) {
         const data = await response.json();
-        setError(data.error || 'Failed to delete category');
+        setError(apiErrorMessage(data, 'Failed to delete category'));
         return;
       }
       setCategories((prev) => prev.filter((c) => c.id !== id));

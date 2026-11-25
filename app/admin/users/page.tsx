@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Plus, AlertCircle, Edit2, Trash2 } from 'lucide-react';
 import Link from 'next/link';
+import { apiErrorMessage } from '@/lib/api/errors';
 
 interface User {
   id: string;
@@ -30,7 +31,7 @@ export default function UsersPage() {
       const response = await fetch('/api/admin/users');
       const data = await response.json();
 
-      if (!response.ok) throw new Error(data.error);
+      if (!response.ok) throw new Error(apiErrorMessage(data, 'Request failed'));
 
       setUsers(data.users || []);
     } catch (err) {
@@ -51,7 +52,7 @@ export default function UsersPage() {
 
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.error);
+        throw new Error(apiErrorMessage(data, 'Request failed'));
       }
 
       setUsers(users.filter((u) => u.id !== userId));

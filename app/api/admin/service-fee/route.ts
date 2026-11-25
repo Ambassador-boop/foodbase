@@ -1,6 +1,25 @@
 import { sql } from '@vercel/postgres';
 import { NextRequest, NextResponse } from 'next/server';
 import { getTokenFromRequest, verifyToken } from '@/lib/auth';
+import { z } from 'zod';
+import { handleUnexpected } from '@/lib/api/handler';
+import { fail, parseBody } from '@/lib/api';
+
+/**
+ * The service-fee ladder. Each rung is a basket size and the fee charged at it.
+ * Numbers only: this table is read on every order, so a stray string would
+ * break pricing rather than fail loudly.
+ */
+const ServiceFeeBody = z.object({
+  tiers: z
+    .array(
+      z.object({
+        tier_value: z.number({ invalid_type_error: 'Missing tier_value or service_fee' }).finite(),
+        service_fee: z.number({ invalid_type_error: 'Missing tier_value or service_fee' }).finite(),
+      }),
+    )
+    .min(1, 'Invalid tiers format'),
+});
 
 export async function GET(req: NextRequest) {
   try {
@@ -12,7 +31,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(result.rows);
   } catch (error) {
     console.error('Failed to fetch service fee config:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return fail('INTERNAL_SERVER_ERROR', 'Internal server error', 500);
   }
 }
 
@@ -21,7 +40,7 @@ export async function POST(req: NextRequest) {
     const token = await getTokenFromRequest(req);
     if (!token) {
       console.error('[v0] No token provided to service-fee POST');
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return fail('UNAUTHORIZED', 'Unauthorized', 401);
     }
 
     let user;
@@ -29,34 +48,28 @@ export async function POST(req: NextRequest) {
       user = await verifyToken(token);
     } catch (tokenErr) {
       console.error('[v0] Token verification failed in service-fee:', tokenErr);
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+      return fail('INVALID_TOKEN', 'Invalid token', 401);
     }
 
     if (!user) {
       console.error('[v0] No user found from token in service-fee');
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return fail('UNAUTHORIZED', 'Unauthorized', 401);
     }
 
     if (user.role !== 'admin') {
       console.error('[v0] User role is not admin in service-fee:', user.role);
-      return NextResponse.json({ error: 'Forbidden - admin role required' }, { status: 403 });
+      return fail('FORBIDDEN_ADMIN_ROLE', 'Forbidden - admin role required', 403);
     }
 
-    const { tiers } = await req.json();
-
-    if (!Array.isArray(tiers) || tiers.length === 0) {
-      return NextResponse.json({ error: 'Invalid tiers format' }, { status: 400 });
-    }
+    const parsed = await parseBody(req, ServiceFeeBody, 'Check the fee tiers.');
+    if (!parsed.ok) return parsed.response;
+    const { tiers } = parsed.data;
 
     // Delete existing config
     await sql`DELETE FROM service_fee_config`;
 
     // Insert new tiers
     for (const tier of tiers) {
-      if (!tier.tier_value || tier.service_fee === undefined) {
-        return NextResponse.json({ error: 'Missing tier_value or service_fee' }, { status: 400 });
-      }
-
       await sql`
         INSERT INTO service_fee_config (tier_value, service_fee)
         VALUES (${tier.tier_value}, ${tier.service_fee})
@@ -65,7 +78,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, message: 'Service fee configuration updated' });
   } catch (error) {
-    console.error('Failed to update service fee config:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return handleUnexpected(error, { where: 'POST /api/admin/service-fee', request: req });
   }
 }

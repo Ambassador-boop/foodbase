@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getTokenFromRequest, verifyToken } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { isPaidPaymentStatus } from '@/lib/admin-analytics';
+import { env } from '@/lib/env';
 
 function rowsOf(raw: any): any[] { return Array.isArray(raw) ? raw : raw?.rows ?? []; }
-const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
+const PAYSTACK_SECRET_KEY = env.PAYSTACK_SECRET_KEY;
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ orderId: string }> }) {
   try {

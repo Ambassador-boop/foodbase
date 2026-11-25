@@ -1,19 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { getOne, query } from '@/lib/db';
 import { generateOTP } from '@/lib/auth';
 import { sendOTPEmail } from '@/lib/email';
 import { generateId } from '@/lib/utils-extended';
+import { parseBody, fail } from '@/lib/api';
+import { handleUnexpected } from '@/lib/api/handler';
+import { RATE_LIMITS, enforceRateLimit } from '@/lib/rate-limit';
+
+const ForgotPasswordBody = z.object({
+  email: z.string().trim().min(1, 'Enter your email address').max(320).email('Enter a valid email address'),
+});
 
 export async function POST(request: NextRequest) {
   try {
-    const { email } = await request.json();
+    const parsed = await parseBody(request, ForgotPasswordBody, 'Enter the email address on your account.');
+    if (!parsed.ok) return parsed.response;
+    const { email } = parsed.data;
 
-    if (!email) {
-      return NextResponse.json(
-        { error: 'Email is required' },
-        { status: 400 }
-      );
-    }
+    // 5 per hour per email: the send is what costs money and reaches a person.
+    const limited = await enforceRateLimit(request, RATE_LIMITS.otpSendEmail, { identifier: email });
+    if (limited) return limited;
 
     // Get user by email
     const user = await getOne('SELECT * FROM users WHERE email = $1', [email]);
@@ -47,10 +54,7 @@ export async function POST(request: NextRequest) {
     );
 
     if (!emailSent) {
-      return NextResponse.json(
-        { error: 'Failed to send OTP email' },
-        { status: 500 }
-      );
+      return fail('EMAIL_UNAVAILABLE', 'Failed to send OTP email', 500);
     }
 
     return NextResponse.json(
@@ -62,10 +66,6 @@ export async function POST(request: NextRequest) {
       { status: 200 }
     );
   } catch (error) {
-    console.error('[v0] Forgot password error:', error);
-    return NextResponse.json(
-      { error: 'Failed to process request' },
-      { status: 500 }
-    );
+    return handleUnexpected(error, { where: 'POST /api/auth/forgot-password', request });
   }
 }

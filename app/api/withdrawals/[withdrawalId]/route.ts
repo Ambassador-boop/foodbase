@@ -3,6 +3,14 @@ import { db } from '@/lib/db';
 import { verifyJWT } from '@/lib/auth';
 import { getBankName } from '@/lib/banks';
 import { verifyAndSyncTransfer, reverseFailedWithdrawalIfNeeded } from '@/lib/withdrawals';
+import { z } from 'zod';
+import { parseParams, fail } from '@/lib/api';
+import { handleUnexpected } from '@/lib/api/handler';
+
+/** A withdrawal id from the URL, checked before it reaches a query. */
+const WithdrawalIdParam = z.object({
+  withdrawalId: z.string().trim().min(1).max(100).regex(/^[A-Za-z0-9_-]+$/, 'That withdrawal reference is not valid.'),
+});
 
 /* ------------------------------------------------------------------ */
 /*  GET — single withdrawal with timeline data                         */
@@ -17,14 +25,17 @@ export async function GET(
       request.headers.get('authorization')?.replace('Bearer ', '') ||
       request.cookies.get('auth_token')?.value;
     if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return fail('UNAUTHORIZED', 'Unauthorized', 401);
     }
     const payload = await verifyJWT(token);
     if (!payload) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+      return fail('UNAUTHORIZED', 'Invalid token', 401);
     }
     const userId = (payload as any).userId || (payload as any).id;
-    const { withdrawalId } = await params;
+
+    const parsedParams = parseParams(await params, WithdrawalIdParam);
+    if (!parsedParams.ok) return parsedParams.response;
+    const { withdrawalId } = parsedParams.data;
 
     const result: any = await db.query(
       `SELECT
@@ -37,10 +48,7 @@ export async function GET(
     );
     const list = Array.isArray(result) ? result : result?.rows ?? [];
     if (list.length === 0) {
-      return NextResponse.json(
-        { error: 'Withdrawal not found' },
-        { status: 404 },
-      );
+      return fail('WITHDRAWAL_NOT_FOUND', 'Withdrawal not found', 404);
     }
     let row = list[0];
 
@@ -107,10 +115,6 @@ export async function GET(
       balance_reversed: !!row.balance_reversed,
     });
   } catch (err) {
-    console.error('[v0] GET /withdrawals/[id] error:', err);
-    return NextResponse.json(
-      { error: 'Failed to fetch withdrawal' },
-      { status: 500 },
-    );
+    return handleUnexpected(err, { where: 'GET /api/withdrawals/[withdrawalId]', request });
   }
 }

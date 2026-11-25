@@ -31,6 +31,8 @@
  * Median app, including why a native sound only ever plays inside a Median build.
  */
 
+import { env } from './env';
+
 export type OneSignalSoundFields = {
   ios_sound?: string;
   android_channel_id?: string;
@@ -45,8 +47,21 @@ export const KITCHEN_SOUND_FILE = 'kitchen_alert';
 const ALLOWED_INTERRUPTION = ['active', 'time_sensitive', 'passive', 'critical'];
 const ALLOWED_BADGE = ['None', 'SetTo', 'Increase'];
 
-function read(name: string): string | null {
-  const raw = process.env[name];
+/**
+ * The overrides, read once with literal expressions so lib/env.ts is the only
+ * place that touches process.env.
+ */
+const SOUND_ENV = {
+  ONESIGNAL_IOS_SOUND: env.ONESIGNAL_IOS_SOUND,
+  ONESIGNAL_PUSH_SOUND: env.ONESIGNAL_PUSH_SOUND,
+  ONESIGNAL_ANDROID_CHANNEL_ID: env.ONESIGNAL_ANDROID_CHANNEL_ID,
+  ONESIGNAL_IOS_INTERRUPTION_LEVEL: env.ONESIGNAL_IOS_INTERRUPTION_LEVEL,
+  ONESIGNAL_IOS_BADGE_TYPE: env.ONESIGNAL_IOS_BADGE_TYPE,
+  ONESIGNAL_IOS_BADGE_COUNT: env.ONESIGNAL_IOS_BADGE_COUNT,
+} as const;
+
+function read(name: keyof typeof SOUND_ENV): string | null {
+  const raw = SOUND_ENV[name];
   if (typeof raw !== 'string') return null;
   const trimmed = raw.trim();
   return trimmed ? trimmed : null;

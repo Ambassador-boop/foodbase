@@ -21,6 +21,7 @@ import {
   SearchInput,
   FilterTabs,
 } from '@/components/dashboard'
+import { apiErrorMessage } from '@/lib/api/errors';
 
 /**
  * New registrations.
@@ -74,7 +75,7 @@ export default function NewRegistrationsPage() {
         credentials: 'include',
       })
       const data = await response.json().catch(() => ({}))
-      if (!response.ok) throw new Error(typeof data?.error === 'string' ? data.error : 'Failed')
+      if (!response.ok) throw new Error(apiErrorMessage(data, 'Failed'))
       setRows(Array.isArray(data.registrations) ? data.registrations : [])
     } catch {
       setError('The registration list did not load. Check your connection and try again.')
@@ -100,7 +101,7 @@ export default function NewRegistrationsPage() {
       const data = await response.json().catch(() => ({}))
       if (!response.ok) {
         toast.error('Could not change the status', {
-          description: typeof data?.error === 'string' ? data.error : 'Try again in a moment.',
+          description: apiErrorMessage(data, 'Try again in a moment.'),
         })
         return
       }

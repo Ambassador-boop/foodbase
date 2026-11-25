@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ArrowLeft, AlertCircle, Loader } from 'lucide-react';
 import { usePinAuthorization } from '@/hooks/use-pin-authorization';
+import { apiErrorMessage } from '@/lib/api/errors';
 
 interface BankDetails {
   id: string;
@@ -110,7 +111,7 @@ export default function AdminWithdrawalPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.error || 'Failed to process withdrawal');
+        setError(apiErrorMessage(data, 'Failed to process withdrawal'));
         return;
       }
 

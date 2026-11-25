@@ -17,6 +17,7 @@ import {
   ShieldCheck,
   Wallet,
 } from 'lucide-react';
+import { apiErrorMessage } from '@/lib/api/errors';
 
 const MIN_WITHDRAWAL_NGN = 100;
 
@@ -146,7 +147,7 @@ export default function WithdrawPage() {
       });
       const data = await res.json();
       if (res.status === 403 && data.code === 'PIN_REQUIRED') throw new Error('PIN authorization required');
-      if (!res.ok) throw new Error(data.error || 'Withdrawal failed');
+      if (!res.ok) throw new Error(apiErrorMessage(data, 'Withdrawal failed'));
       router.push(`/dashboard/finance/withdrawal/${data.withdrawalId}`);
     } catch (err: any) {
       console.error('[v0] withdraw submit error:', err);

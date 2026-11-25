@@ -1,2 +1,3 @@
 import { NextResponse } from 'next/server';
-export const POST = () => NextResponse.json({ error: 'This endpoint has been retired' }, { status: 410 });
+import { fail } from '@/lib/api';
+export const POST = () => fail('THIS_ENDPOINT_BEEN', 'This endpoint has been retired', 410);

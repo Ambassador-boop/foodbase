@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { publicEnv } from '@/lib/env-public';
 
 interface PopularDish {
   id?: string
@@ -67,7 +68,7 @@ export default function PopularDishForm({
   const uploadImage = async (file: File): Promise<string | null> => {
     try {
       setUploadingImage(true)
-      const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME
+      const cloudName = publicEnv.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME
       if (!cloudName) throw new Error("Cloudinary configuration missing")
       if (!file.type.startsWith("image/"))
         throw new Error("Please upload a valid image file")

@@ -33,6 +33,7 @@ import {
 import { AddressSearch, type AddressResult } from '@/components/delivery/address-search';
 import { PinMap } from '@/components/delivery/pin-map';
 import type { DeliveryQuote, LatLng } from '@/lib/delivery/types';
+import { apiErrorMessage, apiErrorCode, apiErrorDetails } from '@/lib/api/errors';
 
 interface Restaurant {
   id: string;
@@ -193,7 +194,7 @@ export default function CheckoutPage() {
         const data = await response.json();
         if (requestId !== quoteRequest.current) return null;
         if (!response.ok || !data?.quote) {
-          setQuoteError(data?.error || 'Could not check delivery for that address.');
+          setQuoteError(apiErrorMessage(data, 'Could not check delivery for that address.'));
           return null;
         }
         setQuote(data.quote);
@@ -365,8 +366,8 @@ export default function CheckoutPage() {
       // The server re-prices every order from the database. If its total differs
       // from what this page calculated, it refuses to create the order (409).
       // Show its message and stay on this page instead of going to payment.
-      if (orderData?.code === 'PRICE_MISMATCH') {
-        setError(orderData.error || 'Prices have changed. Please review your cart.');
+      if (apiErrorCode(orderData) === 'PRICE_MISMATCH') {
+        setError(apiErrorMessage(orderData, 'Prices have changed. Please review your cart.'));
         if (deliveryType === 'delivery') void fetchQuote(addressPoint);
         return;
       }
@@ -374,14 +375,14 @@ export default function CheckoutPage() {
       // Batch 3B refusals: the address moved out of area, the table was
       // disabled, or the basket fell under the area minimum.
       if (
-        orderData?.code === 'OUTSIDE_AREA' ||
-        orderData?.code === 'COORDS_REQUIRED' ||
-        orderData?.code === 'BELOW_MINIMUM' ||
-        orderData?.code === 'INVALID_TABLE' ||
-        orderData?.code === 'TABLE_REQUIRED'
+        apiErrorCode(orderData) === 'OUTSIDE_AREA' ||
+        apiErrorCode(orderData) === 'COORDS_REQUIRED' ||
+        apiErrorCode(orderData) === 'BELOW_MINIMUM' ||
+        apiErrorCode(orderData) === 'INVALID_TABLE' ||
+        apiErrorCode(orderData) === 'TABLE_REQUIRED'
       ) {
-        setError(orderData.error || 'This order could not be placed. Please check the details.');
-        if (orderData?.code === 'OUTSIDE_AREA' || orderData?.code === 'COORDS_REQUIRED') {
+        setError(apiErrorMessage(orderData, 'This order could not be placed. Please check the details.'));
+        if (apiErrorCode(orderData) === 'OUTSIDE_AREA' || apiErrorCode(orderData) === 'COORDS_REQUIRED') {
           void fetchQuote(addressPoint);
         }
         return;
@@ -389,13 +390,14 @@ export default function CheckoutPage() {
 
       // The restaurant stopped taking orders between page load and this click.
       // Show the same message the notice uses and keep the button disabled.
-      if (orderData?.code === 'RESTAURANT_CLOSED') {
+      if (apiErrorCode(orderData) === 'RESTAURANT_CLOSED') {
+        const details = apiErrorDetails(orderData);
         const nextOpening: string | null =
-          typeof orderData.opensAt === 'string' ? orderData.opensAt : null;
+          typeof details.opensAt === 'string' ? details.opensAt : null;
         setClosedByServer(true);
         setServerOpensAt(nextOpening);
         setError(
-          `${orderData.error || 'This restaurant is not taking orders right now.'}${
+          `${apiErrorMessage(orderData, 'This restaurant is not taking orders right now.')}${
             nextOpening ? ` ${nextOpening}.` : ''
           }`,
         );
@@ -403,7 +405,7 @@ export default function CheckoutPage() {
       }
 
       if (!orderResponse.ok) {
-        setError(orderData.error || 'Failed to create order');
+        setError(apiErrorMessage(orderData, 'Failed to create order'));
         return;
       }
 
@@ -423,7 +425,7 @@ export default function CheckoutPage() {
 
       const paymentData = await paymentResponse.json();
       if (!paymentResponse.ok) {
-        setError(paymentData.error || 'Failed to initialize payment');
+        setError(apiErrorMessage(paymentData, 'Failed to initialize payment'));
         return;
       }
 
